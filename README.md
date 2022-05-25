@@ -23,21 +23,21 @@
   <tbody>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/AvoidClosingTab.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AvoidClosingTab.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>防止避免意外關閉頁籤</td>
       <td>避免特定網站會被意外使用 <code>ctrl-w</code> 關閉頁籤</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/AzureDevOpsPageTitleModifier.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPageTitleModifier.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Azure DevOps: 調整工作項目頁面標題</td>
       <td>讓 Azure Boards 的 Work Item 顯示的「頁面標題」更加具有意義</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/AzureDevOpsPipelinesLogEnlarger.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPipelinesLogEnlarger.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Azure DevOps: 調整 Pipeline Log 的顯示寬度</td>
       <td>
@@ -47,7 +47,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/AzureDevOpsPipelinesScreenRecordingPlayer.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPipelinesScreenRecordingPlayer.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Azure DevOps: 調整工作項目直接播放螢幕錄影影片</td>
       <td>
@@ -57,14 +57,14 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/FBFixWarnLink.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBFixWarnLink.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Facebook: FixWarnLink</td>
       <td>讓 Facebook 點擊「外部連結」時可以不用去點擊確認按鈕</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/FBPunycodeConverter.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBPunycodeConverter.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Facebook: PunycodeConverter</td>
       <td>
@@ -73,7 +73,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/FBRemoveShop.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBRemoveShop.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Facebook: 移除「商店」按鈕</td>
       <td>
@@ -82,7 +82,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/LanguageSwitcher.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/LanguageSwitcher.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>中、英文網頁切換器</td>
       <td>
@@ -95,7 +95,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/TrackingTokenStripper.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/TrackingTokenStripper.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>網站追蹤碼移除工具</td>
       <td>移除大多數網站附加在超連結上的 Query String 追蹤碼</td>

@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Facebook: FixWarnLink
-// @version      1.0
+// @version      1.1
 // @description  讓 Facebook 點擊「外部連結」時可以不用去點擊確認按鈕
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -8,26 +8,22 @@
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/FBFixWarnLink.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/FBFixWarnLink.user.js
-// @match        *://www.facebook.com/flx/warn/*
+// @match        *://www.facebook.com/flx/warn/?u=*
 // @author       Will Huang
-// @run-at       document-idle
+// @run-at       document-start
 // ==/UserScript==
 
 (function() {
   'use strict';
 
-  var id;
-
   function executeActions() {
-      if (document.querySelectorAll('a[aria-label=前往連結]')[1]) {
-          document.querySelectorAll('a[aria-label=前往連結]')[1].click();
-          clearInterval(id);
-      }
+      // https://www.facebook.com/flx/warn/?u=https%3A%2F%2Fdevblogs.microsoft.com%2F
+      location.replace((new URLSearchParams(location.search)).get('u'));
   }
 
   (function () {
       'use strict';
-      id = setInterval(executeActions, 500);
+      executeActions();
   })();
 
 })();
