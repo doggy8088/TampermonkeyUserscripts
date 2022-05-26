@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.0
+// @version      1.1
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -13,118 +13,144 @@
 // @run-at       document-start
 // ==/UserScript==
 
-(function() {
+(function () {
+    'use strict';
 
-  var s = TrackingTokenStripper(location.href)
-      // facebook
-      .remove('fbclid', 'www.facebook.com')
-      .remove('privacy_mutation_token', 'www.facebook.com')
-      .remove('acontext', 'www.facebook.com')
-      .remove('__xts__[0]', 'www.facebook.com')
-      .remove('notif_t', 'www.facebook.com')
-      .remove('notif_id', 'www.facebook.com')
-      .remove('ref=notif', 'www.facebook.com')
-      .remove('utm_campaignid')
+    const oldPushState = history.pushState;
+    history.pushState = function pushState() {
+        let ret = oldPushState.apply(this, arguments);
+        window.dispatchEvent(new Event('pushstate'));
+        window.dispatchEvent(new Event('locationchange'));
+        return ret;
+    };
 
-      // google analytics
-      .remove('utm_source')
-      .remove('utm_medium')
-      .remove('utm_term')
-      .remove('utm_campaign')
-      .remove('utm_content')
-      .remove('utm_cid')
-      .remove('utm_reader')
-      .remove('utm_referrer')
-      .remove('utm_name')
-      .remove('utm_social')
-      .remove('utm_social-type')
-      .remove('gclid')
-      .remove('igshid')
-      .remove('_hsenc')
-      .remove('_hsmi')
-      .remove('mc_cid')
-      .remove('mc_eid')
-      .remove('mkt_tok')
-      .remove('yclid')
-      .remove('_openstat')
+    const oldReplaceState = history.replaceState;
+    history.replaceState = function replaceState() {
+        let ret = oldReplaceState.apply(this, arguments);
+        window.dispatchEvent(new Event('replacestate'));
+        window.dispatchEvent(new Event('locationchange'));
+        return ret;
+    };
 
-      // MSDN
-      .remove('redirectedfrom')
+    window.addEventListener('popstate', () => {
+        window.dispatchEvent(new Event('locationchange'));
+    });
 
-      .remove('wt.mc_id')
-      .remove('__tn__')
-      .remove('gclsrc')
-      .remove('itm_source')
-      .remove('itm_medium')
-      .remove('itm_campaign')
-      .remove('mc') // sendgrid.com
-      .remove('mcd') // sendgrid.com
-      .remove('cvosrc') // sendgrid.com
-      .remove('cr_cc') // https://blogs.microsoft.com/
+    window.addEventListener('locationchange', function () {
+        executeActions();
+    });
 
-      .remove('sc_channel')
-      .remove('sc_campaign')
-      .remove('sc_geo')
-      .remove('trk')
-      .remove('sc_publisher')
-      .remove('trkCampaign')
-      .remove('sc_outcome')
-      .remove('sc_country')
+    executeActions();
 
-      .remove('__hstc')
-      .remove('__hssc')
-      .remove('__hsfp')
-      .remove('_gl')
+    function executeActions() {
 
-      // Yahoo News
-      .remove('guce_referrer')
-      .remove('guce_referrer_sig')
+        var s = TrackingTokenStripper(location.href)
+            // facebook
+            .remove('fbclid')
+            .removeByDomain('www.facebook.com', 'privacy_mutation_token')
+            .removeByDomain('www.facebook.com', 'acontext')
+            .removeByDomain('www.facebook.com', '__xts__[0]')
+            .removeByDomain('www.facebook.com', 'notif_t')
+            .removeByDomain('www.facebook.com', 'notif_id')
+            .removeByDomain('www.facebook.com', 'notif_ids[0]')
+            .removeByDomain('www.facebook.com', 'notif_ids[1]')
+            .removeByDomain('www.facebook.com', 'notif_ids[2]')
+            .removeByDomain('www.facebook.com', 'notif_ids[3]')
+            .removeByDomain('www.facebook.com', 'ref', 'notif')
+            .removeByDomain('www.facebook.com', 'ref', 'watch_permalink')
 
-      .toString();
+            // google analytics
+            // https://support.google.com/analytics/answer/1033863?hl=en
+            .remove('utm_source')
+            .remove('utm_medium')
+            .remove('utm_campaign')
+            .remove('utm_term')
+            .remove('utm_content')
 
-  if (s && location.href !== s) {
-      location.href = s;
-      // console.log(s); alert(s);
-  }
+            // GA - others
+            .remove('utm_campaignid')
+            .remove('utm_cid')
+            .remove('utm_reader')
+            .remove('utm_referrer')
+            .remove('utm_name')
+            .remove('utm_social')
+            .remove('utm_social-type')
+            .remove('gclid')
+            .remove('igshid')
+            .remove('_hsenc')
+            .remove('_hsmi')
+            .remove('mc_cid')
+            .remove('mc_eid')
+            .remove('mkt_tok')
+            .remove('yclid')
+            .remove('_openstat')
 
-  function TrackingTokenStripper(url) {
-      return {
-          remove(name, domain) {
-              var [path, ...other] = url.split('?');
-              other = other.join('?');
+            // MSDN
+            .remove('redirectedfrom')
 
-              var [query, ...hash] = other ? other.split('#') : [query, ''];
-              hash = hash.join('#');
+            .remove('wt.mc_id')
+            .remove('__tn__')
+            .remove('gclsrc')
+            .remove('itm_source')
+            .remove('itm_medium')
+            .remove('itm_campaign')
+            .remove('mc') // sendgrid.com
+            .remove('mcd') // sendgrid.com
+            .remove('cvosrc') // sendgrid.com
+            .remove('cr_cc') // https://blogs.microsoft.com/
 
-              if (query) {
-                  let new_query = [];
-                  for (let param of query.split('&')) {
-                      let [param_key, param_val] = param.split('=', 2);
-                      let [name_key, name_val] = name.split('=', 2);
-                      if (name_val) {
-                          if (param_key === name_key && param_val === name_val) { }
-                          else { new_query.push(param); }
-                      } else {
-                          if (param_key === name_key) { }
-                          else { new_query.push(param); }
-                      }
+            .remove('sc_channel')
+            .remove('sc_campaign')
+            .remove('sc_geo')
+            .remove('trk')
+            .remove('sc_publisher')
+            .remove('trkCampaign')
+            .remove('sc_outcome')
+            .remove('sc_country')
 
-                  }
-                  query = new_query.join('&');
-              }
+            .remove('__hstc')
+            .remove('__hssc')
+            .remove('__hsfp')
+            .remove('_gl')
 
-              query = query ? query = '?' + query : '';
-              hash = hash ? hash = '#' + hash : '';
+            // Yahoo News
+            .remove('guce_referrer')
+            .remove('guce_referrer_sig')
 
-              if (url.substr(url.length - 1) == '#') {
-                  hash = '#';
-              }
+            .toString();
 
-              return TrackingTokenStripper(path + query + hash);
-          },
-          toString() {
-              return url;
-          }
-      }
-  }
+        if (s && location.href !== s) {
+            // console.log('Changing URL', s);
+            // location.href = s;
+            oldPushState.apply(history, [{}, '', s]);
+        }
+
+        function TrackingTokenStripper(url) {
+            const parsedUrl = new URL(url);
+            return {
+                remove(name, value) {
+                    if (parsedUrl.searchParams.has(name)) {
+                        if (value && value === parsedUrl.searchParams.get(name)) {
+                            parsedUrl.searchParams.delete(name);
+                        }
+                        if (!value) {
+                            parsedUrl.searchParams.delete(name);
+                        }
+                    }
+                    return TrackingTokenStripper(parsedUrl.toString());
+                },
+                removeByDomain(domain, name, value) {
+                    if (parsedUrl.hostname.toLocaleLowerCase() === domain.toLocaleLowerCase()) {
+                        return this.remove(name, value);
+                    } else {
+                        return this;
+                    }
+                },
+                toString() {
+                    return parsedUrl.toString();
+                }
+            }
+        }
+    }
+
 })();
