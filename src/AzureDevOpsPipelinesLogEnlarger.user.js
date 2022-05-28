@@ -13,23 +13,23 @@
 // @match        *://*.visualstudio.com/*
 // ==/UserScript==
 
-(function() {
-  'use strict';
-  document.addEventListener('keydown', (ev) => {
-      var width;
-      let stepSize = 50;
-      if (ev.key === '+' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
-          width = isNaN(parseInt(document.getElementsByClassName('bolt-master-panel')[0].style.width))
-              ? 320
-              : parseInt(document.getElementsByClassName('bolt-master-panel')[0].style.width);
-          document.getElementsByClassName('bolt-master-panel')[0].style.width = (width + stepSize) + 'px'
-      }
-      if (ev.key === '-' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
-          width = isNaN(parseInt(document.getElementsByClassName('bolt-master-panel')[0].style.width))
-              ? 320
-              : parseInt(document.getElementsByClassName('bolt-master-panel')[0].style.width);
-          document.getElementsByClassName('bolt-master-panel')[0].style.width = (width - stepSize) + 'px'
-      }
-  });
+(function () {
+    'use strict';
+    document.addEventListener('keydown', (ev) => {
+        var width;
+        let stepSize = 50;
+        if (ev.key === '+' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
+            width = isNaN(parseInt(document.getElementsByClassName('bolt-master-panel')[0].style.width))
+                ? 320
+                : parseInt(document.getElementsByClassName('bolt-master-panel')[0].style.width);
+            document.getElementsByClassName('bolt-master-panel')[0].style.width = (width + stepSize) + 'px'
+        }
+        if (ev.key === '-' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
+            width = isNaN(parseInt(document.getElementsByClassName('bolt-master-panel')[0].style.width))
+                ? 320
+                : parseInt(document.getElementsByClassName('bolt-master-panel')[0].style.width);
+            document.getElementsByClassName('bolt-master-panel')[0].style.width = (width - stepSize) + 'px'
+        }
+    });
 
 })();

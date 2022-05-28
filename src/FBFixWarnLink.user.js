@@ -13,17 +13,17 @@
 // @run-at       document-start
 // ==/UserScript==
 
-(function() {
-  'use strict';
+(function () {
+    'use strict';
 
-  function executeActions() {
-      // https://www.facebook.com/flx/warn/?u=https%3A%2F%2Fdevblogs.microsoft.com%2F
-      location.replace((new URLSearchParams(location.search)).get('u'));
-  }
+    function executeActions() {
+        // https://www.facebook.com/flx/warn/?u=https%3A%2F%2Fdevblogs.microsoft.com%2F
+        location.replace((new URLSearchParams(location.search)).get('u'));
+    }
 
-  (function () {
-      'use strict';
-      executeActions();
-  })();
+    (function () {
+        'use strict';
+        executeActions();
+    })();
 
 })();

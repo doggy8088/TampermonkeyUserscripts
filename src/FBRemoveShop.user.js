@@ -13,21 +13,21 @@
 // @run-at       document-idle
 // ==/UserScript==
 
-(function() {
-  'use strict';
+(function () {
+    'use strict';
 
-  var id;
+    var id;
 
-  function executeActions() {
-      if (document.querySelector('a[aria-label=Marketplace]')) {
-          document.querySelector('a[aria-label=Marketplace]').closest('li').style.visibility = 'hidden';
-          clearInterval(id);
-      }
-  }
+    function executeActions() {
+        if (document.querySelector('a[aria-label=Marketplace]')) {
+            document.querySelector('a[aria-label=Marketplace]').closest('li').style.visibility = 'hidden';
+            clearInterval(id);
+        }
+    }
 
-  (function () {
-      'use strict';
-      id = setInterval(executeActions, 500);
-  })();
+    (function () {
+        'use strict';
+        id = setInterval(executeActions, 500);
+    })();
 
 })();

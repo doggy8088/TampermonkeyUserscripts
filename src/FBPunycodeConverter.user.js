@@ -13,7 +13,7 @@
 // @run-at       document-idle
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
     /** Highest positive signed 32-bit float value */
@@ -157,7 +157,7 @@
  * representing integers) in the range `0` to `base - 1`, or `base` if
  * the code point does not represent a value.
  */
-    const basicToDigit = function(codePoint) {
+    const basicToDigit = function (codePoint) {
         if (codePoint - 0x30 < 0x0A) {
             return codePoint - 0x16;
         }
@@ -181,7 +181,7 @@
  * used; else, the lowercase form is used. The behavior is undefined
  * if `flag` is non-zero and `digit` has no uppercase form.
  */
-    const digitToBasic = function(digit, flag) {
+    const digitToBasic = function (digit, flag) {
         //  0..25 map to ASCII a..z or A..Z
         // 26..35 map to ASCII 0..9
         return digit + 22 + 75 * (digit < 26) - ((flag != 0) << 5);
@@ -192,7 +192,7 @@
  * https://tools.ietf.org/html/rfc3492#section-3.4
  * @private
  */
-    const adapt = function(delta, numPoints, firstTime) {
+    const adapt = function (delta, numPoints, firstTime) {
         let k = 0;
         delta = firstTime ? floor(delta / damp) : delta >> 1;
         delta += floor(delta / numPoints);
@@ -209,7 +209,7 @@
  * @param {String} input The Punycode string of ASCII-only symbols.
  * @returns {String} The resulting string of Unicode symbols.
  */
-    const decode = function(input) {
+    const decode = function (input) {
         // Don't use UCS-2.
         const output = [];
         const inputLength = input.length;
@@ -300,7 +300,7 @@
  * @param {String} input The string of Unicode symbols.
  * @returns {String} The resulting Punycode string of ASCII-only symbols.
  */
-    const encode = function(input) {
+    const encode = function (input) {
         const output = [];
 
         // Convert the input in UCS-2 to an array of Unicode code points.
@@ -399,11 +399,11 @@
  * @returns {String} The Unicode representation of the given Punycode
  * string.
  */
-    const toUnicode = function(input) {
-        return mapDomain(input, function(string) {
+    const toUnicode = function (input) {
+        return mapDomain(input, function (string) {
             return regexPunycode.test(string)
                 ? decode(string.slice(4).toLowerCase())
-            : string;
+                : string;
         });
     };
 
@@ -418,11 +418,11 @@
  * @returns {String} The Punycode representation of the given domain name or
  * email address.
  */
-    const toASCII = function(input) {
-        return mapDomain(input, function(string) {
+    const toASCII = function (input) {
+        return mapDomain(input, function (string) {
             return regexNonASCII.test(string)
                 ? 'xn--' + encode(string)
-            : string;
+                : string;
         });
     };
 
@@ -431,18 +431,18 @@
     /** Define the public API */
     const punycode = {
         /**
-	 * A string representing the current Punycode.js version number.
-	 * @memberOf punycode
-	 * @type String
-	 */
+     * A string representing the current Punycode.js version number.
+     * @memberOf punycode
+     * @type String
+     */
         'version': '2.1.0',
         /**
-	 * An object of methods to convert from JavaScript's internal character
-	 * representation (UCS-2) to Unicode code points, and back.
-	 * @see <https://mathiasbynens.be/notes/javascript-encoding>
-	 * @memberOf punycode
-	 * @type Object
-	 */
+     * An object of methods to convert from JavaScript's internal character
+     * representation (UCS-2) to Unicode code points, and back.
+     * @see <https://mathiasbynens.be/notes/javascript-encoding>
+     * @memberOf punycode
+     * @type Object
+     */
         'ucs2': {
             'decode': ucs2decode,
             'encode': ucs2encode
@@ -456,7 +456,7 @@
 
     function executeActions() {
         document.querySelectorAll('a').forEach(x => {
-            if (x.innerText.indexOf('http://xn--')>=0) {
+            if (x.innerText.indexOf('http://xn--') >= 0) {
                 x.outerHTML = punycode.toUnicode(new URL(x.innerText).host);
             }
         });
@@ -470,8 +470,8 @@
             }
         });
 
-        for (let i=0;i < 20;i++) {
-          setTimeout(executeActions, i*200);
+        for (let i = 0; i < 20; i++) {
+            setTimeout(executeActions, i * 200);
         }
     })();
 

@@ -16,7 +16,7 @@
 
 // https://www.tampermonkey.net/documentation.php#_run_at
 
-(function() {
+(function () {
     'use strict';
 
     var intervalId;
@@ -31,7 +31,7 @@
 
         // 30909
         var id = document.querySelector('span[aria-label="ID Field"]')?.innerText;
-            id = searchParams.get('workitem');
+        id = searchParams.get('workitem');
 
         var caption = document.querySelector('[class="caption"]')?.innerText.replace('PRODUCT BACKLOG ITEM', 'PBI');
         var title = document.querySelector('input[aria-label="Title Field"]')?.value;
