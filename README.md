@@ -100,6 +100,13 @@
       <td>網站追蹤碼移除工具</td>
       <td>移除大多數網站附加在超連結上的 Query String 追蹤碼</td>
     </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSFormsShowLongerOption.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>Microsoft Forms: 調整回應頁面顯示較寬的選項內容</td>
+      <td>按下 + 號就可以調寬，按下 - 號就可以調窄。</td>
+    </tr>
   </tbody>
 </table>
 
