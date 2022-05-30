@@ -38,20 +38,19 @@
     })();
 
     document.addEventListener('keydown', (ev) => {
-        var offset = 20;
-        let stepSize = 50;
+        let stepSize = 100;
         if (ev.key === '+' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
             document.querySelectorAll('.chart-control-legend-label').forEach(o => {
                 var currentWidth = parseInt(window.getComputedStyle(o).maxWidth);
                 o.innerText = decodeEntities(o.innerText)
-                o.style.maxWidth = (currentWidth + offset) + 'px';
+                o.style.maxWidth = (currentWidth + stepSize) + 'px';
             });
         }
         if (ev.key === '-' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
             document.querySelectorAll('.chart-control-legend-label').forEach(o => {
                 var currentWidth = parseInt(window.getComputedStyle(o).maxWidth);
                 o.innerText = decodeEntities(o.innerText)
-                o.style.maxWidth = (currentWidth - offset) + 'px';
+                o.style.maxWidth = (currentWidth - stepSize) + 'px';
             });
         }
     });
