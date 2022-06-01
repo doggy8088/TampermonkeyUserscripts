@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         防止避免意外關閉頁籤
-// @version      1.0
+// @version      1.1
 // @description  避免特定網站會被意外使用 ctrl-w 關閉頁籤
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -11,6 +11,7 @@
 // @author       Will Huang
 // @match        https://*.github.dev/*
 // @match        https://*.scm.azurewebsites.net/dev/*
+// @match        https://meet.google.com/*
 // @run-at       document-start
 // ==/UserScript==
 
