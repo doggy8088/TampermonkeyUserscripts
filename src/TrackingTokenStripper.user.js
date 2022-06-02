@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.1
+// @version      1.2
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -15,14 +15,6 @@
 
 (function () {
     'use strict';
-
-    const oldPushState = history.pushState;
-    history.pushState = function pushState() {
-        let ret = oldPushState.apply(this, arguments);
-        window.dispatchEvent(new Event('pushstate'));
-        window.dispatchEvent(new Event('locationchange'));
-        return ret;
-    };
 
     const oldReplaceState = history.replaceState;
     history.replaceState = function replaceState() {
@@ -122,7 +114,7 @@
         if (s && location.href !== s) {
             // console.log('Changing URL', s);
             // location.href = s;
-            oldPushState.apply(history, [{}, '', s]);
+            oldReplaceState.apply(history, [{}, '', s]);
         }
 
         function TrackingTokenStripper(url) {
