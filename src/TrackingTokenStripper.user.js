@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.2
+// @version      1.3
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -53,6 +53,7 @@
 
             // google analytics
             // https://support.google.com/analytics/answer/1033863?hl=en
+            .remove('utm_id')
             .remove('utm_source')
             .remove('utm_medium')
             .remove('utm_campaign')
