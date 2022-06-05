@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Microsoft Forms: 調整回應頁面顯示較寬的選項內容
-// @version      1.0
+// @version      1.1
 // @description  按下 + 號就可以調寬，按下 - 號就可以調窄。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -9,8 +9,10 @@
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/MSFormsShowLongerOption.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/MSFormsShowLongerOption.user.js
 // @author       Will Huang
-// @match        https://forms.office.com/Pages/DesignPage.aspx*
+// @match        https://forms.microsoft.com/Pages/DesignPage.aspx*
 // @match        https://forms.microsoft.com/Pages/DesignPageV2.aspx*
+// @match        https://forms.office.com/Pages/DesignPage.aspx*
+// @match        https://forms.office.com/Pages/DesignPageV2.aspx*
 // @run-at       document-idle
 // ==/UserScript==
 
