@@ -1,6 +1,6 @@
 # TampermonkeyUserscripts
 
-這裡整理了 Will 保哥多年來撰寫的多組 [Tampermonkey](https://www.tampermonkey.net/) 使用者腳本 (Userscript)，用來處理工作上各種輔助操作。
+這裡整理了 [Will 保哥](https://www.facebook.com/will.fans/) 多年來撰寫的 [Tampermonkey](https://www.tampermonkey.net/) 使用者腳本 (Userscript)，我只要覺得常用的網站做的有點難用，就會自己寫寫小工具來改善 UX 問題，提升平時的工作效率。
 
 ## 使用方式
 
@@ -21,6 +21,26 @@
     </tr>
   </thead>
   <tbody>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/TrackingTokenStripper.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>網站追蹤碼移除工具</td>
+      <td>移除大多數網站附加在超連結上的 Query String 追蹤碼</td>
+    </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/LanguageSwitcher.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>中、英文網頁切換器</td>
+      <td>
+        按下
+        <code>alt+s</code>
+        快速鍵就會自動將目前網頁切換至<strong>中文版</strong>或<strong
+          >英文版</strong
+        >
+      </td>
+    </tr>
     <tr>
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AvoidClosingTab.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
@@ -68,7 +88,7 @@
       </td>
       <td>Facebook: PunycodeConverter</td>
       <td>
-        將 Facebook 貼文上所有 [Punycode](https://en.wikipedia.org/wiki/Punycode) 轉為正常的 Unicode 文字
+        將 Facebook 貼文上所有 <a href="https://en.wikipedia.org/wiki/Punycode">Punycode</a> 轉為正常的 Unicode 文字
       </td>
     </tr>
     <tr>
@@ -82,26 +102,6 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/LanguageSwitcher.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
-      </td>
-      <td>中、英文網頁切換器</td>
-      <td>
-        按下
-        <code>alt+s</code>
-        快速鍵就會自動將目前網頁切換至<strong>中文版</strong>或<strong
-          >英文版</strong
-        >
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/TrackingTokenStripper.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
-      </td>
-      <td>網站追蹤碼移除工具</td>
-      <td>移除大多數網站附加在超連結上的 Query String 追蹤碼</td>
-    </tr>
-    <tr>
-      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSFormsShowLongerOption.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Microsoft Forms: 調整回應頁面顯示較寬的選項內容</td>
@@ -112,7 +112,7 @@
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MVPDocsLearnChampionProgram.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>MVP: Microsoft Docs & Learn Champion Program</td>
-      <td>Add `WT.mc_id=DT-MVP-4015686` tracking code to the matched urls</td>
+      <td>Add <code>WT.mc_id=DT-MVP-4015686</code> tracking code to the matched urls</td>
     </tr>
   </tbody>
 </table>
