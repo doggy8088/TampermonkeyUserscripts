@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.3
+// @version      1.4
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -78,8 +78,9 @@
             .remove('yclid')
             .remove('_openstat')
 
-            // MSDN
-            .remove('redirectedfrom')
+            // Microsoft
+            .removeByDomain('docs.microsoft.com', 'ocid')
+            .removeByDomain('docs.microsoft.com', 'redirectedfrom')
 
             .remove('wt.mc_id')
             .remove('__tn__')
