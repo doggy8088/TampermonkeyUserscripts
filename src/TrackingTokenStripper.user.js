@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.4
+// @version      1.5
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -81,6 +81,10 @@
             // Microsoft
             .removeByDomain('docs.microsoft.com', 'ocid')
             .removeByDomain('docs.microsoft.com', 'redirectedfrom')
+
+            // bilibili
+            .removeByDomain('www.bilibili.com', 'share_source')
+            .removeByDomain('www.bilibili.com', 'share_medium')
 
             .remove('wt.mc_id')
             .remove('__tn__')
