@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.6
+// @version      1.7
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -33,6 +33,10 @@
     });
 
     executeActions();
+
+    let id = setInterval(executeActions, 500);
+
+    setTimeout(() => { clearInterval(id); }, 2000);
 
     function executeActions() {
 
