@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.7
+// @version      1.8
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -55,7 +55,7 @@
             .removeByDomain('www.facebook.com', 'ref', 'notif')
             .removeByDomain('www.facebook.com', 'ref', 'watch_permalink')
 
-            // google analytics
+            // Google Analytics
             // https://support.google.com/analytics/answer/1033863?hl=en
             .remove('utm_id')
             .remove('utm_source')
@@ -81,6 +81,15 @@
             .remove('mkt_tok')
             .remove('yclid')
             .remove('_openstat')
+
+            // devblogs.microsoft.com
+            .removeByDomain('devblogs.microsoft.com', 'utm_issue')
+            .removeByDomain('devblogs.microsoft.com', 'utm_position')
+            .removeByDomain('devblogs.microsoft.com', 'utm_topic')
+            .removeByDomain('devblogs.microsoft.com', 'utm_section')
+            .removeByDomain('devblogs.microsoft.com', 'utm_cta')
+            .removeByDomain('devblogs.microsoft.com', 'utm_description')
+            .removeByDomain('devblogs.microsoft.com', 'ocid')
 
             // Microsoft
             .removeByDomain('docs.microsoft.com', 'ocid')
