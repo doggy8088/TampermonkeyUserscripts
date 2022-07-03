@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.1
+// @version      1.2
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -138,6 +138,14 @@
                         void (location.pathname = pn.replace(/^\/en(-\w\w)?\//i, '/zh-tw/'));
                     } else {
                         void (location.pathname = pn.replace(/^\/\w\w(-\w\w)?\//i, '/en-us/'));
+                    }
+                }
+
+                if (hn.indexOf('.facebook.com') >= 0) {
+                    if (location.search === '' || location.search === '?locale=zh_TW') {
+                        void (location.search='?locale=en_US');
+                    } else {
+                        void (location.search='?locale=zh_TW');
                     }
                 }
 
