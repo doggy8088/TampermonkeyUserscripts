@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.2
+// @version      1.3
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -15,6 +15,10 @@
 (function () {
     'use strict';
     document.addEventListener('keydown', (ev) => {
+        if (ev.altKey && ev.key === 'S' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
+            alert('你是不是不小心按到了 CAPSLOCK 鍵？');
+            return;
+        }
         if (ev.altKey && ev.key === 's' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
 
             (function () {
