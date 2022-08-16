@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.3
+// @version      1.4
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -154,10 +154,10 @@
                 }
 
                 if (hn.indexOf('kubernetes.io') >= 0) {
-                    if (pn.search(/^(?=\/zh\/).{4}/) >= 0) {
-                        void (location.pathname = pn.replace(/^(?=\/zh\/).{4}/i, '/'));
+                    if (pn.search(/^\/zh-cn\//i) >= 0) {
+                        void (location.pathname = pn.replace(/\/zh-cn\//i, '/'));
                     } else {
-                        void (location.pathname = pn.replace(/^((?!\/zh\/).{0,4})/i, '/zh$1'));
+                        void (location.pathname = '/zh-cn' + pn);
                     }
                 }
 
