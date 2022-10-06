@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         MVP: Microsoft Docs & Learn Champion Program
-// @version      1.0
+// @version      1.1
 // @description  Add WT.mc_id=DT-MVP-4015686 to the matched urls
 // @author       Will Huang
 // @license      MIT
@@ -10,6 +10,7 @@
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/MVPDocsLearnChampionProgram.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/MVPDocsLearnChampionProgram.user.js
 // @match        *://docs.microsoft.com/*
+// @match        *://learn.microsoft.com/*
 // @match        *://social.technet.microsoft.com/*
 // @match        *://azure.microsoft.com/*
 // @match        *://techcommunity.microsoft.com/*
