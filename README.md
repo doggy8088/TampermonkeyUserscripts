@@ -109,6 +109,13 @@
     </tr>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSPowerAutomateNameWidth.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>Power Automate: 調整顯示名稱的欄位寬度</td>
+      <td>將 Flows 的 Name 欄位調整到 750px 寬度，讓標題可以完整顯示在畫面上</td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MVPDocsLearnChampionProgram.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>MVP: Microsoft Docs & Learn Champion Program</td>
