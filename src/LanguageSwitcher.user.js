@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.5
+// @version      1.6
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -113,6 +113,16 @@
                 // if (ln.indexOf('//dart.cn/') >= 0) {
                 if (ln.indexOf('//dart.cn/') >= 0 || ln.indexOf('//dart.tw.gh.miniasp.com/') >= 0) {
                     void (location.host = 'dart.dev');
+                }
+
+                if (ln.indexOf('//docs.flutter.dev/') >= 0) {
+                    void (location.host = 'flutter.tw');
+                }
+                if (ln.indexOf('//flutter.tw/') >= 0) {
+                    void (location.host = 'docs.flutter.dev');
+                }
+                if (ln.indexOf('//flutter.cn/') >= 0) {
+                    void (location.host = 'flutter.dev');
                 }
 
                 if (ln.indexOf('//jhipster.gh.miniasp.com/') >= 0) {
