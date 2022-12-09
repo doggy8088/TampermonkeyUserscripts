@@ -23,6 +23,16 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTVoiceInput.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>ChatGPT 語音輸入介面 (支援中/英/日/韓語言)</td>
+      <td>
+        直接在 <a href="https://chat.openai.com/chat">ChatGPT</a> 加入語音輸入功能 (<a href="https://www.youtube.com/watch?v=DgFwtRj4jkU" target="_blank">影片教學</a>)<br>
+        (按下 <code>alt+s</code> 可啟動語音辨識、按下 <code>alt+t</code> 可停止語音辨識)
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/TrackingTokenStripper.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>網站追蹤碼移除工具</td>
