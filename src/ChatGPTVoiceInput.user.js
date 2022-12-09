@@ -6,8 +6,8 @@
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/ChatGPTVoiceInput.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/ChatGPTVoiceInput.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTVoiceInput.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTVoiceInput.user.js
 // @match        *://chat.openai.com/chat
 // @author       Will Huang
 // @run-at       document-idle
@@ -137,7 +137,9 @@
             切換至中文模式: {
                 terms: [
                     '切換至中文模式',
+                    '切換到中文模式',
                     '切換至中文',
+                    '切換到中文',
                     'switch to Chinese mode'
                 ],
                 match: 'exact' // prefix, exact, postfix
@@ -145,7 +147,9 @@
             切換至英文模式: {
                 terms: [
                     '切換至英文模式',
+                    '切換到英文模式',
                     '切換至英文',
+                    '切換到英文',
                     'switch to English mode'
                 ],
                 match: 'exact' // prefix, exact, postfix
@@ -153,7 +157,9 @@
             切換至日文模式: {
                 terms: [
                     '切換至日文模式',
+                    '切換到日文模式',
                     '切換至日文',
+                    '切換到日文',
                     'switch to Japanese mode'
                 ],
                 match: 'exact' // prefix, exact, postfix
@@ -161,7 +167,9 @@
             切換至韓文模式: {
                 terms: [
                     '切換至韓文模式',
+                    '切換到韓文模式',
                     '切換至韓文',
+                    '切換到韓文',
                     'switch to Korea mode'
                 ],
                 match: 'exact' // prefix, exact, postfix

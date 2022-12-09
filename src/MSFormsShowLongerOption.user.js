@@ -6,8 +6,8 @@
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/MSFormsShowLongerOption.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/MSFormsShowLongerOption.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSFormsShowLongerOption.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSFormsShowLongerOption.user.js
 // @author       Will Huang
 // @match        https://forms.microsoft.com/Pages/DesignPage.aspx*
 // @match        https://forms.microsoft.com/Pages/DesignPageV2.aspx*

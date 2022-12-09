@@ -6,8 +6,8 @@
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/LanguageSwitcher.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/LanguageSwitcher.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/LanguageSwitcher.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/LanguageSwitcher.user.js
 // @author       Will Huang
 // @match        *://*/*
 // ==/UserScript==

@@ -7,8 +7,8 @@
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/MVPDocsLearnChampionProgram.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/MVPDocsLearnChampionProgram.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MVPDocsLearnChampionProgram.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MVPDocsLearnChampionProgram.user.js
 // @match        *://docs.microsoft.com/*
 // @match        *://learn.microsoft.com/*
 // @match        *://social.technet.microsoft.com/*

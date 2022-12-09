@@ -6,8 +6,8 @@
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/FBFixWarnLink.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/FBFixWarnLink.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBFixWarnLink.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBFixWarnLink.user.js
 // @match        *://www.facebook.com/flx/warn/?u=*
 // @author       Will Huang
 // @run-at       document-start

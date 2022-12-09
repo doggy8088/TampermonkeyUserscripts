@@ -6,8 +6,8 @@
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/AzureDevOpsPageTitleModifier.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/AzureDevOpsPageTitleModifier.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPageTitleModifier.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPageTitleModifier.user.js
 // @match        *://*.visualstudio.com/*
 // @match        *://dev.azure.com/*
 // @author       Will Huang

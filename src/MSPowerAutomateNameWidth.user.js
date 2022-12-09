@@ -6,8 +6,8 @@
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/MSPowerAutomateNameWidth.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/MSPowerAutomateNameWidth.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSPowerAutomateNameWidth.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSPowerAutomateNameWidth.user.js
 // @author       Will Huang
 // @match        https://make.powerautomate.com/*
 // @run-at       document-idle

@@ -6,8 +6,8 @@
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/AzureDevOpsPipelinesScreenRecordingPlayer.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/AzureDevOpsPipelinesScreenRecordingPlayer.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPipelinesScreenRecordingPlayer.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPipelinesScreenRecordingPlayer.user.js
 // @author       Will Huang
 // @match        *://*.visualstudio.com/*
 // @match        *://dev.azure.com/*

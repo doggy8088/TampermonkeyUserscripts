@@ -6,8 +6,8 @@
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/AvoidClosingTab.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/AvoidClosingTab.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AvoidClosingTab.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AvoidClosingTab.user.js
 // @author       Will Huang
 // @match        https://*.github.dev/*
 // @match        https://*.scm.azurewebsites.net/dev/*

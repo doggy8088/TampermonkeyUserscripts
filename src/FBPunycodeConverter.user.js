@@ -6,8 +6,8 @@
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/FBPunycodeConverter.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/FBPunycodeConverter.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBPunycodeConverter.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBPunycodeConverter.user.js
 // @match        *://www.facebook.com/*
 // @author       Will Huang
 // @run-at       document-idle
