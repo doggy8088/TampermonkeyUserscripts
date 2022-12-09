@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT 語音輸入介面 (支援中/英/日/韓語言)
-// @version      1.0
+// @version      1.1
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -17,8 +17,12 @@
     'use strict';
 
     let sti = setInterval(() => {
-        if (document.activeElement.tagName === 'TEXTAREA' && document.activeElement.nextSibling.tagName === 'BUTTON') {
-            var vi = new VoiceInputHelper(document.activeElement, document.activeElement.nextSibling);
+        let element = document.activeElement;
+        if (element.tagName === 'TEXTAREA' && element.nextSibling.tagName === 'BUTTON') {
+            var vi = new VoiceInputHelper(element, element.nextSibling);
+
+            // This is auto-start by default.
+            // Comment it if you want to activate SpeechRecognition by alt-s hotkey.
             vi.Start();
 
             document.addEventListener('keydown', (ev) => {
@@ -38,6 +42,11 @@
                         vi.Stop();
                     }
                 }
+                if (ev.altKey && ev.key === 'r' /* && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName) */) {
+                    vi.Reset()
+                    element.value = vi.Parts.join('');
+                    element.dispatchEvent(new Event('input', {bubbles:true}));
+                }
             });
 
             clearInterval(sti);
@@ -48,11 +57,144 @@
 
         IsStarted = false;
 
-        parts = [];
+        Parts = [];
 
         Restart = true;
 
-        Lang = 'cmn-Hant-TW';
+        Lang;
+
+        defaultLang = 'cmn-Hant-TW';
+
+        _commands = {
+            enter: {
+                terms: [
+                    'enter',
+                    '送出',
+                    '去吧',
+                    '狂奔吧',
+                    '跑起來',
+                    'Run',
+                    'go'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            clear: {
+                terms: [
+                    'clear',
+                    '清空',
+                    '淨空'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            delete: {
+                terms: [
+                    'delete',
+                    '刪除',
+                    '刪除上一句'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            逗點: {
+                terms: [
+                    'comma',
+                    '逗號',
+                    '逗點'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            句點: {
+                terms: [
+                    'period',
+                    '句號',
+                    '句點'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            問號: {
+                terms: [
+                    'questionmark',
+                    '問號'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            換行: {
+                terms: [
+                    'newline',
+                    '換行',
+                    '斷行'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            重置: {
+                terms: [
+                    'reset',
+                    '重置',
+                    'リセット', // Risetto
+                    '초기화' // chogihwa
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            切換至中文模式: {
+                terms: [
+                    '切換至中文模式',
+                    '切換至中文',
+                    'switch to Chinese mode'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            切換至英文模式: {
+                terms: [
+                    '切換至英文模式',
+                    '切換至英文',
+                    'switch to English mode'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            切換至日文模式: {
+                terms: [
+                    '切換至日文模式',
+                    '切換至日文',
+                    'switch to Japanese mode'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            切換至韓文模式: {
+                terms: [
+                    '切換至韓文模式',
+                    '切換至韓文',
+                    'switch to Korea mode'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            關閉語音辨識: {
+                terms: [
+                    '關閉語音辨識',
+                    '關閉語音'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+        };
+
+        getCommandByTranscript(str) {
+            let cmdId = '';
+            for (const commandId in this._commands) {
+                if (Object.hasOwnProperty.call(this._commands, commandId)) {
+                    const cmd = this._commands[commandId];
+                    for (const term of cmd.terms) {
+                        let regex = new RegExp(term, "i");
+                        if (cmd.match === 'prefix') { regex = new RegExp('^' + term, "i"); }
+                        if (cmd.match === 'postfix')  { regex = new RegExp(term + '$', "i"); }
+                        if (navigator.userAgent.indexOf('Edg/') >= 0 && str.substring(str.length - 1, 1) == '。') {
+                            str = str.slice(0, -1);
+                        }
+                        if (str.search(regex) !== -1) {
+                            return commandId;
+                        }
+                    }
+                }
+            }
+            return ''
+        }
 
         constructor(textarea, button, lang) {
             // console.log(textarea, button);
@@ -84,129 +226,119 @@
             };
 
             this.recognition.onresult = (event) => {
-                // console.log('語音事件: ', event);
+                // console.log('語音識別事件: ', event);
 
-
-                var i = event.resultIndex;
-                let results = event.results[i];
+                let results = event.results[event.resultIndex];
 
                 console.log('results.length', results.length);
                 let transcript = results[0].transcript; // 理論上只會有一個結果
 
                 console.log('語音輸入: ' + transcript, 'isFinal: ', results.isFinal);
 
-                if (this.parts.length == 0) {
-                    this.parts[0] = transcript;
+                if (this.Parts.length == 0) {
+                    this.Parts[0] = transcript;
                 } else {
-                    this.parts[this.parts.length - 1] = transcript;
+                    this.Parts[this.Parts.length - 1] = transcript;
                 }
 
-                textarea.value = this.parts.join('') + '...';
+                textarea.value = this.Parts.join('') + '...';
                 textarea.dispatchEvent(new Event('input', {bubbles:true}));
 
                 if (results.isFinal) {
                     console.log('Final Result: ', results);
 
-                    switch (this.parts[this.parts.length - 1]) {
-                        case '送出':
-                        case '狂奔吧':
-                        case '跑起來':
-                        case '去吧':
+                    let id = this.getCommandByTranscript(this.Parts[this.Parts.length - 1]);
+                    console.log('id = ', id);
+                    switch (id) {
                         case 'enter':
-                        case 'Run':
-                        case 'go':
-                            this.parts.pop();
-                            if (this.parts.length > 0) {
-                                textarea.value = this.parts.join('');
+                            this.Parts.pop();
+                            if (this.Parts.length > 0) {
+                                textarea.value = this.Parts.join('');
                                 textarea.dispatchEvent(new Event('input', {bubbles:true}));
                                 button.click();
-                                this.parts = [];
+                                this.Parts = [];
                             }
                             break;
 
-                        case '清空':
-                        case '淨空':
                         case 'clear':
-                            this.parts = [];
+                            this.Parts = [];
                             break;
 
-                        case '刪除':
-                        case '刪除上一句':
-                            this.parts.pop();
-                            this.parts.pop();
+                        case 'delete':
+                            this.Parts.pop();
+                            this.Parts.pop();
                             break;
 
-                        case '逗號':
                         case '逗點':
-                        case '都好':
-                            this.parts[this.parts.length - 1] = '，';
+                            if (navigator.userAgent.indexOf('Edg/') == -1) {
+                                this.Parts[this.Parts.length - 1] = '，';
+                            }
                             break;
 
-                        case '句號':
                         case '句點':
-                            this.parts[this.parts.length - 1] = '。';
+                            if (navigator.userAgent.indexOf('Edg/') == -1) {
+                                this.Parts[this.Parts.length - 1] = '。';
+                            }
                             break;
 
                         case '問號':
-                            this.parts[this.parts.length - 1] = '？';
+                            if (navigator.userAgent.indexOf('Edg/') == -1) {
+                                this.Parts[this.Parts.length - 1] = '？';
+                            }
                             break;
 
-                        case '斷行':
-                            this.parts[this.parts.length - 1] = '\r\n';
+                        case '換行':
+                            this.Parts[this.Parts.length - 1] = '\r\n';
                             break;
 
                         case '重置':
-                        case 'リセット': // Risetto
-                        case '초기화': // chogihwa
-                        case 'reset':
-                            this.setLang('cmn-Hant-TW');
-                            this.parts = [];
+                            this.Reset();
                             break;
 
                         case '切換至中文模式':
-                        case '切換至中文':
-                        case 'switch to Chinese mode':
                             this.setLang('cmn-Hant-TW');
-                            this.parts[this.parts.length - 1] = '';
+                            this.Parts[this.Parts.length - 1] = '';
                             break;
 
                         case '切換至英文模式':
-                        case '切換至英文':
                             console.log('切換至英文模式');
                             this.setLang('en-US');
-                            this.parts[this.parts.length - 1] = '';
+                            this.Parts[this.Parts.length - 1] = '';
                             break;
 
                         case '切換至日文模式':
                         case '切換至日文':
                             console.log('切換至日文模式');
                             this.setLang('ja-JP');
-                            this.parts[this.parts.length - 1] = '';
+                            this.Parts[this.Parts.length - 1] = '';
                             break;
 
                         case '切換至韓文模式':
-                        case '切換至韓文':
                             console.log('切換至韓文模式');
                             this.setLang('ko-KR');
-                            this.parts[this.parts.length - 1] = '';
+                            this.Parts[this.Parts.length - 1] = '';
                             break;
 
                         case '關閉語音辨識':
-                        case '關閉語音':
+                            console.log('關閉語音辨識');
                             this.Stop();
                             break;
 
                         default:
-                            this.parts[this.parts.length - 1] = this.parts[this.parts.length - 1].replace(/\.\.\.$/g, '');
-                            if (this.parts[this.parts.length - 1].split('').pop() === '嗎') {
-                                this.parts[this.parts.length - 1] += '？';
+                            this.Parts[this.Parts.length - 1] = this.Parts[this.Parts.length - 1].replace(/\.\.\.$/g, '');
+                            console.log('確認輸入');
+
+                            let firstPart = this.Parts[0];
+                            let lastChar = this.Parts[this.Parts.length - 1].split('').pop();
+                            if (firstPart.indexOf('什麼') == 0 || firstPart.indexOf('甚麼') == 0 || lastChar === '嗎' || lastChar === '呢') {
+                                this.Parts[this.Parts.length - 1] += '？';
                             }
                             break;
                     }
 
-                    this.parts = [...this.parts, ''];
+                    this.Parts = [...this.Parts, ''];
 
-                    textarea.value = this.parts.join('');
+                    textarea.value = this.Parts.join('');
                     textarea.dispatchEvent(new Event('input', {bubbles:true}));
                 }
 
@@ -219,16 +351,28 @@
             if (lang) {
                 this.Lang = lang;
             }
-            this.recognition.lang = this.Lang;
+
+            this.recognition.lang = this.Lang || this.defaultLang;
+        }
+
+        Reset() {
+            this.Parts = [];
+            this.setLang(this.defaultLang);
+            this.Restart = true;
         }
 
         Start() {
-            this.recognition.start();
+            this.Restart = true;
+            if (!this.recognition.IsStarted) {
+                this.recognition.start();
+            }
         }
 
         Stop() {
-            this.restart = false;
-            this.recognition.stop();
+            this.Restart = false;
+            if (this.recognition.IsStarted) {
+                this.recognition.stop();
+            }
         }
 
     }
