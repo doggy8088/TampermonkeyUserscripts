@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT 語音輸入介面 (支援中/英/日/韓語言)
-// @version      1.2
+// @version      1.3
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -16,45 +16,100 @@
 (function () {
     'use strict';
 
+    let IsAutoStart = true;
+
     let sti = setInterval(() => {
         let element = document.activeElement;
         if (element.tagName === 'TEXTAREA' && element.nextSibling.tagName === 'BUTTON') {
             var vi = new VoiceInputHelper(element, element.nextSibling);
 
-            // This is auto-start by default.
-            // Comment it if you want to activate SpeechRecognition by alt-s hotkey.
-            vi.Start();
+            console.log('Checking Audio availability!');
+            navigator.getUserMedia({ audio: true },
+                function (stream) {
+                    // Microphone is usable.
+                    console.log("Microphone is usable.");
+                    if (IsAutoStart) {
+                        vi.Start();
+                    }
+                },
+                function (error) {
+                    // Microphone is not usable.
+                    console.log("Microphone is not usable: " + error);
+                }
+            );
+
+            var speak_timeout = 0;
+            document.addEventListener('selectionchange', function () {
+                if (speak_timeout > 0) {
+                    clearTimeout(speak_timeout);
+                }
+
+                // Get the current selection on the page
+                var selection = window.getSelection();
+
+                // Check if there is a selection
+                if (selection.rangeCount > 0 && !selection.isCollapsed) {
+                    // Get the first range of the selection (usually the only one)
+                    var range = selection.getRangeAt(0);
+
+                    // Get the selected text
+                    var selectedText = range.toString();
+                    console.log('Get the selected text: ', selectedText);
+
+                    if (speechSynthesis.speaking) {
+                        console.log('正在播放合成語音中，取消本次播放！');
+                        speechSynthesis.cancel();
+                    }
+
+                    speak_timeout = setTimeout(() => {
+                        console.log('準備合成閱讀文章語音', selectedText);
+                        let utterance = new SpeechSynthesisUtterance(selectedText);
+
+                        const voice = speechSynthesis.getVoices().filter(x => x.lang === 'zh-TW').pop();
+                        console.log('你選用的發音來源是', voice);
+                        utterance.voice = voice;
+
+                        utterance.onstart = (evt) => {
+                            console.log('開始發音', evt);
+                        }
+                        utterance.onend = (evt) => {
+                            console.log('結束發音', evt);
+                            // speechSynthesis.cancel()
+                        }
+                        utterance.onerror = (evt) => {
+                            console.log('發音過程失敗', evt);
+                        }
+                        speechSynthesis.speak(utterance);
+                    }, 1000);
+                }
+            });
 
             document.addEventListener('keydown', (ev) => {
-                if (ev.altKey && ev.key === 'S' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
-                    alert('你是不是不小心按到了 CAPSLOCK 鍵？');
-                    return;
-                }
                 if (ev.key === 'Escape' && /^(?:textarea)$/i.test(ev.target.nodeName)) {
                     vi.Reset()
                     ev.target.value = ''
-                    ev.target.dispatchEvent(new Event('input', {bubbles:true}));
+                    ev.target.dispatchEvent(new Event('input', { bubbles: true }));
                     return;
                 }
-                if (ev.altKey && ev.key === 's' /* && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName) */) {
-                    if (!vi.IsStarted) {
-                        vi.Restart = true;
-                        vi.Start();
-                    } else {
+                if (ev.altKey && (ev.key === 's' || ev.key === 'S')) {
+                    if (vi.IsStarted) {
                         vi.Restart = false;
                         vi.Stop();
+                    } else {
+                        vi.Restart = true;
+                        vi.Start();
                     }
                 }
                 if (ev.altKey && ev.key === 't' /* && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName) */) {
+                    vi.Restart = false;
                     if (vi.IsStarted) {
-                        vi.Restart = false;
                         vi.Stop();
                     }
                 }
                 if (ev.altKey && ev.key === 'r' /* && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName) */) {
                     vi.Reset()
                     element.value = vi.Parts.join('');
-                    element.dispatchEvent(new Event('input', {bubbles:true}));
+                    element.dispatchEvent(new Event('input', { bubbles: true }));
                 }
             });
 
@@ -234,7 +289,7 @@
                     for (const term of cmd.terms) {
                         let regex = new RegExp(term, "i");
                         if (cmd.match === 'prefix') { regex = new RegExp('^' + term, "i"); }
-                        if (cmd.match === 'postfix')  { regex = new RegExp(term + '$', "i"); }
+                        if (cmd.match === 'postfix') { regex = new RegExp(term + '$', "i"); }
                         if (navigator.userAgent.indexOf('Edg/') >= 0 && str.substring(str.length - 1, 1) == '。') {
                             str = str.slice(0, -1);
                         }
@@ -246,9 +301,9 @@
             }
             return ''
         }
-
         constructor(textarea, button, lang) {
             // console.log(textarea, button);
+            if (lang) { this.defaultLang = lang; }
 
             // https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API
             const SpeechRecognition = window.SpeechRecognition || webkitSpeechRecognition;
@@ -261,19 +316,35 @@
 
             this.setLang();
 
+            // 如果目前瀏覽器頁籤抓不到麥克風資源 (例如有兩個 Tab 都想要麥克風)，那麼就會一直不斷的停止語音辨識！
+            var retry_backoff = [0, 1, 2, 4, 8, 16, 32];
+            var retry_count = 0;
+            var retry_timer;
+
             this.recognition.onstart = () => {
                 console.log('開始進行 SpeechRecognition 語音辨識');
+                retry_timer = setTimeout(() => {
+                    console.log('啟動 SpeechRecognition 語音辨識 - 成功');
+                    retry_count = 0;
+                    retry_timer = undefined;
+                }, 2000);
                 this.IsStarted = true;
             };
 
             this.recognition.onend = () => {
                 console.log('停止 SpeechRecognition 語音辨識!');
                 this.IsStarted = false;
-                setTimeout(() => {
-                    if (this.Restart) {
-                        this.recognition.start();
-                    }
-                }, 60);
+                if (retry_timer) {
+                    console.log('啟動 SpeechRecognition 語音辨識 - 失敗 (可能有其他頁籤在搶用麥克風)');
+                    clearTimeout(retry_timer);
+                }
+                if (retry_count < retry_backoff.length) {
+                    setTimeout(() => {
+                        if (this.Restart) {
+                            this.recognition.start();
+                        }
+                    }, retry_backoff[retry_count++] * 1000);
+                }
             };
 
             this.recognition.onresult = async (event) => {
@@ -293,7 +364,7 @@
                 }
 
                 textarea.value = this.Parts.join('') + '...';
-                textarea.dispatchEvent(new Event('input', {bubbles:true}));
+                textarea.dispatchEvent(new Event('input', { bubbles: true }));
 
                 if (results.isFinal) {
                     console.log('Final Result: ', results);
@@ -305,7 +376,7 @@
                             this.Parts.pop();
                             if (this.Parts.length > 0) {
                                 textarea.value = this.Parts.join('');
-                                textarea.dispatchEvent(new Event('input', {bubbles:true}));
+                                textarea.dispatchEvent(new Event('input', { bubbles: true }));
                                 button.click();
                                 this.Parts = [];
                             }
@@ -410,7 +481,7 @@
                     this.Parts = [...this.Parts, ''];
 
                     textarea.value = this.Parts.join('');
-                    textarea.dispatchEvent(new Event('input', {bubbles:true}));
+                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
                 }
 
             };
