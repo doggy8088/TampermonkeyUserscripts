@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT 語音輸入介面 (支援中/英/日/韓語言)
-// @version      1.1
+// @version      1.2
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -30,10 +30,19 @@
                     alert('你是不是不小心按到了 CAPSLOCK 鍵？');
                     return;
                 }
+                if (ev.key === 'Escape' && /^(?:textarea)$/i.test(ev.target.nodeName)) {
+                    vi.Reset()
+                    ev.target.value = ''
+                    ev.target.dispatchEvent(new Event('input', {bubbles:true}));
+                    return;
+                }
                 if (ev.altKey && ev.key === 's' /* && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName) */) {
                     if (!vi.IsStarted) {
                         vi.Restart = true;
                         vi.Start();
+                    } else {
+                        vi.Restart = false;
+                        vi.Stop();
                     }
                 }
                 if (ev.altKey && ev.key === 't' /* && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName) */) {
@@ -94,6 +103,23 @@
                 ],
                 match: 'exact' // prefix, exact, postfix
             },
+            paste: {
+                terms: [
+                    'paste',
+                    '貼上',
+                    '貼上剪貼簿'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
+            explain_code: {
+                terms: [
+                    '請說明以下程式碼',
+                    '請說明一下程式碼',
+                    '說明一下程式碼',
+                    '說明以下程式碼'
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
             逗點: {
                 terms: [
                     'comma',
@@ -129,6 +155,7 @@
                 terms: [
                     'reset',
                     '重置',
+                    '重新開始',
                     'リセット', // Risetto
                     '초기화' // chogihwa
                 ],
@@ -140,6 +167,10 @@
                     '切換到中文模式',
                     '切換至中文',
                     '切換到中文',
+                    '切換至中語模式',
+                    '切換到中語模式',
+                    '切換至中語',
+                    '切換到中語',
                     'switch to Chinese mode'
                 ],
                 match: 'exact' // prefix, exact, postfix
@@ -150,6 +181,10 @@
                     '切換到英文模式',
                     '切換至英文',
                     '切換到英文',
+                    '切換至英語模式',
+                    '切換到英語模式',
+                    '切換至英語',
+                    '切換到英語',
                     'switch to English mode'
                 ],
                 match: 'exact' // prefix, exact, postfix
@@ -160,6 +195,10 @@
                     '切換到日文模式',
                     '切換至日文',
                     '切換到日文',
+                    '切換至日語模式',
+                    '切換到日語模式',
+                    '切換至日語',
+                    '切換到日語',
                     'switch to Japanese mode'
                 ],
                 match: 'exact' // prefix, exact, postfix
@@ -170,6 +209,10 @@
                     '切換到韓文模式',
                     '切換至韓文',
                     '切換到韓文',
+                    '切換至韓語模式',
+                    '切換到韓語模式',
+                    '切換至韓語',
+                    '切換到韓語',
                     'switch to Korea mode'
                 ],
                 match: 'exact' // prefix, exact, postfix
@@ -233,7 +276,7 @@
                 }, 60);
             };
 
-            this.recognition.onresult = (event) => {
+            this.recognition.onresult = async (event) => {
                 // console.log('語音識別事件: ', event);
 
                 let results = event.results[event.resultIndex];
@@ -330,6 +373,26 @@
                         case '關閉語音辨識':
                             console.log('關閉語音辨識');
                             this.Stop();
+                            break;
+
+                        case 'paste':
+                            this.Parts[this.Parts.length - 1] = this.Parts[this.Parts.length - 1].replace(/\.\.\.$/g, '');
+                            console.log('貼上剪貼簿');
+
+                            this.Parts = [...this.Parts, '\r\n\r\n'];
+                            var code = await window.navigator.clipboard.readText();
+                            this.Parts = [...this.Parts, code];
+                            this.Parts = [...this.Parts, '\r\n\r\n'];
+                            break;
+
+                        case 'explain_code':
+                            this.Parts[this.Parts.length - 1] = this.Parts[this.Parts.length - 1].replace(/\.\.\.$/g, '');
+                            console.log('確認輸入 (說明程式碼)');
+
+                            this.Parts = [...this.Parts, '\r\n\r\n'];
+                            var code = await window.navigator.clipboard.readText();
+                            this.Parts = [...this.Parts, code];
+                            this.Parts = [...this.Parts, '\r\n\r\n'];
                             break;
 
                         default:
