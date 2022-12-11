@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT 語音輸入介面 (支援中/英/日/韓語言)
-// @version      1.3
+// @version      1.4
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -16,106 +16,16 @@
 (function () {
     'use strict';
 
-    let IsAutoStart = true;
+    var logLevel = 1; // 0: None, 1: Information, 2: Debug
 
-    let sti = setInterval(() => {
-        let element = document.activeElement;
-        if (element.tagName === 'TEXTAREA' && element.nextSibling.tagName === 'BUTTON') {
-            var vi = new VoiceInputHelper(element, element.nextSibling);
+    var IsAutoStart = true;
 
-            console.log('Checking Audio availability!');
-            navigator.getUserMedia({ audio: true },
-                function (stream) {
-                    // Microphone is usable.
-                    console.log("Microphone is usable.");
-                    if (IsAutoStart) {
-                        vi.Start();
-                    }
-                },
-                function (error) {
-                    // Microphone is not usable.
-                    console.log("Microphone is not usable: " + error);
-                }
-            );
+    var EnableSpeechSynthesis = true;
 
-            var speak_timeout = 0;
-            document.addEventListener('selectionchange', function () {
-                if (speak_timeout > 0) {
-                    clearTimeout(speak_timeout);
-                }
-
-                // Get the current selection on the page
-                var selection = window.getSelection();
-
-                // Check if there is a selection
-                if (selection.rangeCount > 0 && !selection.isCollapsed) {
-                    // Get the first range of the selection (usually the only one)
-                    var range = selection.getRangeAt(0);
-
-                    // Get the selected text
-                    var selectedText = range.toString();
-                    console.log('Get the selected text: ', selectedText);
-
-                    if (speechSynthesis.speaking) {
-                        console.log('正在播放合成語音中，取消本次播放！');
-                        speechSynthesis.cancel();
-                    }
-
-                    speak_timeout = setTimeout(() => {
-                        console.log('準備合成閱讀文章語音', selectedText);
-                        let utterance = new SpeechSynthesisUtterance(selectedText);
-
-                        const voice = speechSynthesis.getVoices().filter(x => x.lang === 'zh-TW').pop();
-                        console.log('你選用的發音來源是', voice);
-                        utterance.voice = voice;
-
-                        utterance.onstart = (evt) => {
-                            console.log('開始發音', evt);
-                        }
-                        utterance.onend = (evt) => {
-                            console.log('結束發音', evt);
-                            // speechSynthesis.cancel()
-                        }
-                        utterance.onerror = (evt) => {
-                            console.log('發音過程失敗', evt);
-                        }
-                        speechSynthesis.speak(utterance);
-                    }, 1000);
-                }
-            });
-
-            document.addEventListener('keydown', (ev) => {
-                if (ev.key === 'Escape' && /^(?:textarea)$/i.test(ev.target.nodeName)) {
-                    vi.Reset()
-                    ev.target.value = ''
-                    ev.target.dispatchEvent(new Event('input', { bubbles: true }));
-                    return;
-                }
-                if (ev.altKey && (ev.key === 's' || ev.key === 'S')) {
-                    if (vi.IsStarted) {
-                        vi.Restart = false;
-                        vi.Stop();
-                    } else {
-                        vi.Restart = true;
-                        vi.Start();
-                    }
-                }
-                if (ev.altKey && ev.key === 't' /* && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName) */) {
-                    vi.Restart = false;
-                    if (vi.IsStarted) {
-                        vi.Stop();
-                    }
-                }
-                if (ev.altKey && ev.key === 'r' /* && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName) */) {
-                    vi.Reset()
-                    element.value = vi.Parts.join('');
-                    element.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-            });
-
-            clearInterval(sti);
-        }
-    }, 100);
+    // https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API
+    const SpeechRecognition = window.SpeechRecognition || webkitSpeechRecognition;
+    // const SpeechGrammarList = window.SpeechGrammarList || webkitSpeechGrammarList;
+    // const SpeechRecognitionEvent = window.SpeechRecognitionEvent || webkitSpeechRecognitionEvent;
 
     class VoiceInputHelper {
 
@@ -135,6 +45,7 @@
                     'enter',
                     '送出',
                     '去吧',
+                    '開始',
                     '狂奔吧',
                     '跑起來',
                     'Run',
@@ -142,9 +53,19 @@
                 ],
                 match: 'exact' // prefix, exact, postfix
             },
+            reload: {
+                terms: [
+                    'reload',
+                    '重新整理',
+                    '重載頁面',
+                ],
+                match: 'exact' // prefix, exact, postfix
+            },
             clear: {
                 terms: [
                     'clear',
+                    '重新輸入',
+                    '清除',
                     '清空',
                     '淨空'
                 ],
@@ -281,6 +202,10 @@
             },
         };
 
+        constructor(lang) {
+            if (lang) { this.defaultLang = lang; }
+        }
+
         getCommandByTranscript(str) {
             let cmdId = '';
             for (const commandId in this._commands) {
@@ -301,16 +226,11 @@
             }
             return ''
         }
-        constructor(textarea, button, lang) {
+
+        Init(textarea, button) {
             // console.log(textarea, button);
-            if (lang) { this.defaultLang = lang; }
 
-            // https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API
-            const SpeechRecognition = window.SpeechRecognition || webkitSpeechRecognition;
-            // const SpeechGrammarList = window.SpeechGrammarList || webkitSpeechGrammarList;
-            // const SpeechRecognitionEvent = window.SpeechRecognitionEvent || webkitSpeechRecognitionEvent;
             this.recognition = new SpeechRecognition();
-
             this.recognition.continuous = false;
             this.recognition.interimResults = true;
 
@@ -322,9 +242,9 @@
             var retry_timer;
 
             this.recognition.onstart = () => {
-                console.log('開始進行 SpeechRecognition 語音辨識');
+                (logLevel >= 1) && console.log('開始進行 SpeechRecognition 語音辨識');
                 retry_timer = setTimeout(() => {
-                    console.log('啟動 SpeechRecognition 語音辨識 - 成功');
+                    (logLevel >= 2) && console.log('啟動 SpeechRecognition 語音辨識 - 成功');
                     retry_count = 0;
                     retry_timer = undefined;
                 }, 2000);
@@ -332,10 +252,10 @@
             };
 
             this.recognition.onend = () => {
-                console.log('停止 SpeechRecognition 語音辨識!');
+                (logLevel >= 1) && console.log('停止 SpeechRecognition 語音辨識!');
                 this.IsStarted = false;
                 if (retry_timer) {
-                    console.log('啟動 SpeechRecognition 語音辨識 - 失敗 (可能有其他頁籤在搶用麥克風)');
+                    (logLevel >= 1) && console.warn('啟動 SpeechRecognition 語音辨識 - 失敗 (可能有其他頁籤在搶用麥克風)');
                     clearTimeout(retry_timer);
                 }
                 if (retry_count < retry_backoff.length) {
@@ -348,14 +268,14 @@
             };
 
             this.recognition.onresult = async (event) => {
-                // console.log('語音識別事件: ', event);
+                (logLevel >= 2) && console.log('語音識別事件: ', event);
 
                 let results = event.results[event.resultIndex];
 
-                console.log('results.length', results.length);
+                (logLevel >= 2) && console.log('results.length', results.length);
                 let transcript = results[0].transcript; // 理論上只會有一個結果
 
-                console.log('語音輸入: ' + transcript, 'isFinal: ', results.isFinal);
+                (logLevel >= 2) && console.log('語音輸入: ' + transcript, 'isFinal: ', results.isFinal);
 
                 if (this.Parts.length == 0) {
                     this.Parts[0] = transcript;
@@ -367,10 +287,10 @@
                 textarea.dispatchEvent(new Event('input', { bubbles: true }));
 
                 if (results.isFinal) {
-                    console.log('Final Result: ', results);
+                    (logLevel >= 2) && console.log('Final Result: ', results);
 
                     let id = this.getCommandByTranscript(this.Parts[this.Parts.length - 1]);
-                    console.log('id = ', id);
+                    (logLevel >= 2) && console.log('id = ', id);
                     switch (id) {
                         case 'enter':
                             this.Parts.pop();
@@ -384,6 +304,10 @@
 
                         case 'clear':
                             this.Parts = [];
+                            break;
+
+                        case 'reload':
+                            location.reload();
                             break;
 
                         case 'delete':
@@ -418,37 +342,38 @@
                             break;
 
                         case '切換至中文模式':
+                            (logLevel >= 2) && console.log('切換至中文模式');
                             this.setLang('cmn-Hant-TW');
                             this.Parts[this.Parts.length - 1] = '';
                             break;
 
                         case '切換至英文模式':
-                            console.log('切換至英文模式');
+                            (logLevel >= 2) && console.log('切換至英文模式');
                             this.setLang('en-US');
                             this.Parts[this.Parts.length - 1] = '';
                             break;
 
                         case '切換至日文模式':
                         case '切換至日文':
-                            console.log('切換至日文模式');
+                            (logLevel >= 2) && console.log('切換至日文模式');
                             this.setLang('ja-JP');
                             this.Parts[this.Parts.length - 1] = '';
                             break;
 
                         case '切換至韓文模式':
-                            console.log('切換至韓文模式');
+                            (logLevel >= 2) && console.log('切換至韓文模式');
                             this.setLang('ko-KR');
                             this.Parts[this.Parts.length - 1] = '';
                             break;
 
                         case '關閉語音辨識':
-                            console.log('關閉語音辨識');
+                            (logLevel >= 2) && console.log('關閉語音辨識');
                             this.Stop();
                             break;
 
                         case 'paste':
-                            this.Parts[this.Parts.length - 1] = this.Parts[this.Parts.length - 1].replace(/\.\.\.$/g, '');
-                            console.log('貼上剪貼簿');
+                            this.Parts.pop();
+                            (logLevel >= 2) && console.log('貼上剪貼簿');
 
                             this.Parts = [...this.Parts, '\r\n\r\n'];
                             var code = await window.navigator.clipboard.readText();
@@ -458,7 +383,7 @@
 
                         case 'explain_code':
                             this.Parts[this.Parts.length - 1] = this.Parts[this.Parts.length - 1].replace(/\.\.\.$/g, '');
-                            console.log('確認輸入 (說明程式碼)');
+                            (logLevel >= 2) && console.log('確認輸入 (說明程式碼)');
 
                             this.Parts = [...this.Parts, '\r\n\r\n'];
                             var code = await window.navigator.clipboard.readText();
@@ -468,7 +393,7 @@
 
                         default:
                             this.Parts[this.Parts.length - 1] = this.Parts[this.Parts.length - 1].replace(/\.\.\.$/g, '');
-                            console.log('確認輸入');
+                            (logLevel >= 2) && console.log('確認輸入');
 
                             let firstPart = this.Parts[0];
                             let lastChar = this.Parts[this.Parts.length - 1].split('').pop();
@@ -517,6 +442,218 @@
             }
         }
 
+        Abort() {
+            this.Restart = false;
+            if (this.recognition.IsStarted) {
+                this.recognition.abort();
+            }
+        }
+
     }
 
+    var vi = new VoiceInputHelper();
+
+    let sti = setInterval(() => {
+        let element = document.activeElement;
+        if (element.tagName === 'TEXTAREA' && element.nextSibling.tagName === 'BUTTON') {
+
+            if (EnableSpeechSynthesis) {
+                RunSpeechSynthesis();
+            }
+
+            vi.Init(element, element.nextSibling);
+
+            // 檢查麥克風是否有效
+            (logLevel >= 2) && console.log('Checking Audio availability!');
+            navigator.getUserMedia({ audio: true },
+                function (stream) {
+                    // Microphone is usable.
+                    (logLevel >= 2) && console.log("Microphone is usable.");
+                    if (IsAutoStart) {
+                        (logLevel >= 1) && console.log("自動啟動語音辨識功能");
+                        vi.Start();
+                    }
+                },
+                function (error) {
+                    // Microphone is not usable.
+                    (logLevel >= 2) && console.log("Microphone is not usable: " + error);
+                }
+            );
+
+            // 選取文字會透過 SpeechSynthesis 播放合成語音
+            var speak_timeout = 0;
+            document.addEventListener('selectionchange', function () {
+                if (speak_timeout > 0) {
+                    clearTimeout(speak_timeout);
+                }
+
+                // Get the current selection on the page
+                var selection = window.getSelection();
+
+                // Check if there is a selection
+                if (selection.rangeCount > 0 && !selection.isCollapsed) {
+                    // Get the first range of the selection (usually the only one)
+                    var range = selection.getRangeAt(0);
+
+                    // Get the selected text
+                    var selectedText = range.toString();
+                    (logLevel >= 2) && console.log('Get the selected text: ', selectedText);
+
+                    if (speechSynthesis.speaking) {
+                        (logLevel >= 2) && console.log('正在播放合成語音中，取消本次播放！');
+                        speechSynthesis.cancel();
+                    }
+
+                    speak_timeout = setTimeout(() => {
+                        // debugger;
+                        speak(selectedText);
+                    }, 1000);
+                }
+            });
+
+            // 設定一些快速鍵
+            document.addEventListener('keydown', (ev) => {
+                if (ev.key === 'Escape') {
+                    if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+                    vi.Reset()
+                    var elm = document.querySelector('textarea');
+                    elm.value = ''
+                    elm.dispatchEvent(new Event('input', { bubbles: true }));
+                    elm.focus();
+                    return;
+                }
+                if (ev.key === 'Enter' && /^(?:textarea)$/i.test(ev.target.nodeName)) {
+                    if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+                    vi.Reset()
+                    ev.target.value = ''
+                    ev.target.dispatchEvent(new Event('input', { bubbles: true }));
+                    return;
+                }
+                if (ev.altKey && (ev.key === 's' || ev.key === 'S')) {
+                    if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+                    if (vi.IsStarted) {
+                        vi.Restart = false;
+                        vi.Stop();
+                    } else {
+                        vi.Restart = true;
+                        vi.Start();
+                    }
+                }
+                if (ev.altKey && ev.key === 't' /* && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName) */) {
+                    if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+                    vi.Restart = false;
+                    if (vi.IsStarted) {
+                        vi.Stop();
+                    }
+                }
+                if (ev.altKey && ev.key === 'r' /* && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName) */) {
+                    if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+                    vi.Reset()
+                    element.value = vi.Parts.join('');
+                    element.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            });
+
+            clearInterval(sti);
+        }
+    }, 100);
+
+    // Utilities
+
+    function RunSpeechSynthesis() {
+
+        // 停止監測
+        // if (observer) {
+        //     observer.disconnect();
+        // }
+
+        // 給我一個一行的笑話
+        var utterance_queue = [];
+
+        setInterval(() => {
+            if (utterance_queue.length > 0) {
+                (logLevel >= 2) && console.log('發現 utterance_queue', utterance_queue.length);
+                speak(utterance_queue.shift());
+            }
+        }, 60);
+
+        // 監測對象
+        var target = document.getElementsByTagName('main')[0]
+
+        // 監測設定
+        var config = {
+            attributes: false, // 監測屬性變更
+            childList: true,   // 監測子節點的變更
+            subtree: true,     // 監測所有從 target 開始的子節點
+            characterData: true
+        };
+
+        var lastParagraphElement;
+
+        // 監測器
+        var observer = new MutationObserver(function (mutations) {
+
+            // 顯示通知
+            (logLevel >= 2) && console.log(`監測到 ${mutations.length} 個變更`, mutations);
+
+            mutations.forEach(mutation => {
+                (logLevel >= 2) && console.log(`TYPE: ${mutation.type}, 新增 ${mutation.addedNodes.length} 個節點，刪除 ${mutation.removedNodes.length} 個節點`);
+                if (mutation.type === 'characterData' && (mutation.target.parentNode.tagName === 'P' || mutation.target.parentNode.tagName === 'LI')) {
+                    (logLevel >= 2) && console.log(mutation.target);
+                    (logLevel >= 2) && console.log(lastParagraphElement);
+                    (logLevel >= 2) && console.log(mutation.target.parentNode);
+                    // debugger;
+                    if (lastParagraphElement && lastParagraphElement != mutation.target.parentNode) {
+                        (logLevel >= 2) && console.log('lastParagraphElement = ', lastParagraphElement);
+                        utterance_queue.push(lastParagraphElement.textContent)
+                    }
+                    lastParagraphElement = mutation.target.parentNode;
+                }
+                if (mutation.type === 'childList' && mutation.target.tagName === 'BUTTON' && mutation.addedNodes.length === 1 && mutation.addedNodes[0].nodeName === 'svg' && mutation.addedNodes[0].textContent === '') {
+                    (logLevel >= 2) && console.log('!!加入語音清單!!', lastParagraphElement);
+                    utterance_queue.push(lastParagraphElement.textContent)
+                    lastParagraphElement = undefined;
+                }
+            })
+        });
+
+        // 啟動監測
+        observer.observe(target, config);
+
+    }
+
+    function speak(text) {
+        var origRestart = vi.Restart;
+        vi.Abort();
+
+        (logLevel >= 1) && console.log(`準備合成閱讀文章語音: ${text}`);
+        let utterance = new SpeechSynthesisUtterance(text);
+
+        const voice = speechSynthesis.getVoices().filter(x => x.lang === 'zh-TW').pop();
+        (logLevel >= 2) && console.log('你選用的發音來源是', voice);
+        utterance.voice = voice;
+
+        // 語速
+        utterance.rate = 1.3; // 0.1 ~ 10, default: 1
+
+        utterance.onstart = (evt) => {
+            (logLevel >= 2) && console.log('開始發音', evt);
+            if (vi.IsStarted) {
+                vi.Abort();
+            }
+        }
+
+        utterance.onend = (evt) => {
+            (logLevel >= 2) && console.log('結束發音', evt, origRestart);
+            if (origRestart) {
+                vi.Start();
+            }
+        }
+
+        utterance.onerror = (evt) => {
+            (logLevel >= 2) && console.log('發音過程失敗', evt);
+        }
+
+        speechSynthesis.speak(utterance);
+    }
 })();
