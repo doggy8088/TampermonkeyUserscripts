@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT 語音輸入介面 (支援中/英/日/韓語言)
-// @version      1.5
+// @version      1.5.1
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -214,7 +214,7 @@
                 if (Object.hasOwnProperty.call(this._commands, commandId)) {
                     const cmd = this._commands[commandId];
                     for (const term of cmd.terms) {
-                        let regex = new RegExp(term, "i");
+                        let regex = new RegExp('^' + term + '$', "i");
                         if (cmd.match === 'prefix') { regex = new RegExp('^' + term, "i"); }
                         if (cmd.match === 'postfix') { regex = new RegExp(term + '$', "i"); }
                         if (navigator.userAgent.indexOf('Edg/') >= 0 && str.substring(str.length - 1, 1) == '。') {
