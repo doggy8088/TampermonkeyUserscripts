@@ -27,8 +27,8 @@
       </td>
       <td>ChatGPT 語音輸入介面 (支援中/英/日/韓語言)</td>
       <td>
-        直接在 <a href="https://chat.openai.com/chat">ChatGPT</a> 加入語音輸入功能 (<a href="https://www.youtube.com/watch?v=DgFwtRj4jkU" target="_blank">影片教學</a>)<br>
-        (按下 <code>alt+s</code> 可啟動/停止語音辨識、按下 <code>alt+r</code> 或 <code>Escape</code> 可重設語音辨識狀態)
+        直接在 <a href="https://chat.openai.com/chat">ChatGPT</a> 加入語音辨識輸入與語音合成朗讀功能 (影片教學<a href="https://www.youtube.com/watch?v=DgFwtRj4jkU" target="_blank">1</a>&<a href="https://www.youtube.com/watch?v=bMsh_Vw9SNc">2</a>)<br>
+        (按下 <code>alt+s</code> 可啟動/停止語音辨識、按下 <code>alt+r</code> 或 <code>Escape</code> 可重設語音辨識狀態)<br>
       </td>
     </tr>
     <tr>
