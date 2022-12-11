@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT 語音輸入介面 (支援中/英/日/韓語言)
-// @version      1.4
+// @version      1.5
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -21,6 +21,8 @@
     var IsAutoStart = true;
 
     var EnableSpeechSynthesis = true;
+
+    var ChatGPTRunningStatus = false;
 
     // https://developer.mozilla.org/en-US/docs/Web/API/Web_Speech_API/Using_the_Web_Speech_API
     const SpeechRecognition = window.SpeechRecognition || webkitSpeechRecognition;
@@ -299,6 +301,11 @@
                                 textarea.dispatchEvent(new Event('input', { bubbles: true }));
                                 button.click();
                                 this.Parts = [];
+
+                                vi.Reset();
+                                if (vi.IsStarted) {
+                                    vi.Stop();
+                                }
                             }
                             break;
 
@@ -425,7 +432,6 @@
         Reset() {
             this.Parts = [];
             this.setLang(this.defaultLang);
-            this.Restart = true;
         }
 
         Start() {
@@ -457,11 +463,14 @@
         let element = document.activeElement;
         if (element.tagName === 'TEXTAREA' && element.nextSibling.tagName === 'BUTTON') {
 
+            var textarea = element;
+            var button = textarea.nextSibling.tagName;
+
             if (EnableSpeechSynthesis) {
                 RunSpeechSynthesis();
             }
 
-            vi.Init(element, element.nextSibling);
+            vi.Init(textarea, textarea.nextSibling);
 
             // 檢查麥克風是否有效
             (logLevel >= 2) && console.log('Checking Audio availability!');
@@ -515,7 +524,10 @@
             document.addEventListener('keydown', (ev) => {
                 if (ev.key === 'Escape') {
                     if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
-                    vi.Reset()
+                    vi.Reset();
+                    if (!vi.IsStarted) {
+                        vi.Start();
+                    }
                     var elm = document.querySelector('textarea');
                     elm.value = ''
                     elm.dispatchEvent(new Event('input', { bubbles: true }));
@@ -524,7 +536,10 @@
                 }
                 if (ev.key === 'Enter' && /^(?:textarea)$/i.test(ev.target.nodeName)) {
                     if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
-                    vi.Reset()
+                    vi.Reset();
+                    if (vi.IsStarted) {
+                        vi.Stop();
+                    }
                     ev.target.value = ''
                     ev.target.dispatchEvent(new Event('input', { bubbles: true }));
                     return;
@@ -549,8 +564,8 @@
                 if (ev.altKey && ev.key === 'r' /* && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName) */) {
                     if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
                     vi.Reset()
-                    element.value = vi.Parts.join('');
-                    element.dispatchEvent(new Event('input', { bubbles: true }));
+                    textarea.value = vi.Parts.join('');
+                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
                 }
             });
 
@@ -602,6 +617,9 @@
                     (logLevel >= 2) && console.log(mutation.target);
                     (logLevel >= 2) && console.log(lastParagraphElement);
                     (logLevel >= 2) && console.log(mutation.target.parentNode);
+
+                    ChatGPTRunningStatus = true; // 只要有字元在異動，就代表正在跑！
+
                     // debugger;
                     if (lastParagraphElement && lastParagraphElement != mutation.target.parentNode) {
                         (logLevel >= 2) && console.log('lastParagraphElement = ', lastParagraphElement);
@@ -609,8 +627,15 @@
                     }
                     lastParagraphElement = mutation.target.parentNode;
                 }
+
                 if (mutation.type === 'childList' && mutation.target.tagName === 'BUTTON' && mutation.addedNodes.length === 1 && mutation.addedNodes[0].nodeName === 'svg' && mutation.addedNodes[0].textContent === '') {
-                    (logLevel >= 2) && console.log('!!加入語音清單!!', lastParagraphElement);
+                    (logLevel >= 2) && console.log('!!加入語音佇列!!', lastParagraphElement);
+
+                    // 通常文字打完了，最後一句可能都還沒開始唸，所以要等一下才能視為結束。
+                    setTimeout(() => {
+                        ChatGPTRunningStatus = false;
+                    }, 1000);
+
                     utterance_queue.push(lastParagraphElement.textContent)
                     lastParagraphElement = undefined;
                 }
@@ -645,7 +670,7 @@
 
         utterance.onend = (evt) => {
             (logLevel >= 2) && console.log('結束發音', evt, origRestart);
-            if (origRestart) {
+            if (!ChatGPTRunningStatus && !speechSynthesis.pending) {
                 vi.Start();
             }
         }
