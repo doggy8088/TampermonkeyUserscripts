@@ -37,7 +37,20 @@
         timer
     } = await import('https://cdn.jsdelivr.net/npm/@esm-bundle/rxjs/esm/es2015/rxjs.min.js');
 
+    /**
+     * 檢查作業系統是否為 Mac
+     *
+     */
     const isMac = () => navigator.userAgentData.platform.toUpperCase().includes('MAC');
+
+    /**
+     * 停止語音合成
+     */
+    const stopSpeakSynthesis = () => {
+        if (speechSynthesis.speaking) {
+            speechSynthesis.cancel();
+        }
+    }
 
     // 麥克風輸入按鈕
     const svgMicOn = '<svg stroke="currentColor" fill="currentColor" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="16px" height="16px" viewBox="0 0 16 16" version="1.1"><path d="M 8 8.949219 C 7.523438 8.949219 7.121094 8.777344 6.800781 8.433594 C 6.476562 8.089844 6.316406 7.671875 6.316406 7.183594 L 6.316406 3 C 6.316406 2.535156 6.480469 2.140625 6.808594 1.816406 C 7.136719 1.496094 7.535156 1.332031 8 1.332031 C 8.464844 1.332031 8.863281 1.496094 9.191406 1.816406 C 9.519531 2.140625 9.683594 2.535156 9.683594 3 L 9.683594 7.183594 C 9.683594 7.671875 9.523438 8.089844 9.199219 8.433594 C 8.878906 8.777344 8.476562 8.949219 8 8.949219 Z M 8 5.148438 Z M 7.5 14 L 7.5 11.734375 C 6.320312 11.609375 5.332031 11.117188 4.535156 10.25 C 3.734375 9.382812 3.332031 8.359375 3.332031 7.183594 L 4.332031 7.183594 C 4.332031 8.195312 4.691406 9.042969 5.410156 9.734375 C 6.125 10.421875 6.988281 10.765625 8 10.765625 C 9.011719 10.765625 9.875 10.421875 10.589844 9.734375 C 11.308594 9.042969 11.667969 8.195312 11.667969 7.183594 L 12.667969 7.183594 C 12.667969 8.359375 12.265625 9.382812 11.464844 10.25 C 10.667969 11.117188 9.679688 11.609375 8.5 11.734375 L 8.5 14 Z M 8 7.949219 C 8.199219 7.949219 8.363281 7.875 8.492188 7.726562 C 8.621094 7.574219 8.683594 7.394531 8.683594 7.183594 L 8.683594 3 C 8.683594 2.8125 8.617188 2.652344 8.484375 2.523438 C 8.351562 2.398438 8.1875 2.332031 8 2.332031 C 7.8125 2.332031 7.648438 2.398438 7.515625 2.523438 C 7.382812 2.652344 7.316406 2.8125 7.316406 3 L 7.316406 7.183594 C 7.316406 7.394531 7.378906 7.574219 7.507812 7.726562 C 7.636719 7.875 7.800781 7.949219 8 7.949219 Z M 8 7.949219 "/></svg>';
@@ -730,6 +743,9 @@
             const enabled = EnableSpeechSynthesis(!EnableSpeechSynthesis());
             speakerButtonElement.innerHTML = enabled ? svgSpeakerOn : svgSpeakerOff;
             speakerButtonElement.title = `${enabled ? '關閉' : '開啟'}語音辨識功能 (${isMac() ? 'command+option+m' : 'alt+m'})`;
+            if(!enabled) {
+                stopSpeakSynthesis();
+            }
         });
     }
 
@@ -777,7 +793,7 @@
         const keydownAltM$ = keydown$.pipe(filter((ev) => altOrCommandOption(ev) && (ev.code === 'KeyM')));
 
         keydownEscape$.subscribe((ev) => {
-            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+            stopSpeakSynthesis();
             videoInputHelper.Reset();
             if (!videoInputHelper.IsStarted) {
                 videoInputHelper.Start();
@@ -788,7 +804,7 @@
         });
 
         keydownEnter$.subscribe((ev) => {
-            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+            stopSpeakSynthesis();
             videoInputHelper.Reset();
             if (videoInputHelper.IsStarted) {
                 videoInputHelper.Stop();
@@ -798,12 +814,12 @@
         });
 
         keydownAltS$.subscribe((ev) => {
-            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+            stopSpeakSynthesis();
             microphoneButtonElement.dispatchEvent(new Event('click', { bubbles: true }));
         });
 
         keydownAltT$.subscribe((ev) => {
-            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+            stopSpeakSynthesis();
             videoInputHelper.Restart = false;
             if (videoInputHelper.IsStarted) {
                 videoInputHelper.Stop();
@@ -815,7 +831,7 @@
         });
 
         keydownAltR$.subscribe((ev) => {
-            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+            stopSpeakSynthesis();
             videoInputHelper.Reset()
             textareaElement.value = videoInputHelper.Parts.join('');
             textareaElement.dispatchEvent(new Event('input', { bubbles: true }));
