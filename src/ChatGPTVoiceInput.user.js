@@ -52,7 +52,7 @@
             localStorage.setItem('EnableSpeechSynthesis', state);
         }
 
-        var isEnableSpeechSynthesis = localStorage.getItem('EnableSpeechSynthesis') ;
+        var isEnableSpeechSynthesis = localStorage.getItem('EnableSpeechSynthesis');
         if (isEnableSpeechSynthesis) {
             return isEnableSpeechSynthesis === 'true';
         } else {
