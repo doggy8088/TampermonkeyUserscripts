@@ -238,7 +238,11 @@
         }
 
         getCommandByTranscript(str) {
-            let cmdId = '';
+            str = str.trim();
+            if (navigator.userAgent.indexOf('Edg/') >= 0 && str.substr(str.length - 1, 1) == '。') {
+                str = str.slice(0, -1);
+            }
+
             for (const commandId in this._commands) {
                 if (Object.hasOwnProperty.call(this._commands, commandId)) {
                     const cmd = this._commands[commandId];
@@ -246,9 +250,8 @@
                         let regex = new RegExp('^' + term + '$', "i");
                         if (cmd.match === 'prefix') { regex = new RegExp('^' + term, "i"); }
                         if (cmd.match === 'postfix') { regex = new RegExp(term + '$', "i"); }
-                        if (navigator.userAgent.indexOf('Edg/') >= 0 && str.substring(str.length - 1, 1) == '。') {
-                            str = str.slice(0, -1);
-                        }
+
+                        (logLevel >= 2) && console.log('term = ', term, ', str = ', str, ', match = ', cmd.match, ', UA = ', navigator.userAgent);
                         if (str.search(regex) !== -1) {
                             return commandId;
                         }
