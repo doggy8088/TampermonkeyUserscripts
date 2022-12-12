@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT 語音輸入介面 (支援中/英/日/韓語言)
-// @version      1.5.3
+// @version      1.5.4
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -37,13 +37,30 @@
         timer
     } = await import('https://cdn.jsdelivr.net/npm/@esm-bundle/rxjs/esm/es2015/rxjs.min.js');
 
+    /**
+     * 檢查作業系統是否為 Mac
+     *
+     */
+    const isMac = () => navigator.userAgentData.platform.toUpperCase().includes('MAC');
+
+    /**
+     * 停止語音合成
+     */
+    const stopSpeakSynthesis = () => {
+        if (speechSynthesis.speaking) {
+            speechSynthesis.cancel();
+        }
+    }
+
+    // 麥克風輸入按鈕
+    let isMicrophoneOn = false;
     const svgMicOn = '<svg stroke="currentColor" fill="currentColor" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="16px" height="16px" viewBox="0 0 16 16" version="1.1"><path d="M 8 8.949219 C 7.523438 8.949219 7.121094 8.777344 6.800781 8.433594 C 6.476562 8.089844 6.316406 7.671875 6.316406 7.183594 L 6.316406 3 C 6.316406 2.535156 6.480469 2.140625 6.808594 1.816406 C 7.136719 1.496094 7.535156 1.332031 8 1.332031 C 8.464844 1.332031 8.863281 1.496094 9.191406 1.816406 C 9.519531 2.140625 9.683594 2.535156 9.683594 3 L 9.683594 7.183594 C 9.683594 7.671875 9.523438 8.089844 9.199219 8.433594 C 8.878906 8.777344 8.476562 8.949219 8 8.949219 Z M 8 5.148438 Z M 7.5 14 L 7.5 11.734375 C 6.320312 11.609375 5.332031 11.117188 4.535156 10.25 C 3.734375 9.382812 3.332031 8.359375 3.332031 7.183594 L 4.332031 7.183594 C 4.332031 8.195312 4.691406 9.042969 5.410156 9.734375 C 6.125 10.421875 6.988281 10.765625 8 10.765625 C 9.011719 10.765625 9.875 10.421875 10.589844 9.734375 C 11.308594 9.042969 11.667969 8.195312 11.667969 7.183594 L 12.667969 7.183594 C 12.667969 8.359375 12.265625 9.382812 11.464844 10.25 C 10.667969 11.117188 9.679688 11.609375 8.5 11.734375 L 8.5 14 Z M 8 7.949219 C 8.199219 7.949219 8.363281 7.875 8.492188 7.726562 C 8.621094 7.574219 8.683594 7.394531 8.683594 7.183594 L 8.683594 3 C 8.683594 2.8125 8.617188 2.652344 8.484375 2.523438 C 8.351562 2.398438 8.1875 2.332031 8 2.332031 C 7.8125 2.332031 7.648438 2.398438 7.515625 2.523438 C 7.382812 2.652344 7.316406 2.8125 7.316406 3 L 7.316406 7.183594 C 7.316406 7.394531 7.378906 7.574219 7.507812 7.726562 C 7.636719 7.875 7.800781 7.949219 8 7.949219 Z M 8 7.949219 "/></svg>';
     const svgMicOff = '<svg stroke="currentColor" fill="currentColor" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="16px" height="16px" viewBox="0 0 16 16" version="1.1"><path d="M 11.433594 9.984375 L 10.714844 9.265625 C 10.949219 8.976562 11.121094 8.652344 11.234375 8.292969 C 11.34375 7.929688 11.398438 7.5625 11.398438 7.183594 L 12.398438 7.183594 C 12.398438 7.695312 12.316406 8.1875 12.148438 8.667969 C 11.984375 9.144531 11.746094 9.582031 11.433594 9.984375 Z M 7.683594 6.234375 Z M 9.300781 7.851562 L 8.417969 6.984375 L 8.417969 3.015625 C 8.417969 2.828125 8.351562 2.667969 8.214844 2.535156 C 8.082031 2.398438 7.921875 2.332031 7.734375 2.332031 C 7.542969 2.332031 7.382812 2.398438 7.25 2.535156 C 7.117188 2.667969 7.050781 2.828125 7.050781 3.015625 L 7.050781 5.601562 L 6.050781 4.601562 L 6.050781 3.015625 C 6.050781 2.550781 6.214844 2.152344 6.542969 1.824219 C 6.871094 1.496094 7.265625 1.332031 7.734375 1.332031 C 8.199219 1.332031 8.597656 1.496094 8.925781 1.824219 C 9.253906 2.152344 9.417969 2.550781 9.417969 3.015625 L 9.417969 7.183594 C 9.417969 7.273438 9.410156 7.382812 9.390625 7.515625 C 9.375 7.648438 9.34375 7.761719 9.300781 7.851562 Z M 7.234375 14 L 7.234375 11.734375 C 6.054688 11.609375 5.066406 11.117188 4.265625 10.25 C 3.464844 9.382812 3.066406 8.359375 3.066406 7.183594 L 4.066406 7.183594 C 4.066406 8.195312 4.425781 9.042969 5.140625 9.734375 C 5.859375 10.421875 6.722656 10.765625 7.734375 10.765625 C 8.15625 10.765625 8.5625 10.695312 8.949219 10.558594 C 9.339844 10.417969 9.695312 10.226562 10.015625 9.984375 L 10.734375 10.699219 C 10.390625 10.988281 10.003906 11.21875 9.582031 11.390625 C 9.160156 11.5625 8.710938 11.679688 8.234375 11.734375 L 8.234375 14 Z M 13.851562 15.082031 L 0.601562 1.832031 L 1.234375 1.199219 L 14.484375 14.449219 Z M 13.851562 15.082031 "/></svg>';
     const microphoneButtonElement = document.createElement('button');
     microphoneButtonElement.type = 'button';
     microphoneButtonElement.classList = 'absolute p-1 rounded-md text-gray-500 bottom-1.5 right-1 md:bottom-2.5 md:right-2 hover:bg-gray-100 dark:hover:text-gray-400 dark:hover:bg-gray-900 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent';
     microphoneButtonElement.style.right = '2.5rem';
-    microphoneButtonElement.title = '開啟語音辨識功能 (alt+s)';
+    microphoneButtonElement.title = `開啟語音辨識功能 (${isMac() ? 'command+option+s' : 'alt+s'})`;
     microphoneButtonElement.innerHTML = svgMicOff;
 
     var EnableSpeechSynthesis = (state) => {
@@ -53,11 +70,21 @@
 
         var isEnableSpeechSynthesis = localStorage.getItem('EnableSpeechSynthesis');
         if (isEnableSpeechSynthesis) {
-            return isEnableSpeechSynthesis;
+            return isEnableSpeechSynthesis === 'true';
         } else {
             return defaultEnableSpeechSynthesis;
         }
     };
+
+    // 聲音輸出按鈕
+    const svgSpeakerOn = '<svg stroke="currentColor" fill="currentColor" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="16px" height="16px" viewBox="0 0 16 16" version="1.1"><path d="M 9.332031 13.816406 L 9.332031 12.785156 C 10.410156 12.472656 11.292969 11.875 11.976562 10.992188 C 12.660156 10.109375 13 9.105469 13 7.984375 C 13 6.859375 12.660156 5.855469 11.984375 4.964844 C 11.304688 4.078125 10.421875 3.484375 9.332031 3.183594 L 9.332031 2.148438 C 10.710938 2.460938 11.832031 3.160156 12.699219 4.242188 C 13.566406 5.324219 14 6.570312 14 7.984375 C 14 9.394531 13.566406 10.640625 12.699219 11.726562 C 11.832031 12.808594 10.710938 13.503906 9.332031 13.816406 Z M 2 10 L 2 6 L 4.667969 6 L 8 2.667969 L 8 13.332031 L 4.667969 10 Z M 9 10.800781 L 9 5.183594 C 9.609375 5.371094 10.097656 5.726562 10.457031 6.25 C 10.820312 6.773438 11 7.355469 11 8 C 11 8.632812 10.816406 9.210938 10.449219 9.734375 C 10.082031 10.253906 9.601562 10.609375 9 10.800781 Z M 7 5.199219 L 5.117188 7 L 3 7 L 3 9 L 5.117188 9 L 7 10.816406 Z M 5.433594 8 Z M 5.433594 8 "/></svg>';
+    const svgSpeakerOff = '<svg stroke="currentColor" fill="currentColor" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="16px" height="16px" viewBox="0 0 16 16" version="1.1"><path d="M 13.550781 15.066406 L 11.351562 12.867188 C 11.039062 13.089844 10.703125 13.28125 10.339844 13.441406 C 9.980469 13.601562 9.605469 13.726562 9.214844 13.816406 L 9.214844 12.785156 C 9.472656 12.707031 9.71875 12.621094 9.957031 12.523438 C 10.195312 12.429688 10.421875 12.304688 10.632812 12.148438 L 7.882812 9.382812 L 7.882812 13.332031 L 4.550781 10 L 1.882812 10 L 1.882812 6 L 4.484375 6 L 0.816406 2.332031 L 1.535156 1.617188 L 14.265625 14.332031 Z M 12.949219 11.199219 L 12.234375 10.484375 C 12.457031 10.105469 12.621094 9.707031 12.726562 9.285156 C 12.832031 8.859375 12.882812 8.429688 12.882812 7.984375 C 12.882812 6.839844 12.550781 5.8125 11.882812 4.910156 C 11.214844 4.003906 10.328125 3.429688 9.214844 3.183594 L 9.214844 2.148438 C 10.59375 2.460938 11.714844 3.160156 12.582031 4.242188 C 13.449219 5.324219 13.882812 6.570312 13.882812 7.984375 C 13.882812 8.550781 13.804688 9.105469 13.648438 9.648438 C 13.496094 10.195312 13.261719 10.710938 12.949219 11.199219 Z M 10.714844 8.964844 L 9.214844 7.464844 L 9.214844 5.300781 C 9.738281 5.542969 10.148438 5.910156 10.441406 6.398438 C 10.734375 6.890625 10.882812 7.421875 10.882812 8 C 10.882812 8.167969 10.871094 8.332031 10.839844 8.492188 C 10.8125 8.652344 10.773438 8.8125 10.714844 8.964844 Z M 7.882812 6.132812 L 6.148438 4.398438 L 7.882812 2.667969 Z M 6.882812 10.898438 L 6.882812 8.398438 L 5.484375 7 L 2.882812 7 L 2.882812 9 L 4.984375 9 Z M 6.183594 7.699219 Z M 6.183594 7.699219 "/></svg>';
+    const speakerButtonElement = document.createElement('button');
+    speakerButtonElement.type = 'button';
+    speakerButtonElement.classList = 'absolute p-1 rounded-md text-gray-500 bottom-1.5 right-1 md:bottom-2.5 md:right-2 hover:bg-gray-100 dark:hover:text-gray-400 dark:hover:bg-gray-900 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent';
+    speakerButtonElement.style.right = '4.5rem';
+    speakerButtonElement.title = `${EnableSpeechSynthesis() ? '關閉' : '開啟'}語音辨識功能 (${isMac() ? 'command+option+m' : 'alt+m'})`;
+    speakerButtonElement.innerHTML = EnableSpeechSynthesis() ? svgSpeakerOn : svgSpeakerOff;
 
     var ChatGPTRunningStatus = false;
 
@@ -246,7 +273,7 @@
             },
         };
 
-        constructor(lang, microphoneButton) {
+        constructor(lang) {
             if (lang) { this.defaultLang = lang; }
         }
 
@@ -511,27 +538,27 @@
 
         Start() {
             this.Restart = true;
-            if (!this.IsStarted) {
+            if (!this.IsStarted && this.recognition) {
                 this.recognition.start();
             }
 
-            microphoneButtonElement.innerHTML = svgMicOn;
-            microphoneButtonElement.title = '關閉語音辨識功能 (alt+s)';
+            this.microphoneButton.innerHTML = svgMicOn;
+            this.microphoneButton.title = `關閉語音辨識功能 (${isMac() ? 'command+option+s' : 'alt+s'})`;
         }
 
         Stop() {
             this.Restart = false;
-            if (this.IsStarted) {
+            if (this.IsStarted && this.recognition) {
                 this.recognition.stop();
             }
 
-            microphoneButtonElement.innerHTML = svgMicOff;
-            microphoneButtonElement.title = '開啟語音辨識功能 (alt+s)';
+            this.microphoneButton.innerHTML = svgMicOff;
+            this.microphoneButton.title = `開啟語音辨識功能 (${isMac() ? 'command+option+s' : 'alt+s'})`;
         }
 
         Abort() {
             this.Restart = false;
-            if (this.IsStarted) {
+            if (this.IsStarted && this.recognition) {
                 this.recognition.abort();
             }
         }
@@ -645,7 +672,7 @@
 
             utterance.onend = (evt) => {
                 (logLevel >= 2) && console.log('結束發音', evt, origRestart);
-                if (!ChatGPTRunningStatus && !speechSynthesis.pending) {
+                if (!ChatGPTRunningStatus && !speechSynthesis.pending && isMicrophoneOn) {
                     videoInputHelper.Start();
                 }
                 subscriber.complete();
@@ -693,6 +720,7 @@
                     track.stop();
                 });
                 audioStream = null;
+                isMicrophoneOn = false;
             } else {
                 checkAudio().subscribe({
                     next: (stream) => {
@@ -702,12 +730,24 @@
                         (logLevel >= 1) && console.log("啟動語音辨識功能");
                         videoInputHelper.StartSpeechRecognition();
                         videoInputHelper.Start();
+                        isMicrophoneOn = false;
                     },
                     error: (error) => {
                         // Microphone is not usable.
                         (logLevel >= 2) && console.log("Microphone is not usable: " + error);
                     }
                 });
+            }
+        });
+    }
+
+    const registerSpeakerButtonClick = () => {
+        speakerButtonElement.addEventListener('click', () => {
+            const enabled = EnableSpeechSynthesis(!EnableSpeechSynthesis());
+            speakerButtonElement.innerHTML = enabled ? svgSpeakerOn : svgSpeakerOff;
+            speakerButtonElement.title = `${enabled ? '關閉' : '開啟'}語音辨識功能 (${isMac() ? 'command+option+m' : 'alt+m'})`;
+            if(!enabled) {
+                stopSpeakSynthesis();
             }
         });
     }
@@ -723,6 +763,7 @@
      */
     const selectionTextToSpeech = (videoInputHelper) => {
         fromEvent(document, 'selectionchange').pipe(
+            filter(() => EnableSpeechSynthesis()),
             toDocumentSelectedText(),
             tap((selectedText) => (logLevel >= 2) && console.log('Get the selected text: ', selectedText)),
             tap(() => {
@@ -743,8 +784,7 @@
     const registerHotKeys = (videoInputHelper, textareaElement) => {
         // win 使用 alt, mac 使用 cmd + option
         const altOrCommandOption = (event) => {
-            const isMac = navigator.userAgentData.platform.toUpperCase().includes('MAC');
-            return event.altKey && (isMac ? event.metaKey : true);
+            return event.altKey && (isMac() ? event.metaKey : true);
         }
 
         const keydown$ = fromEvent(document, 'keydown');
@@ -756,7 +796,7 @@
         const keydownAltM$ = keydown$.pipe(filter((ev) => altOrCommandOption(ev) && (ev.code === 'KeyM')));
 
         keydownEscape$.subscribe((ev) => {
-            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+            stopSpeakSynthesis();
             videoInputHelper.Reset();
             if (!videoInputHelper.IsStarted) {
                 videoInputHelper.Start();
@@ -767,7 +807,7 @@
         });
 
         keydownEnter$.subscribe((ev) => {
-            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+            stopSpeakSynthesis();
             videoInputHelper.Reset();
             if (videoInputHelper.IsStarted) {
                 videoInputHelper.Stop();
@@ -777,12 +817,12 @@
         });
 
         keydownAltS$.subscribe((ev) => {
-            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+            stopSpeakSynthesis();
             microphoneButtonElement.dispatchEvent(new Event('click', { bubbles: true }));
         });
 
         keydownAltT$.subscribe((ev) => {
-            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+            stopSpeakSynthesis();
             videoInputHelper.Restart = false;
             if (videoInputHelper.IsStarted) {
                 videoInputHelper.Stop();
@@ -790,12 +830,11 @@
         });
 
         keydownAltM$.subscribe((ev) => {
-            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
-            EnableSpeechSynthesis() ? EnableSpeechSynthesis(false) : EnableSpeechSynthesis(true);
+            speakerButtonElement.dispatchEvent(new Event('click', { bubbles: true }));
         });
 
         keydownAltR$.subscribe((ev) => {
-            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+            stopSpeakSynthesis();
             videoInputHelper.Reset()
             textareaElement.value = videoInputHelper.Parts.join('');
             textareaElement.dispatchEvent(new Event('input', { bubbles: true }));
@@ -815,6 +854,8 @@
         var buttonElement = textAreaElement.nextSibling;
         // 加入麥克風按鈕
         textAreaElement.parentElement.insertBefore(microphoneButtonElement, buttonElement);
+        // 加入聲音輸出按鈕
+        textAreaElement.parentElement.insertBefore(speakerButtonElement, microphoneButtonElement);
 
         var vi = new VoiceInputHelper();
 
@@ -823,6 +864,7 @@
         vi.Init(textAreaElement, buttonElement, microphoneButtonElement);
 
         registerMicrophoneButtonClick(vi);
+        registerSpeakerButtonClick();
         selectionTextToSpeech(vi);
         registerHotKeys(vi, textAreaElement);
     });
