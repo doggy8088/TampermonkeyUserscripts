@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT 語音輸入介面 (支援中/英/日/韓語言)
-// @version      1.5.2
+// @version      1.5.3
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -15,6 +15,10 @@
 
 (async function () {
     'use strict';
+
+    var logLevel = 1; // 0: None, 1: Information, 2: Debug
+
+    var defaultEnableSpeechSynthesis = true;
 
     const {
         Observable,
@@ -39,12 +43,21 @@
     microphoneButtonElement.type = 'button';
     microphoneButtonElement.classList = 'absolute p-1 rounded-md text-gray-500 bottom-1.5 right-1 md:bottom-2.5 md:right-2 hover:bg-gray-100 dark:hover:text-gray-400 dark:hover:bg-gray-900 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent';
     microphoneButtonElement.style.right = '2.5rem';
-    microphoneButtonElement.title = '開啟語音辨識功能';
+    microphoneButtonElement.title = '開啟語音辨識功能 (alt+s)';
     microphoneButtonElement.innerHTML = svgMicOff;
 
-    var logLevel = 2; // 0: None, 1: Information, 2: Debug
+    var EnableSpeechSynthesis = (state) => {
+        if (state !== undefined) {
+            localStorage.setItem('EnableSpeechSynthesis', state);
+        }
 
-    var EnableSpeechSynthesis = true;
+        var isEnableSpeechSynthesis = localStorage.getItem('EnableSpeechSynthesis');
+        if (isEnableSpeechSynthesis) {
+            return isEnableSpeechSynthesis;
+        } else {
+            return defaultEnableSpeechSynthesis;
+        }
+    };
 
     var ChatGPTRunningStatus = false;
 
@@ -503,6 +516,7 @@
             }
 
             microphoneButtonElement.innerHTML = svgMicOn;
+            microphoneButtonElement.title = '關閉語音辨識功能 (alt+s)';
         }
 
         Stop() {
@@ -512,6 +526,7 @@
             }
 
             microphoneButtonElement.innerHTML = svgMicOff;
+            microphoneButtonElement.title = '開啟語音辨識功能 (alt+s)';
         }
 
         Abort() {
@@ -590,7 +605,7 @@
      */
     const listenUtteranceTextAndSpeak = (videoInputHelper) => {
         defer(() => createUtteranceTextListener()).pipe(
-            filter(text => !!text),
+            filter(text => !!text && EnableSpeechSynthesis()),
             switchMap(text => SpeakText(videoInputHelper, text)),
             retry(),
         ).subscribe({
@@ -738,6 +753,7 @@
         const keydownAltS$ = keydown$.pipe(filter((ev) => altOrCommandOption(ev) && (ev.code === 'KeyS')));
         const keydownAltT$ = keydown$.pipe(filter((ev) => altOrCommandOption(ev) && (ev.code === 'KeyT')));
         const keydownAltR$ = keydown$.pipe(filter((ev) => altOrCommandOption(ev) && (ev.code === 'KeyR')));
+        const keydownAltM$ = keydown$.pipe(filter((ev) => altOrCommandOption(ev) && (ev.code === 'KeyM')));
 
         keydownEscape$.subscribe((ev) => {
             if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
@@ -773,6 +789,11 @@
             }
         });
 
+        keydownAltM$.subscribe((ev) => {
+            if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
+            EnableSpeechSynthesis() ? EnableSpeechSynthesis(false) : EnableSpeechSynthesis(true);
+        });
+
         keydownAltR$.subscribe((ev) => {
             if (speechSynthesis.speaking) { speechSynthesis.cancel(); }
             videoInputHelper.Reset()
@@ -797,9 +818,7 @@
 
         var vi = new VoiceInputHelper();
 
-        if (EnableSpeechSynthesis) {
-            listenUtteranceTextAndSpeak(vi);
-        }
+        listenUtteranceTextAndSpeak(vi);
 
         vi.Init(textAreaElement, buttonElement, microphoneButtonElement);
 
