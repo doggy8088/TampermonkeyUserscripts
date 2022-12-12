@@ -27,8 +27,38 @@
       </td>
       <td>ChatGPT 語音輸入介面 (支援中/英/日/韓語言)</td>
       <td>
-        直接在 <a href="https://chat.openai.com/chat">ChatGPT</a> 加入語音辨識輸入與語音合成朗讀功能 (影片教學<a href="https://www.youtube.com/watch?v=DgFwtRj4jkU" target="_blank">1</a>&<a href="https://www.youtube.com/watch?v=bMsh_Vw9SNc">2</a>)<br>
-        (按下 <code>alt+s</code> 可啟動/停止語音辨識、按下 <code>alt+r</code> 或 <code>Escape</code> 可重設語音辨識狀態)<br>
+        直接在 <a href="https://chat.openai.com/chat">ChatGPT</a> 加入語音辨識輸入與語音合成朗讀功能
+      </td>
+    </tr>
+    <tr>
+      <td>
+      </td>
+      <td colspan="2">
+        支援功能:
+        <ol>
+          <li>支援語音識別輸入功能並在輸入框右邊增加麥克風圖示</li>
+          <li>支援語音合成朗讀功能並在輸入框右邊增加喇叭圖示<br>
+              可以將 ChatGPT 的回應自動透過瀏覽器播放成語音輸出<br>
+              當每一個段落完成回應時，就會開始朗讀文字內容，支援中文與英文
+          </li>
+          <li>按下 <code>alt+s</code> 可啟動/停止語音辨識 (Mac: <code>command+option+s</code>)</li>
+          <li>按下 <code>alt+m</code> 可啟動/停止朗讀功能 (Mac: <code>command+option+m</code>)</li>
+          <li>按下 <code>alt+r</code> 可重設語音辨識狀態 (Mac: <code>command+option+r</code>)</li>
+          <li>按下 <code>Escape</code> 可重設語音辨識狀態</li>
+          <li>影片教學: <a href="https://www.youtube.com/watch?v=DgFwtRj4jkU" target="_blank">Part 1</a>, <a href="https://www.youtube.com/watch?v=bMsh_Vw9SNc">Part 2</a></li>
+          <li>支援多種語音命令：
+            <ol>
+              <li>送出: 可自動送出查詢</li>
+              <li>清除: 可清除輸入框中的文字</li>
+              <li>刪除: 可刪除最近一次的語音輸入</li>
+              <li>換行: 可插入換行字元</li>
+              <li>重置: 可重置語言狀態、語音輸入內容等</li>
+              <li>貼上: 可自動貼上「剪貼簿」內容到提問輸入框</li>
+              <li>解釋以下程式碼: 可自動貼上「剪貼簿」內容到提問輸入框</li>
+              <li>重新整理: 可重新整理網頁</li>
+            </ol>
+          </li>
+        </ol>
       </td>
     </tr>
     <tr>
