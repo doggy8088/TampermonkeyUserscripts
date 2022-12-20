@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT 語音輸入介面 (支援中/英/日/韓語言)
-// @version      1.5.4
+// @version      1.5.5
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -9,6 +9,7 @@
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTVoiceInput.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTVoiceInput.user.js
 // @match        *://chat.openai.com/chat
+// @match        *://chat.openai.com/chat/*
 // @author       Will Huang
 // @run-at       document-idle
 // ==/UserScript==
@@ -114,13 +115,16 @@
             enter: {
                 terms: [
                     'enter',
+                    'Run',
+                    'go',
+                    // 繁體字
                     '送出',
                     '去吧',
                     '開始',
                     '狂奔吧',
                     '跑起來',
-                    'Run',
-                    'go'
+                    // 簡體字
+                    '回车'
                 ],
                 match: 'exact' // prefix, exact, postfix
             },
@@ -145,8 +149,11 @@
             delete: {
                 terms: [
                     'delete',
+                    // 繁體字
                     '刪除',
-                    '刪除上一句'
+                    '刪除上一句',
+                    // 簡體字
+                    '删除'
                 ],
                 match: 'exact' // prefix, exact, postfix
             },
@@ -163,11 +170,7 @@
                     '請說明以下程式碼',
                     '請說明一下程式碼',
                     '說明一下程式碼',
-                    '說明以下程式碼',
-                    '請解釋以下程式碼',
-                    '請解釋一下程式碼',
-                    '解釋一下程式碼',
-                    '解釋以下程式碼',
+                    '說明以下程式碼'
                 ],
                 match: 'exact' // prefix, exact, postfix
             },
