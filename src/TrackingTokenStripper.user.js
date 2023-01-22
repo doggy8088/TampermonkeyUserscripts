@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.9
+// @version      1.10
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -54,6 +54,11 @@
             .removeByDomain('www.facebook.com', 'notif_ids[3]')
             .removeByDomain('www.facebook.com', 'ref', 'notif')
             .removeByDomain('www.facebook.com', 'ref', 'watch_permalink')
+
+            // Dropbox
+            .removeByDomain('www.dropbox.com', '_ad')
+            .removeByDomain('www.dropbox.com', '_camp')
+            .removeByDomain('www.dropbox.com', '_tk')
 
             // Google Analytics
             // https://support.google.com/analytics/answer/1033863?hl=en
