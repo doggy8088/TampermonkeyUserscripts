@@ -168,6 +168,13 @@
       <td>MVP: Microsoft Docs & Learn Champion Program</td>
       <td>Add <code>WT.mc_id=DT-MVP-4015686</code> tracking code to the matched urls</td>
     </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BypassNewYorkTimesPaywall.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>移除 New York Times 付款提示畫面</td>
+      <td>移除看 New York Times 新聞時的付款提示畫面</td>
+    </tr>
   </tbody>
 </table>
 
