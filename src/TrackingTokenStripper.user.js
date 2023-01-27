@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.10
+// @version      1.11
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -53,7 +53,7 @@
             .removeByDomain('www.facebook.com', 'notif_ids[2]')
             .removeByDomain('www.facebook.com', 'notif_ids[3]')
             .removeByDomain('www.facebook.com', 'ref', 'notif')
-            .removeByDomain('www.facebook.com', 'ref', 'watch_permalink')
+            .removeByDomain('www.facebook.com', 'ref=watch_permalink')
 
             // Dropbox
             .removeByDomain('www.dropbox.com', '_ad')
@@ -98,16 +98,21 @@
             .removeByDomain('devblogs.microsoft.com', 'ocid')
 
             // Microsoft
-            .removeByDomain('docs.microsoft.com', 'ocid')
-            .removeByDomain('docs.microsoft.com', 'redirectedfrom')
-            .removeByDomain('azure.microsoft.com', 'ef_id')
+            .remove('wt.mc_id')
+            .removeByDomain('learn.microsoft.com', 'ocid')
+            .removeByDomain('learn.microsoft.com', 'redirectedfrom')
+
             .removeByDomain('azure.microsoft.com', 'OCID')
+            .removeByDomain('azure.microsoft.com', 'ef_id')
+
+            .removeByDomain('www.msn.com', 'ocid')
+            .removeByDomain('www.msn.com', 'cvid')
 
             // bilibili
             .removeByDomain('www.bilibili.com', 'share_source')
             .removeByDomain('www.bilibili.com', 'share_medium')
 
-            .remove('wt.mc_id')
+            // Others
             .remove('__tn__')
             .remove('gclsrc')
             .remove('itm_source')
@@ -158,9 +163,14 @@
                     }
                     return TrackingTokenStripper(parsedUrl.toString());
                 },
-                removeByDomain(domain, name, value) {
+                removeByDomain(domain, name) {
                     if (parsedUrl.hostname.toLocaleLowerCase() === domain.toLocaleLowerCase()) {
-                        return this.remove(name, value);
+                        if (name.indexOf('=') >= 0) {
+                            var [key, value] = name.split("=");
+                            return this.remove(key, value);
+                        } else {
+                            return this.remove(name);
+                        }
                     } else {
                         return this;
                     }
