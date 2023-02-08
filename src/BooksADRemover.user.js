@@ -16,11 +16,13 @@
 (function () {
     'use strict';
 
-    var style = document.createElement("style");
-    style.innerHTML = `
-div.flash_pic { display: none !important; }
-div.flash_pic_pop { display: none !important; }
+    var css = `
+    div.flash_pic { display: none !important; }
+    div.flash_pic_pop { display: none !important; }
 `;
+
+    var style = document.createElement("style");
+    style.innerHTML = css
     document.head.appendChild(style);
 
 })();

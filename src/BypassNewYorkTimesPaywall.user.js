@@ -13,15 +13,17 @@
 // @run-at       document-body
 // ==/UserScript==
 
-(function() {
+(function () {
+    'use strict';
+
+    var css = `
+    #bottom-wrapper, #gateway-content, #top-wrapper, .ad, #dfp-ad-top {
+        display: none !important;
+    }
+`;
 
     var style = document.createElement("style");
-
-    style.innerHTML = `
-#bottom-wrapper, #gateway-content, #top-wrapper, .ad, #dfp-ad-top {
-    display: none !important;
-}
-`;
+    style.innerHTML = css
     document.head.appendChild(style);
 
 })();

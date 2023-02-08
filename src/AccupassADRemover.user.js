@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Accupass: 刪除活動頁面的漂浮廣告
-// @version      1.0
+// @version      1.1
 // @description  刪除 Accupass 前台活動頁的漂浮廣告
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -16,18 +16,14 @@
 (function() {
     'use strict';
 
-    var timer = 3 * 1000; // seconds
+    var css = `
+    div[class*="download-app-container"] {
+        display: none;
+    }
+`;
 
-    var checker = setInterval(() => {
-        var elm = document.querySelector('div[class*="close-button"]');
-        if (elm) {
-            elm.parentElement.parentElement.remove();
-            clearInterval(checker);
-        }
-    }, 500);
-
-    setTimeout(() => {
-        clearInterval(checker);
-    }, timer);
+    var style = document.createElement("style");
+    style.innerHTML = css
+    document.head.appendChild(style);
 
 })();
