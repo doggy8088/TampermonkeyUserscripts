@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         移除 New York Times 付款提示畫面
+// @name         NYTimes: 移除 New York Times 閱讀新聞時的付款提示畫面
 // @version      1.0
 // @description  移除看 New York Times 新聞時的付款提示畫面
 // @license      MIT
@@ -10,21 +10,18 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BypassNewYorkTimesPaywall.user.js
 // @author       Will Huang
 // @match        https://www.nytimes.com/*
-// @run-at       document-idle
+// @run-at       document-body
 // ==/UserScript==
 
 (function() {
 
-    var htmlCSS = `
+    var style = document.createElement("style");
 
-<style>
+    style.innerHTML = `
 #bottom-wrapper, #gateway-content, #top-wrapper, .ad, #dfp-ad-top {
     display: none !important;
 }
-</style>
-
-    `;
-
-    document.body.innerHTML += htmlCSS;
+`;
+    document.head.appendChild(style);
 
 })();

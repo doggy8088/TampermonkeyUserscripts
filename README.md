@@ -172,8 +172,22 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BypassNewYorkTimesPaywall.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>移除 New York Times 付款提示畫面</td>
+      <td>NYTimes: 移除 New York Times 閱讀新聞時的付款提示畫面</td>
       <td>移除看 New York Times 新聞時的付款提示畫面</td>
+    </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AccupassADRemover.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>Accupass: 刪除活動頁面的漂浮廣告</td>
+      <td>刪除 Accupass 前台活動頁的漂浮廣告</td>
+    </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BooksADRemover.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>博客來: 刪除首頁的蓋版廣告</td>
+      <td>刪除博客來首頁的蓋版廣告</td>
     </tr>
   </tbody>
 </table>
