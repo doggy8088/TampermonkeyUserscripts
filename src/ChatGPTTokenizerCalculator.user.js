@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 自動統計網頁中選取的文字範圍的 Token 數量
-// @version      1.0.0
+// @version      1.0.1
 // @description  自動統計網頁中選取的文字範圍的 Token 數量 (OpenAI GPT-3 的 Tokenizer 規則)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -34,11 +34,10 @@
     if (text) {
 
         let prompt = text
-            .replace(/\\r/g, '')
-            .replace(/\\n/g, '\n')
-            .replace(/\s+$/mg, '')
-            .replace(/\n{3,}/g, '\n\n')
-            .replace(/^\s+|\s+$/g, '')
+            .replace(/\r/g, '')
+            .replace(/\s+$/g, '')
+            .replace(/\n{3,}/sg, '\n\n')
+            .replace(/^\s+|\s+$/sg, '')
 
         var script = document.createElement('script');
         script.onload = function () {

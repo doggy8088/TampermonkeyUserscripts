@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 自動填入提示文字並自動送出
-// @version      1.0.1
+// @version      1.0.2
 // @description  自動填入 ChatGPT 提示文字並可設定自動送出提問
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -52,11 +52,10 @@
 
             // 解析參數
             let prompt = params.get('prompt')
-                .replace(/\\r/g, '')
-                .replace(/\\n/g, '\n')
-                .replace(/\s+$/mg, '')
-                .replace(/\n{3,}/g, '\n\n')
-                .replace(/^\s+|\s+$/g, '')
+                .replace(/\r/g, '')
+                .replace(/\s+$/g, '')
+                .replace(/\n{3,}/sg, '\n\n')
+                .replace(/^\s+|\s+$/sg, '')
             let submit = params.get("autoSubmit");
 
             let autoSubmit = false;
