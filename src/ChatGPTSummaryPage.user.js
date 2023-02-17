@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 自動總結網頁中的文章內容 (<article>)
-// @version      1.0.0
+// @version      1.0.1
 // @description  自動將當前頁面的文章內容送到 ChatGPT 進行總結 (頁面中第一個 <article> 標籤)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -8,6 +8,7 @@
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTSummaryPage.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTSummaryPage.user.js
+// @match        *://*/*
 // @author       Will Huang
 // @run-at       context-menu
 // @grant        GM_openInTab
