@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         玉山銀行: 添加遺失的表單欄位 id 屬性
-// @version      1.0.0
+// @version      1.1.0
 // @description  修復玉山銀行玉山全球智匯網登入頁面無法使用密碼管理器的問題
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -19,8 +19,13 @@
     let it = setInterval(() => {
         let elm = document.querySelector('input[placeholder="顧客ID/代號"],input[placeholder="顾客ID/代号"],input[placeholder="Customer ID/No"]');
         if (elm) {
+
+            // 自動從 FRAME 中跳出來變成主角
+            if (location.href != top.location.href) top.location.href = location.href;
+
             elm.id = 'inputCustomerId';
             clearInterval(it);
+
         }
     }, 60);
 })();
