@@ -23,6 +23,15 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTSummaryPage.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>ChatGPT: 自動總結網頁中的文章內容 (&lt;article&gt;)</td>
+      <td>
+        自動將當前頁面的文章內容送到 <a href="https://chat.openai.com/chat">ChatGPT</a> 進行總結 (頁面中第一個 &lt;article&gt; 標籤)
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTAutoFill.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>ChatGPT: 自動填入提示文字並自動送出</td>
