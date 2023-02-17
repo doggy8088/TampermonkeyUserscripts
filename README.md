@@ -23,11 +23,11 @@
   <tbody>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTSummarySelectedText.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTokenizerCalculator.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT: 自動總結網頁中選取的文字範圍</td>
+      <td>ChatGPT: 自動統計網頁中選取的文字範圍的 Token 數量</td>
       <td>
-        自動將當前頁面中選取的文字範圍送到 <a href="https://chat.openai.com/chat">ChatGPT</a> 進行總結
+        自動統計網頁中選取的文字範圍的 Token 數量 使用 (OpenAI GPT-3 的 [Tokenizer](https://platform.openai.com/tokenizer) 規則)
       </td>
     </tr>
     <tr>
@@ -36,7 +36,7 @@
       </td>
       <td>ChatGPT: 自動總結網頁中的文章內容 (&lt;article&gt;)</td>
       <td>
-        自動將當前頁面的文章內容送到 <a href="https://chat.openai.com/chat">ChatGPT</a> 進行總結 (頁面中第一個 &lt;article&gt; 標籤)
+        自動將當前頁面的選取範圍或預設文章內容送到 <a href="https://chat.openai.com/chat">ChatGPT</a> 進行總結 (頁面中第一個 &lt;article&gt; 標籤)
       </td>
     </tr>
     <tr>
