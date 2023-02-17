@@ -27,7 +27,7 @@
       </td>
       <td>ChatGPT: 自動統計網頁中選取的文字範圍的 Token 數量</td>
       <td>
-        自動統計網頁中選取的文字範圍的 Token 數量 使用 (OpenAI GPT-3 的 [Tokenizer](https://platform.openai.com/tokenizer) 規則)
+        自動統計網頁中選取的文字範圍的 Token 數量 使用 (OpenAI GPT-3 的 <a href="https://platform.openai.com/tokenizer">Tokenizer</a> 規則)
       </td>
     </tr>
     <tr>
