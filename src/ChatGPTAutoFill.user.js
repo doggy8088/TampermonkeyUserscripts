@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 自動填入提示文字並自動送出
-// @version      1.0.0
+// @version      1.0.1
 // @description  自動填入 ChatGPT 提示文字並可設定自動送出提問
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -29,21 +29,10 @@
     "use strict";
 
     const {
-        Observable,
-        catchError,
-        defer,
         filter,
-        fromEvent,
         interval,
         map,
-        of,
-        retry,
-        shareReplay,
-        Subject,
-        switchMap,
-        take,
-        tap,
-        timer
+        take
     } = await import('https://cdn.jsdelivr.net/npm/@esm-bundle/rxjs/esm/es2015/rxjs.min.js');
 
     /**
