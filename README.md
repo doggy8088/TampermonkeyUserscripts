@@ -25,9 +25,9 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTVoiceInput.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT 語音輸入介面 (支援中/英/日/韓語言)</td>
+      <td>ChatGPT: 語音輸入與語音合成功能 (支援中/英/日/韓語言)</td>
       <td>
-        直接在 <a href="https://chat.openai.com/chat">ChatGPT</a> 加入語音辨識輸入與語音合成朗讀功能
+        讓你可以透過語音輸入要問 <a href="https://chat.openai.com/chat">ChatGPT</a> 的問題並支援語音合成功能 (支援中文、英文、日文、韓文)
       </td>
     </tr>
     <tr>
