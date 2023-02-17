@@ -52,6 +52,10 @@
             alert(result);
 
         };
+        // Docs:   https://syonfox.github.io/GPT-3-Encoder/browser.html
+        // NPM:    https://www.npmjs.com/package/@syonfox/gpt-3-encoder
+        // GitHub: https://github.com/syonfox/GPT-3-Encoder
+        // HTML Usage: https://github.com/syonfox/GPT-3-Encoder/blob/master/browser.html
         script.src = 'https://cdn.jsdelivr.net/npm/@syonfox/gpt-3-encoder/browser.js';
         document.head.appendChild(script);
     }

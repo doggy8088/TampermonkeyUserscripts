@@ -72,7 +72,7 @@
           <li>按下 <code>alt+m</code> 可啟動/停止朗讀功能 (Mac: <code>command+option+m</code>)</li>
           <li>按下 <code>alt+r</code> 可重設語音辨識狀態 (Mac: <code>command+option+r</code>)</li>
           <li>按下 <code>Escape</code> 可重設語音辨識狀態</li>
-          <li>影片教學: <a href="https://www.youtube.com/watch?v=DgFwtRj4jkU" target="_blank">Part 1</a>, <a href="https://www.youtube.com/watch?v=bMsh_Vw9SNc">Part 2</a></li>
+          <li>影片教學: <a href="https://www.youtube.com/watch?v=DgFwtRj4jkU" target="_blank">Part 1</a> (Outdated), <a href="https://www.youtube.com/watch?v=bMsh_Vw9SNc">Part 2</a> (Outdated)</li>
           <li>支援多種語音命令：
             <ol>
               <li>送出: 可自動送出查詢</li>
