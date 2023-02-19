@@ -79,6 +79,7 @@
           </li>
           <li>按下 <code>alt+s</code> 可啟動/停止語音辨識 (Mac: <code>command+option+s</code>)</li>
           <li>按下 <code>alt+m</code> 可啟動/停止朗讀功能 (Mac: <code>command+option+m</code>)</li>
+          <li>按下 <code>alt+t</code> 可立即停止語音辨識與語音合成功能 (Mac: <code>command+option+t</code>)</li>
           <li>按下 <code>alt+r</code> 可重設語音辨識狀態 (Mac: <code>command+option+r</code>)</li>
           <li>按下 <code>Escape</code> 可重設語音辨識狀態</li>
           <li>影片教學: <a href="https://www.youtube.com/watch?v=DgFwtRj4jkU" target="_blank">Part 1</a> (Outdated), <a href="https://www.youtube.com/watch?v=bMsh_Vw9SNc">Part 2</a> (Outdated)</li>
@@ -92,6 +93,11 @@
               <li>貼上: 可自動貼上「剪貼簿」內容到提問輸入框</li>
               <li>解釋以下程式碼: 可自動貼上「剪貼簿」內容到提問輸入框</li>
               <li>重新整理: 可重新整理網頁</li>
+              <li>切換至英文模式: 可切換至使用英文進行語音辨識</li>
+              <li>切換至日文模式: 可切換至使用日文進行語音辨識</li>
+              <li>切換至韓文模式: 可切換至使用韓文進行語音辨識</li>
+              <li>切換至中文模式: 可按下 Escape 或 Alt+R 回覆預設中文模式</li>
+              <li>關閉語音辨識: 可關閉語音辨識功能</li>
             </ol>
           </li>
         </ol>
