@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 自動填入提示文字並自動送出
-// @version      1.0.2
+// @version      1.1.0
 // @description  自動填入 ChatGPT 提示文字並可設定自動送出提問
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -17,33 +17,35 @@
 
 /*
 
+# Credit
+
+- 此腳本源自於 Mike Huang 的想法與實作，並在不斷的互動之中不斷精鍊，特此感謝他的想法。
+
 # 使用方法
 
 1. 在網址列加上 `#prompt=你的提示文字&autoSubmit=1`，例如：
 
     https://chat.openai.com/chat#prompt=你好&autoSubmit=1
 
+2. 設定為 Chrome / Edge 內建搜尋引擎，例如：
+
+    https://chat.openai.com/chat#prompt=%s&autoSubmit=1
+
+    只要在網址列輸入 gpt 再按 Tab 鍵，就會自動開啟 ChatGPT 並自動填入提示文字。
+
 */
 
 (async function () {
     "use strict";
 
-    const {
-        filter,
-        interval,
-        map,
-        take
-    } = await import('https://cdn.jsdelivr.net/npm/@esm-bundle/rxjs/esm/es2015/rxjs.min.js');
-
     /**
      * 等待 focus 到訊息輸入框就開始初始化功能
      */
-    interval(100).pipe(
-        map(() => document.activeElement),
-        filter((element) => element.tagName === 'TEXTAREA' && element.nextSibling.tagName === 'BUTTON'),
-        take(1)
-    )
-        .subscribe((textarea) => {
+
+    let it = setInterval(() => {
+        let textarea = document.activeElement;
+        if (textarea.tagName === 'TEXTAREA' && textarea.nextSibling.tagName === 'BUTTON') {
+
             // 預設的送出按鈕
             const button = textarea.parentElement.querySelector("button:last-child");
 
@@ -66,6 +68,9 @@
             if (prompt) {
                 textarea.value = prompt;
                 textarea.dispatchEvent(new Event("input", { bubbles: true }));
+                textarea.focus();
+                textarea.setSelectionRange(textarea.value.length, textarea.value.length); //將選擇範圍設定為文本的末尾
+                textarea.scrollTop = textarea.scrollHeight; // 自動捲動到最下方
 
                 if (autoSubmit) {
                     button.click();
@@ -74,5 +79,8 @@
                 history.replaceState({}, document.title, window.location.pathname + window.location.search);
             }
 
-        });
+            clearInterval(it);
+        }
+    }, 60);
+
 })();
