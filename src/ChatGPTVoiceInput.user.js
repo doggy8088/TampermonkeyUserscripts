@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 語音輸入與語音合成功能 (支援中/英/日/韓語言)
-// @version      2.1.0
+// @version      2.2.0
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題並支援語音合成功能 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -111,6 +111,9 @@
     // en-ZA => South Africa
     // en-PH => Philippines
     // en-GB => United Kingdom
+    //
+    // Japan
+    // ja-JP => 日本語 (日本)
 
     const {
         Observable,
@@ -162,6 +165,67 @@
             speechRecognitionStart$.next();
         }
     });
+
+    microphoneButtonElement.changeLanguage = function (language) {
+        if (language) {
+            console.log('切換語言到', language);
+            speechRecognitionStop$.next();
+            speechRecognition.lang = language;
+            setTimeout(() => {
+                speechRecognitionStart$.next();
+            }, 1000);
+        }
+    };
+    microphoneButtonElement.addEventListener("contextmenu", function (event) {
+        event.preventDefault();
+
+        var contextMenu = document.createElement("div");
+        contextMenu.close = function () {
+            this.remove();
+        };
+        contextMenu.style.position = "absolute";
+        contextMenu.style.backgroundColor = "white";
+        contextMenu.style.border = "1px solid black";
+        contextMenu.style.padding = "10px";
+        contextMenu.innerHTML = `
+        <style>
+        /* Light Theme */
+        select {
+            color: black;
+            background-color: white;
+            border: 1px solid black;
+        }
+
+        /* Dark Theme */
+        @media (prefers-color-scheme: dark) {
+            select {
+                color: white;
+                background-color: black;
+                border: 1px solid white;
+            }
+        }
+        </style>
+        <select onchange="document.getElementById('btn-microphone').changeLanguage(this.value);this.parentElement.close()">
+            <option value="">請選擇語音辨識的慣用語言</option>
+            <option value="cmn-Hant-TW">中文 (台灣)</option>
+            <option value="cmn-Hans-CN">普通话 (中国大陆)</option>
+            <option value="en-US">United States</option>
+            <option value="en-GB">United Kingdom</option>
+            <option value="en-AU">Australia</option>
+            <option value="en-CA">Canada</option>
+            <option value="en-IN">India</option>
+            <option value="ja-JP">日本語</option>
+            <option value="ko-KR">한국어</option>
+        </select>`;
+
+        // 設置右鍵內容選單位置
+        contextMenu.style.left = event.clientX + "px";
+        contextMenu.style.top = event.clientY + "px";
+
+        // 添加右鍵內容選單到頁面上
+        document.body.appendChild(contextMenu);
+    });
+
 
     // 語音合成輸出按鈕 (預設關閉)
     const svgSpeakerOn = '<svg stroke="currentColor" fill="currentColor" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="16px" height="16px" viewBox="0 0 16 16" version="1.1"><path d="M 9.332031 13.816406 L 9.332031 12.785156 C 10.410156 12.472656 11.292969 11.875 11.976562 10.992188 C 12.660156 10.109375 13 9.105469 13 7.984375 C 13 6.859375 12.660156 5.855469 11.984375 4.964844 C 11.304688 4.078125 10.421875 3.484375 9.332031 3.183594 L 9.332031 2.148438 C 10.710938 2.460938 11.832031 3.160156 12.699219 4.242188 C 13.566406 5.324219 14 6.570312 14 7.984375 C 14 9.394531 13.566406 10.640625 12.699219 11.726562 C 11.832031 12.808594 10.710938 13.503906 9.332031 13.816406 Z M 2 10 L 2 6 L 4.667969 6 L 8 2.667969 L 8 13.332031 L 4.667969 10 Z M 9 10.800781 L 9 5.183594 C 9.609375 5.371094 10.097656 5.726562 10.457031 6.25 C 10.820312 6.773438 11 7.355469 11 8 C 11 8.632812 10.816406 9.210938 10.449219 9.734375 C 10.082031 10.253906 9.601562 10.609375 9 10.800781 Z M 7 5.199219 L 5.117188 7 L 3 7 L 3 9 L 5.117188 9 L 7 10.816406 Z M 5.433594 8 Z M 5.433594 8 "></path></svg>';
@@ -301,26 +365,26 @@
 
                 case '切換至中文模式':
                     (logLevel >= 2) && console.log('切換至中文模式');
-                    speechRecognition.lang = 'cmn-Hant-TW';
+                    microphoneButtonElement.changeLanguage('cmn-Hant-TW');
                     Parts[Parts.length - 1] = '';
                     break;
 
                 case '切換至英文模式':
                     (logLevel >= 2) && console.log('切換至英文模式');
-                    speechRecognition.lang = 'en-US';
+                    microphoneButtonElement.changeLanguage('en-US');
                     Parts[Parts.length - 1] = '';
                     break;
 
                 case '切換至日文模式':
                 case '切換至日文':
                     (logLevel >= 2) && console.log('切換至日文模式');
-                    speechRecognition.lang = 'ja-JP';
+                    microphoneButtonElement.changeLanguage('ja-JP');
                     Parts[Parts.length - 1] = '';
                     break;
 
                 case '切換至韓文模式':
                     (logLevel >= 2) && console.log('切換至韓文模式');
-                    speechRecognition.lang = 'ko-KR';
+                    microphoneButtonElement.changeLanguage('ko-KR');
                     Parts[Parts.length - 1] = '';
                     break;
 
