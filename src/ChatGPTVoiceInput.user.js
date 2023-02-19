@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 語音輸入與語音合成功能 (支援中/英/日/韓語言)
-// @version      2.2.0
+// @version      2.2.1
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題並支援語音合成功能 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -209,11 +209,11 @@
             <option value="">請選擇語音辨識的慣用語言</option>
             <option value="cmn-Hant-TW">中文 (台灣)</option>
             <option value="cmn-Hans-CN">普通话 (中国大陆)</option>
-            <option value="en-US">United States</option>
-            <option value="en-GB">United Kingdom</option>
-            <option value="en-AU">Australia</option>
-            <option value="en-CA">Canada</option>
-            <option value="en-IN">India</option>
+            <option value="en-US">English (United States)</option>
+            <option value="en-GB">English (United Kingdom)</option>
+            <option value="en-AU">English (Australia)</option>
+            <option value="en-CA">English (Canada)</option>
+            <option value="en-IN">English (India)</option>
             <option value="ja-JP">日本語</option>
             <option value="ko-KR">한국어</option>
         </select>`;
