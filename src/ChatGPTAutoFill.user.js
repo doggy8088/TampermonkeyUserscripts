@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 自動填入提示文字並自動送出
-// @version      1.1.1
+// @version      1.1.2
 // @description  自動填入 ChatGPT 提示文字並可設定自動送出提問
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -11,7 +11,7 @@
 // @match        *://chat.openai.com/chat
 // @match        *://chat.openai.com/chat/*
 // @author       Will Huang
-// @run-at       document-idle
+// @run-at       document-end
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=openai.com
 // ==/UserScript==
 
@@ -50,7 +50,10 @@
             const button = textarea.parentElement.querySelector("button:last-child");
 
             // 解析 hash 中的查詢字串並取得所需的參數
-            var params = new URLSearchParams(location.hash.substring(1));
+            var hash = location.hash.substring(1);
+            if (!hash) return;
+
+            var params = new URLSearchParams(hash);
 
             // 解析參數
             let prompt = params.get('prompt')
