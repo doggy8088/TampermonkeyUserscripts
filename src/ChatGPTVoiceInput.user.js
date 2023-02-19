@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 語音輸入與語音合成功能 (支援中/英/日/韓語言)
-// @version      2.0.1
+// @version      2.0.2
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題並支援語音合成功能 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -871,6 +871,8 @@
         textAreaElement.parentElement.insertBefore(microphoneButtonElement, submitButtonElement);
         // 加入聲音輸出按鈕
         textAreaElement.parentElement.insertBefore(speakerButtonElement, microphoneButtonElement);
+
+        textAreaElement.style.paddingRight = '90px';
 
         // 語音合成
         listenUtteranceTextAndSpeak();
