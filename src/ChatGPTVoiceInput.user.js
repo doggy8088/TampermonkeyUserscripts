@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 語音輸入與語音合成功能 (支援中/英/日/韓語言)
-// @version      2.2.1
+// @version      2.2.2
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題並支援語音合成功能 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -183,19 +183,24 @@
         contextMenu.close = function () {
             this.remove();
         };
+        contextMenu.setDefault = function (select) {
+            console.log('set default to '+speechRecognition.lang);
+            select.value = speechRecognition.lang;
+        };
+        contextMenu.id = "microphoneButtonElementContextMenu";
         contextMenu.style.position = "absolute";
         contextMenu.style.backgroundColor = "white";
         contextMenu.style.border = "1px solid black";
         contextMenu.style.padding = "10px";
-        contextMenu.innerHTML = `
-        <style>
+
+        const styleElement = document.createElement('style');
+        styleElement.textContent = `
         /* Light Theme */
         select {
             color: black;
             background-color: white;
             border: 1px solid black;
         }
-
         /* Dark Theme */
         @media (prefers-color-scheme: dark) {
             select {
@@ -203,20 +208,42 @@
                 background-color: black;
                 border: 1px solid white;
             }
-        }
-        </style>
-        <select onchange="document.getElementById('btn-microphone').changeLanguage(this.value);this.parentElement.close()">
-            <option value="">請選擇語音辨識的慣用語言</option>
-            <option value="cmn-Hant-TW">中文 (台灣)</option>
-            <option value="cmn-Hans-CN">普通话 (中国大陆)</option>
-            <option value="en-US">English (United States)</option>
-            <option value="en-GB">English (United Kingdom)</option>
-            <option value="en-AU">English (Australia)</option>
-            <option value="en-CA">English (Canada)</option>
-            <option value="en-IN">English (India)</option>
-            <option value="ja-JP">日本語</option>
-            <option value="ko-KR">한국어</option>
-        </select>`;
+        }`;
+        contextMenu.appendChild(styleElement);
+
+        const selectElement = document.createElement('select');
+        selectElement.addEventListener('change', function (event) {
+            microphoneButtonElement.changeLanguage(this.value);
+            contextMenu.close()
+        });
+
+        const option1 = document.createElement('option');
+        option1.value = '';
+        option1.text = '請選擇語音辨識的慣用語言';
+        selectElement.add(option1);
+
+        // 可設定值清單 ▶ https://www.google.com/intl/en/chrome/demos/speech.html
+        var options = [
+            { value: "cmn-Hant-TW", text: "中文 (台灣)" },
+            { value: "cmn-Hans-CN", text: "普通话 (中国大陆)" },
+            { value: "en-US", text: "English (United States)" },
+            { value: "en-GB", text: "English (United Kingdom)" },
+            { value: "en-AU", text: "English (Australia)" },
+            { value: "en-CA", text: "English (Canada)" },
+            { value: "en-IN", text: "English (India)" },
+            { value: "ja-JP", text: "日本語" },
+            { value: "ko-KR", text: "한국어" },
+        ]
+
+        options.forEach(function (item) {
+            const option = document.createElement('option');
+            option.value = item.value;
+            option.text = item.text;
+            option.selected = (item.value == speechRecognition.lang);
+            selectElement.add(option);
+        });
+
+        contextMenu.appendChild(selectElement);
 
         // 設置右鍵內容選單位置
         contextMenu.style.left = event.clientX + "px";
@@ -903,7 +930,6 @@
 
     }
 
-
     function initializeTextboxInputEvent() {
         textAreaElement.addEventListener('input', (ev) => {
             (logLevel >= 2) && console.log(ev.inputType);
@@ -918,6 +944,15 @@
     function addButtons() {
         // 預設的送出按鈕
         submitButtonElement = textAreaElement.nextSibling;
+
+        submitButtonElement.addEventListener('click', (ev) => {
+            this.submit();
+
+            setTimeout(() => {
+                reset();
+            }, 500);
+        });
+
         // 加入麥克風按鈕
         textAreaElement.parentElement.insertBefore(microphoneButtonElement, submitButtonElement);
         // 加入聲音輸出按鈕
@@ -931,32 +966,41 @@
         speechSynthesisStop$.next();
         speechRecognitionStop$.next();
 
-        speechRecognition.continuous = true;
-        speechRecognition.interimResults = true;
-        speechRecognition.lang = defaultLang; // 可設定值清單 ▶ https://stackoverflow.com/a/68742566/910074
+        // speechRecognition.continuous = true;
+        // speechRecognition.interimResults = true;
+        //speechRecognition.lang = defaultLang; // 可設定值清單 ▶ https://stackoverflow.com/a/68742566/910074
 
         textAreaElement.value = ''
         textAreaElement.dispatchEvent(new Event('input', { bubbles: true }));
         textAreaElement.focus();
 
+        if (document.querySelector('#microphoneButtonElementContextMenu')) {
+            document.querySelector('#microphoneButtonElementContextMenu').close();
+        }
+
         speakerButtonElement.innerHTML = svgSpeakerOff;
         microphoneButtonElement.innerHTML = svgMicOff;
     }
 
-    setInterval(() => {
-        if (document.querySelector('#btn-speaker') === null) {
-            (logLevel >= 1) && console.log('偵測到換頁事件');
+    // 偵測換頁必須 5 秒後才開始，因為第一次載入時可能會透過 ChatGPTAutoFill.user.js 加入預設表單內容
+    setTimeout(() => {
 
-            reset();
+        setInterval(() => {
+            if (document.querySelector('#btn-speaker') === null) {
+                (logLevel >= 1) && console.log('偵測到換頁事件');
 
-            setTimeout(() => {
-                textAreaElement = document.activeElement;
-                addButtons();      // 新增兩個 Buttons
-                initializeTextboxInputEvent(); // 初始化輸入框事件
-            }, 300);
+                reset();
 
-        }
-    }, 300);
+                setTimeout(() => {
+                    textAreaElement = document.activeElement;
+                    addButtons();      // 新增兩個 Buttons
+                    initializeTextboxInputEvent(); // 初始化輸入框事件
+                }, 300);
+
+            }
+        }, 300);
+
+    }, 5000);
 
     /**
      * 等待 focus 到訊息輸入框就開始初始化功能
