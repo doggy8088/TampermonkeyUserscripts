@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 語音輸入與語音合成功能 (支援中/英/日/韓語言)
-// @version      2.3.0
+// @version      2.4.0
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題並支援語音合成功能 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -89,9 +89,15 @@
 (async function () {
     'use strict';
 
-    const logLevel = 0; // 0: None, 1: Information, 2: Debug
+    const logLevel = 2; // 0: None, 1: Information, 2: Debug
 
     const defaultLang = 'cmn-Hant-TW'; // 可設定值清單 ▶ https://stackoverflow.com/a/68742566/910074
+
+    let currentVoice = undefined;
+    window.speechSynthesis.onvoiceschanged = function() {
+        currentVoice = speechSynthesis.getVoices().filter(x => x.lang === 'zh-TW').pop();
+    };
+
     // 中文
     // cmn-Hant-TW => 中文 (台灣)
     // cmn-Hans-CN => 普通话 (中国大陆)
@@ -176,6 +182,7 @@
             }, 1000);
         }
     };
+
     microphoneButtonElement.addEventListener("contextmenu", function (event) {
         event.preventDefault();
 
@@ -251,6 +258,12 @@
 
         // 添加右鍵內容選單到頁面上
         document.body.appendChild(contextMenu);
+
+        document.addEventListener("click", function(ev) {
+            if (!contextMenu.contains(ev.target)) {
+                contextMenu.remove();
+            }
+        });
     });
 
 
@@ -271,6 +284,75 @@
         } else {
             speechSynthesisStart$.next();
         }
+    });
+
+
+    speakerButtonElement.addEventListener("contextmenu", function (event) {
+        event.preventDefault();
+
+        var contextMenu = document.createElement("div");
+        contextMenu.close = function () {
+            this.remove();
+        };
+        contextMenu.id = "speakerButtonElementContextMenu";
+        contextMenu.style.position = "absolute";
+        contextMenu.style.backgroundColor = "white";
+        contextMenu.style.border = "1px solid black";
+        contextMenu.style.padding = "10px";
+
+        const styleElement = document.createElement('style');
+        styleElement.textContent = `
+        /* Light Theme */
+        select {
+            color: black;
+            background-color: white;
+            border: 1px solid black;
+        }
+        /* Dark Theme */
+        @media (prefers-color-scheme: dark) {
+            select {
+                color: white;
+                background-color: black;
+                border: 1px solid white;
+            }
+        }`;
+        contextMenu.appendChild(styleElement);
+
+        const selectElement = document.createElement('select');
+        selectElement.addEventListener('change', function (event) {
+            currentVoice = speechSynthesis.getVoices().filter(x => x.voiceURI === this.value).pop();
+            console.log('你目前選中的語音合成聲音是: ', currentVoice);
+            speechSynthesisStart$.next();
+            contextMenu.close()
+        });
+
+        const option1 = document.createElement('option');
+        option1.value = '';
+        option1.text = '請選擇語音合成的慣用聲音';
+        selectElement.add(option1);
+
+        speechSynthesis.getVoices().forEach(function (item) {
+            const option = document.createElement('option');
+            option.value = item.voiceURI;
+            option.text = item.name;
+            option.selected = (item == currentVoice);
+            selectElement.add(option);
+        });
+
+        contextMenu.appendChild(selectElement);
+
+        // 設置右鍵內容選單位置
+        contextMenu.style.left = event.clientX + "px";
+        contextMenu.style.top = event.clientY + "px";
+
+        // 添加右鍵內容選單到頁面上
+        document.body.appendChild(contextMenu);
+
+        document.addEventListener("click", function(ev) {
+            if (!contextMenu.contains(ev.target)) {
+                contextMenu.remove();
+            }
+        });
     });
 
     // 判斷是否要開始執行語音合成
@@ -817,15 +899,17 @@
         return new Observable(subscriber => {
             if (!isSpeechSynthesisEnabled()) { return; }
 
-            (logLevel >= 1) && console.log(`準備合成閱讀文章語音: ${text}`);
-            let utterance = new SpeechSynthesisUtterance(text);
+            (logLevel >= 1) && console.log(`準備合成閱讀文章語音: ${text}`, currentVoice);
 
-            const voice = speechSynthesis.getVoices().filter(x => x.lang === 'zh-TW').pop();
-            (logLevel >= 2) && console.log('你選用的發音來源是', voice);
-            utterance.voice = voice;
+            let utterance = new SpeechSynthesisUtterance(text);
+            utterance.voice = currentVoice;
 
             // 語速
-            utterance.rate = 1.3; // 0.1 ~ 10, default: 1
+            if (currentVoice.lang === 'zh-TW') {
+                utterance.rate = 1.3; // 0.1 ~ 10, default: 1
+            } else {
+                utterance.rate = 1.0; // 0.1 ~ 10, default: 1
+            }
 
             utterance.onstart = (evt) => {
                 (logLevel >= 2) && console.log('開始發音', evt);
@@ -990,6 +1074,10 @@
 
         if (document.querySelector('#microphoneButtonElementContextMenu')) {
             document.querySelector('#microphoneButtonElementContextMenu').close();
+        }
+
+        if (document.querySelector('#speakerButtonElementContextMenu')) {
+            document.querySelector('#speakerButtonElementContextMenu').close();
         }
 
         speakerButtonElement.innerHTML = svgSpeakerOff;
