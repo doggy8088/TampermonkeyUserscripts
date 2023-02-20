@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 語音輸入與語音合成功能 (支援中/英/日/韓語言)
-// @version      2.2.3
+// @version      2.3.0
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題並支援語音合成功能 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -89,7 +89,7 @@
 (async function () {
     'use strict';
 
-    const logLevel = 2; // 0: None, 1: Information, 2: Debug
+    const logLevel = 0; // 0: None, 1: Information, 2: Debug
 
     const defaultLang = 'cmn-Hant-TW'; // 可設定值清單 ▶ https://stackoverflow.com/a/68742566/910074
     // 中文
@@ -184,7 +184,7 @@
             this.remove();
         };
         contextMenu.setDefault = function (select) {
-            console.log('set default to '+speechRecognition.lang);
+            console.log('set default to ' + speechRecognition.lang);
             select.value = speechRecognition.lang;
         };
         contextMenu.id = "microphoneButtonElementContextMenu";
@@ -304,11 +304,12 @@
         (logLevel >= 1) && console.log('開始進行 SpeechRecognition 語音辨識');
     };
     speechRecognition.onerror = (event) => {
-        (logLevel >= 1) && console.error('SpeechRecognition 語音辨識錯誤!', event);
+        (logLevel >= 1) && console.log('SpeechRecognition 語音辨識錯誤(error)或中斷(abort)!', event);
     }
     speechRecognition.onend = (event) => {
         // 如果目前瀏覽器頁籤抓不到麥克風資源 (例如有兩個 Tab 都想要麥克風)，那麼就會一直不斷的停止語音辨識！
         (logLevel >= 1) && console.log('停止 SpeechRecognition 語音辨識!', event);
+        speechRecognitionStop$.next();
     };
     speechRecognition.onresult = async (event) => {
         await processSpeechRecognitionResult(event);
@@ -322,7 +323,7 @@
         (logLevel >= 2) && console.log('results.length', results.length);
         let transcript = results[0].transcript; // 理論上只會有一個結果
 
-        (logLevel >= 2) && console.log('語音輸入: ' + transcript, 'isFinal: ', results.isFinal);
+        (logLevel >= 1) && console.log('語音輸入: ' + transcript, 'isFinal: ', results.isFinal);
 
         if (Parts.length == 0) {
             Parts[0] = transcript;
@@ -330,8 +331,11 @@
             Parts[Parts.length - 1] = transcript;
         }
 
-        textAreaElement.value = Parts.join('') + '...';
+        textAreaElement.value = Parts.join('') + '…';
         textAreaElement.dispatchEvent(new Event('input', { bubbles: true }));
+        textAreaElement.focus();
+        textAreaElement.setSelectionRange(textAreaElement.value.length, textAreaElement.value.length);
+        textAreaElement.scrollTop = textAreaElement.scrollHeight; // 自動捲動到最下方
 
         if (results.isFinal) {
             (logLevel >= 2) && console.log('Final Result: ', results);
@@ -344,6 +348,9 @@
                     if (Parts.length > 0) {
                         textAreaElement.value = Parts.join('');
                         textAreaElement.dispatchEvent(new Event('input', { bubbles: true }));
+                        textAreaElement.focus();
+                        textAreaElement.setSelectionRange(textAreaElement.value.length, textAreaElement.value.length);
+                        textAreaElement.scrollTop = textAreaElement.scrollHeight; // 自動捲動到最下方
                         submitButtonElement.click();
                         Parts = [];
 
@@ -364,30 +371,12 @@
                     Parts.pop();
                     break;
 
-                case '逗點':
-                    if (navigator.userAgent.indexOf('Edg/') == -1) {
-                        Parts[Parts.length - 1] = '，';
-                    }
-                    break;
-
-                case '句點':
-                    if (navigator.userAgent.indexOf('Edg/') == -1) {
-                        Parts[Parts.length - 1] = '。';
-                    }
-                    break;
-
-                case '問號':
-                    if (navigator.userAgent.indexOf('Edg/') == -1) {
-                        Parts[Parts.length - 1] = '？';
-                    }
-                    break;
-
                 case '換行':
                     Parts[Parts.length - 1] = '\r\n';
                     break;
 
                 case '重置':
-                    Parts = [];
+                    reset();
                     break;
 
                 case '切換至中文模式':
@@ -430,7 +419,7 @@
                     break;
 
                 case 'explain_code':
-                    Parts[Parts.length - 1] = Parts[Parts.length - 1].replace(/\.\.\.$/g, '');
+                    Parts[Parts.length - 1] = Parts[Parts.length - 1].replace(/…$/g, '');
                     (logLevel >= 2) && console.log('確認輸入 (說明程式碼)');
 
                     Parts = [...Parts, '\r\n\r\n'];
@@ -439,8 +428,8 @@
                     break;
 
                 default:
-                    Parts[Parts.length - 1] = Parts[Parts.length - 1].replace(/\.\.\.$/g, '');
-                    (logLevel >= 2) && console.log('確認輸入');
+                    Parts[Parts.length - 1] = Parts[Parts.length - 1].replace(/…$/g, '');
+                    (logLevel >= 2) && console.log('確認輸入', Parts);
                     break;
             }
 
@@ -448,6 +437,9 @@
 
             textAreaElement.value = Parts.join('');
             textAreaElement.dispatchEvent(new Event('input', { bubbles: true }));
+            textAreaElement.focus();
+            textAreaElement.setSelectionRange(textAreaElement.value.length, textAreaElement.value.length);
+            textAreaElement.scrollTop = textAreaElement.scrollHeight; // 自動捲動到最下方
         }
     }
 
@@ -465,8 +457,16 @@
         microphoneButtonElement.innerHTML = svgMicOn;
         microphoneButtonElement.title = `關閉語音辨識功能 (${isMac() ? 'command+option+s' : 'alt+s'})`;
 
+        if (textAreaElement.value) {
+            Parts = [textAreaElement.value, ''];
+        } else {
+            Parts = [];
+        }
+
         // 啟動語音辨識
         speechRecognition.start();
+        (logLevel >= 1) && console.log('speechRecognitionStart$ Started', Parts, textAreaElement.value);
+
     });
 
     // 2. 語音識別停止 speechRecognitionStop$
@@ -478,7 +478,17 @@
         microphoneButtonElement.innerHTML = svgMicOff;
         microphoneButtonElement.title = `開啟語音辨識功能 (${isMac() ? 'command+option+s' : 'alt+s'})`;
 
-        speechRecognition.stop();
+        if (Parts.length > 0) {
+            textAreaElement.value = textAreaElement.value.replace(/…$/, '');
+            textAreaElement.dispatchEvent(new Event('input', { bubbles: true }));
+            textAreaElement.focus();
+            textAreaElement.setSelectionRange(textAreaElement.value.length, textAreaElement.value.length);
+            textAreaElement.scrollTop = textAreaElement.scrollHeight; // 自動捲動到最下方
+            Parts = [];
+        }
+
+        // 如果用 speechRecognition.stop() 會導致 speechRecognition.onresult 事件被觸發，這會影響 textarea 的值!(Buggy)
+        speechRecognition.abort();
     });
 
     // 3. 語音合成開始 speechSynthesisStart$
@@ -931,18 +941,13 @@
     }
 
     function initializeTextboxInputEvent() {
+        // 只要是在語音識別的狀態下，有人在 textarea 輸入文字，就要取消原本在 Parts 中的所有暫存輸入資料，以人工輸入為主
         textAreaElement.addEventListener('input', (ev) => {
-            (logLevel >= 2) && console.log('initializeTextboxInputEvent', ev.inputType);
-            if (ev.inputType === undefined) {
-                // 透過 JS 設定其值
-                // 注意: 在 Mac 電腦的中文輸入法按下 Enter 確認時，會接收到 Enter 的 input 事件
-            } else {
-                if (Parts.length === 2 && Parts[1] === '') {
-                    Parts[0] = ev.target.value;
-                    (logLevel >= 2) && console.log('initializeTextboxInputEvent:input:Parts:1', Parts);
-                } else {
-                    Parts = [ev.target.value, ''];
-                    (logLevel >= 2) && console.log('initializeTextboxInputEvent:input:Parts:2', Parts);
+            if (isSpeechRecognitionEnabled()) {
+                (logLevel >= 1) && console.log('initializeTextboxInputEvent', ev);
+                // 只要在語音識別的狀態下，有人在 textarea 輸入文字，就要停用語音識別，否則兩邊同時輸入很容易有 Bug
+                if (!!ev.inputType) {
+                    speechRecognitionStop$.next();
                 }
             }
         });
@@ -980,6 +985,8 @@
         textAreaElement.value = ''
         textAreaElement.dispatchEvent(new Event('input', { bubbles: true }));
         textAreaElement.focus();
+        textAreaElement.setSelectionRange(textAreaElement.value.length, textAreaElement.value.length);
+        textAreaElement.scrollTop = textAreaElement.scrollHeight; // 自動捲動到最下方
 
         if (document.querySelector('#microphoneButtonElementContextMenu')) {
             document.querySelector('#microphoneButtonElementContextMenu').close();
