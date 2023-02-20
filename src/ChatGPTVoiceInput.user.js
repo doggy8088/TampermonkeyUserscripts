@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 語音輸入與語音合成功能 (支援中/英/日/韓語言)
-// @version      2.2.2
+// @version      2.2.3
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題並支援語音合成功能 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -89,7 +89,7 @@
 (async function () {
     'use strict';
 
-    const logLevel = 1; // 0: None, 1: Information, 2: Debug
+    const logLevel = 2; // 0: None, 1: Information, 2: Debug
 
     const defaultLang = 'cmn-Hant-TW'; // 可設定值清單 ▶ https://stackoverflow.com/a/68742566/910074
     // 中文
@@ -914,9 +914,9 @@
         });
 
         // Submit then reset()
-        keydownEnter$.subscribe((ev) => {
-            reset();
-        });
+        // keydownEnter$.subscribe((ev) => {
+        //     reset();
+        // });
 
         // Alt + R to reset()
         keydownAltR$.subscribe((ev) => {
@@ -932,11 +932,18 @@
 
     function initializeTextboxInputEvent() {
         textAreaElement.addEventListener('input', (ev) => {
-            (logLevel >= 2) && console.log(ev.inputType);
+            (logLevel >= 2) && console.log('initializeTextboxInputEvent', ev.inputType);
             if (ev.inputType === undefined) {
                 // 透過 JS 設定其值
+                // 注意: 在 Mac 電腦的中文輸入法按下 Enter 確認時，會接收到 Enter 的 input 事件
             } else {
-                Parts = [ev.target.value, ''];
+                if (Parts.length === 2 && Parts[1] === '') {
+                    Parts[0] = ev.target.value;
+                    (logLevel >= 2) && console.log('initializeTextboxInputEvent:input:Parts:1', Parts);
+                } else {
+                    Parts = [ev.target.value, ''];
+                    (logLevel >= 2) && console.log('initializeTextboxInputEvent:input:Parts:2', Parts);
+                }
             }
         });
     }
