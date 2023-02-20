@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 語音輸入與語音合成功能 (支援中/英/日/韓語言)
-// @version      2.4.0
+// @version      2.4.1
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題並支援語音合成功能 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -89,7 +89,7 @@
 (async function () {
     'use strict';
 
-    const logLevel = 2; // 0: None, 1: Information, 2: Debug
+    const logLevel = 0; // 0: None, 1: Information, 2: Debug
 
     const defaultLang = 'cmn-Hant-TW'; // 可設定值清單 ▶ https://stackoverflow.com/a/68742566/910074
 
