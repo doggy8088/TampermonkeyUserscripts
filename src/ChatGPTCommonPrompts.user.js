@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 在回應結果的地方加入常見提示回應按鈕
-// @version      1.0.0
+// @version      1.1.0
 // @description  點擊按鈕就會自動填入 ChatGPT 提示文字輸入框並自動送出提問
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -51,7 +51,8 @@
     ];
 
     let globalButtons = [];
-    let buttonsArea = null;
+    let buttonsArea;
+    let talkBlockToInsertButtons;
 
     const main = document.querySelector("body");
 
@@ -60,14 +61,34 @@
     let mutationObserverTimer = undefined;
     const obs = new MutationObserver(() => {
 
+        // 尋找聊天記錄的最後一筆，用來插入按鈕
+        const talkBlocks = document.querySelectorAll(
+            ".text-base.gap-4.md\\:gap-6.m-auto.md\\:max-w-2xl.lg\\:max-w-2xl.xl\\:max-w-3xl.p-4.md\\:py-6.flex.lg\\:px-0:not(.custom-buttons-area)"
+        );
+        if (!talkBlocks || !talkBlocks.length) {
+            return;
+        }
+
+        if (talkBlockToInsertButtons != talkBlocks[talkBlocks.length - 1]) {
+            if (buttonsArea) {
+                // 重新將按鈕區和按鈕移除
+                buttonsArea.remove();
+            }
+        }
+
         clearTimeout(mutationObserverTimer);
         mutationObserverTimer = setTimeout(() => {
 
             // 先停止觀察，避免自訂畫面變更被觀察到
             stop();
 
-            // 先將原來動態加入的內容移除並重新建立
-            rebuild_buttons();
+            if (talkBlockToInsertButtons != talkBlocks[talkBlocks.length - 1]) {
+                // 要被插入按鈕的區塊
+                talkBlockToInsertButtons = talkBlocks[talkBlocks.length - 1];
+
+                // 重新建立回應按鈕
+                rebuild_buttons();
+            }
 
             counter++;
             console.log(`MutationObserver: ${counter}`);
@@ -79,22 +100,8 @@
 
         function rebuild_buttons() {
 
-            // 尋找聊天記錄的最後一筆，用來插入按鈕
-            const talkBlocks = document.querySelectorAll(
-                ".text-base.gap-4.md\\:gap-6.m-auto.md\\:max-w-2xl.lg\\:max-w-2xl.xl\\:max-w-3xl.p-4.md\\:py-6.flex.lg\\:px-0:not(.custom-buttons-area)"
-            );
-            if (!talkBlocks || !talkBlocks.length) {
-                return;
-            }
-
-            // 要被插入按鈕的區塊
-            const talkBlockToInsertButtons = talkBlocks[talkBlocks.length - 1];
-
             // remove custom buttons
             globalButtons = [];
-
-            // 重新將按鈕區和按鈕移除
-            if (buttonsArea) { buttonsArea.remove(); }
 
             // create a new buttons area
             buttonsArea = document.createElement("div");
