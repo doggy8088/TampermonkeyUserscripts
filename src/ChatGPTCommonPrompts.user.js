@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 在回應結果的地方加入常見提示回應按鈕
-// @version      1.1.0
+// @version      1.1.1
 // @description  點擊按鈕就會自動填入 ChatGPT 提示文字輸入框並自動送出提問
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -119,13 +119,24 @@
                 let lastText = talkBlockToInsertButtons.innerText;
 
                 const isPunctuation = (str) => {
-                    const punctuationRegex = /^(?![，,：:])[\p{P}\p{S}]$/u;
+                    const punctuationRegex = /^[\p{P}\p{S}]$/u;
                     return punctuationRegex.test(str);
                 }
 
-                // 最後一個字元如果是標點符號，就不要顯示「繼續」
-                if (isPunctuation(lastText.charAt(lastText.length - 1)) && item.text == '繼續') {
-                    return;
+                // 如果回應的最後一個字元是個標點符號，就不需要顯示「繼續」按鈕
+                if (item.text == '繼續') {
+                    let lastChar = lastText.charAt(lastText.length - 1);
+                    if (isPunctuation(lastChar)) {
+                        // 如果最後一個字元是逗號，通常代表要繼續，因為句子尚未完成
+                        if (lastChar === ',' || lastChar === '，') {
+                            // 如果是逗號，通常代表要繼續，因為句子尚未完成
+                        } else {
+                            // 如果最後一個字元是「。」或「！」或「？」，則不顯示「繼續」按鈕
+                            return;
+                        }
+                    } else {
+                        // 如果不是標點符號，就需要顯示「繼續」按鈕
+                    }
                 }
 
                 const button = document.createElement("button");
