@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 自動填入提示文字並自動送出
-// @version      1.1.2
+// @version      1.2.1
 // @description  自動填入 ChatGPT 提示文字並可設定自動送出提問
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -42,48 +42,51 @@
      * 等待 focus 到訊息輸入框就開始初始化功能
      */
 
-    let it = setInterval(() => {
+    const start = (textarea) => {
+
+        // 預設的送出按鈕
+        const button = textarea.parentElement.querySelector("button:last-child");
+
+        // 解析 hash 中的查詢字串並取得所需的參數
+        var hash = location.hash.substring(1);
+        if (!hash) return;
+
+        var params = new URLSearchParams(hash);
+
+        // 解析參數
+        let prompt = params.get('prompt')
+            .replace(/\r/g, '')
+            .replace(/\s+$/g, '')
+            .replace(/\n{3,}/sg, '\n\n')
+            .replace(/^\s+|\s+$/sg, '')
+        let submit = params.get("autoSubmit");
+
+        let autoSubmit = false;
+        if (submit == '1' || submit == 'true') {
+            autoSubmit = true
+        }
+
+        if (prompt) {
+            textarea.value = prompt;
+            textarea.dispatchEvent(new Event("input", { bubbles: true }));
+            textarea.focus();
+            textarea.setSelectionRange(textarea.value.length, textarea.value.length); //將選擇範圍設定為文本的末尾
+            textarea.scrollTop = textarea.scrollHeight; // 自動捲動到最下方
+
+            if (autoSubmit) {
+                button.click();
+            }
+
+            history.replaceState({}, document.title, window.location.pathname + window.location.search);
+        }
+    }
+
+    const it = setInterval(() => {
         let textarea = document.activeElement;
         if (textarea.tagName === 'TEXTAREA' && textarea.nextSibling.tagName === 'BUTTON') {
-
-            // 預設的送出按鈕
-            const button = textarea.parentElement.querySelector("button:last-child");
-
-            // 解析 hash 中的查詢字串並取得所需的參數
-            var hash = location.hash.substring(1);
-            if (!hash) return;
-
-            var params = new URLSearchParams(hash);
-
-            // 解析參數
-            let prompt = params.get('prompt')
-                .replace(/\r/g, '')
-                .replace(/\s+$/g, '')
-                .replace(/\n{3,}/sg, '\n\n')
-                .replace(/^\s+|\s+$/sg, '')
-            let submit = params.get("autoSubmit");
-
-            let autoSubmit = false;
-            if (submit == '1' || submit == 'true') {
-                autoSubmit = true
-            }
-
-            if (prompt) {
-                textarea.value = prompt;
-                textarea.dispatchEvent(new Event("input", { bubbles: true }));
-                textarea.focus();
-                textarea.setSelectionRange(textarea.value.length, textarea.value.length); //將選擇範圍設定為文本的末尾
-                textarea.scrollTop = textarea.scrollHeight; // 自動捲動到最下方
-
-                if (autoSubmit) {
-                    button.click();
-                }
-
-                history.replaceState({}, document.title, window.location.pathname + window.location.search);
-            }
-
+            start(textarea);
             clearInterval(it);
-        }
+        };
     }, 60);
 
 })();
