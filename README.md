@@ -60,6 +60,24 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTranslationT2E.user"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>ChatGPT: 翻譯選取文字的內容 (中翻英)</td>
+      <td>
+        自動將當前頁面的選取範圍送到 ChatGPT 進行翻譯 (中翻英)
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTranslationE2T.user"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>ChatGPT: 翻譯選取文字的內容 (英翻中)</td>
+      <td>
+        自動將當前頁面的選取範圍送到 ChatGPT 進行翻譯 (英翻中)
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTCommonPrompts.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>ChatGPT: 在回應結果的地方加入常見提示回應按鈕</td>
