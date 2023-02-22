@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 自動填入提示文字並自動送出
-// @version      1.2.0
+// @version      1.2.1
 // @description  自動填入 ChatGPT 提示文字並可設定自動送出提問
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -170,6 +170,8 @@
             buttonsArea.style.display = "flex";
             buttonsArea.style.flexWrap = "wrap";
             buttonsArea.style.paddingTop = 0;
+            buttonsArea.style.paddingLeft = "calc(30px + 0.75rem)";
+
             talkBlockToInsertButtons.after(buttonsArea);
 
             // add buttons
