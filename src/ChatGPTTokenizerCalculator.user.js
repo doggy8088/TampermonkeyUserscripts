@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 自動統計網頁中選取的文字範圍的 Token 數量
-// @version      1.0.1
+// @version      1.0.2
 // @description  自動統計網頁中選取的文字範圍的 Token 數量 (OpenAI GPT-3 的 Tokenizer 規則)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -14,6 +14,14 @@
 // @grant        GM_openInTab
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=openai.com
 // ==/UserScript==
+
+/*
+
+# Known Issues
+
+1. 有些網站會有 CSP 的限制，無法載入 GPT-3 Encoder 的腳本，這時候就會出現錯誤訊息。
+
+*/
 
 (async function () {
     "use strict";
