@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 在回應結果的地方加入常見提示回應按鈕
-// @version      1.1.1
+// @version      1.1.2
 // @description  點擊按鈕就會自動填入 ChatGPT 提示文字輸入框並自動送出提問
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -38,12 +38,6 @@
         { text: "舉例說明", value: "請舉例說明" },
         // expand
         { text: "提供細節", value: "請提供更多細節說明" },
-        // explain
-        // { text: "解釋清楚", value: "請用更清楚的方式解釋" },
-        // rewrite
-        // { text: "重寫內容", value: "請重寫上述內容" },
-        // short
-        // { text: "簡化內容", value: "請用簡短的方式說明上述內容" },
         // translate to TC
         { text: "翻譯成繁中", value: "請將上述內容翻譯成流暢的繁體中文" },
         // translate to EN
