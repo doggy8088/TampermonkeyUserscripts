@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         SinoBank: 永豐銀行 MMA 登入啟用密碼管理器機制
-// @version      1.0.1
-// @description  永豐銀行 MMA 登入啟用密碼管理器機制
+// @version      1.0.2
+// @description  讓永豐銀行 MMA 登入時可以讓現有的密碼管理器正常運作，如 LastPass, 1Password, Dashlane, Bitwarden, etc.
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
