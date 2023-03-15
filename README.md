@@ -64,7 +64,7 @@
       </td>
       <td>SinoBank: 永豐銀行 MMA 登入啟用密碼管理器機制</td>
       <td>
-        讓永豐銀行 MMA 登入時可以讓現有的密碼管理器正常運作，如 LastPass, 1Password, Dashlane, Bitwarden, etc.
+        讓<a href="https://mma.sinopac.com/MemberPortal/Member/NextWebLogin.aspx">永豐銀行 MMA 金融交易網</a>登入時可以讓現有的密碼管理器正常運作，如 LastPass, 1Password, Dashlane, Bitwarden, etc.
       </td>
     </tr>
     <tr>
