@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.7.0
+// @version      1.8.0
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -27,10 +27,6 @@
                     ln = location.href,
                     pn = location.pathname;
 
-                if (ln === 'https://getbootstrap.com/' || ln === 'http://getbootstrap.com/') {
-                    void (location.href = 'http://bootstrap.hexschool.com');
-                }
-
                 if (location.hostname == 'zh.wikipedia.org') {
                     document.querySelector("#p-lang > div > ul > li.interlanguage-link.interwiki-en > a").click();
                 }
@@ -46,13 +42,24 @@
                     void (location.href = ln.replace(/v3\.bootcss\.com\//i, 'getbootstrap.com/docs/3.3/'));
                 }
 
+                if (ln === 'https://getbootstrap.com/') {
+                    void (location.href = 'https://bootstrap5.hexschool.com');
+                }
                 if (ln.indexOf('//bootstrap.hexschool.com/') >= 0) {
                     void (location.href = ln.replace(/bootstrap\.hexschool\.com/i, 'getbootstrap.com'));
                 }
-                if (ln.indexOf('//getbootstrap.com/docs/4.0/') >= 0) {
-                    void (location.href = ln.replace(/http(s?)\:\/\/getbootstrap\.com/i, 'http://bootstrap.hexschool.com'));
+                if (ln.indexOf('//bootstrap5.hexschool.com/') >= 0) {
+                    void (location.href = ln.replace(/bootstrap5\.hexschool\.com/i, 'getbootstrap.com'));
                 }
-
+                if (ln.indexOf('//bootstrap5.hexschool.com/') >= 0) {
+                    void (location.href = ln.replace(/bootstrap5\.hexschool\.com/i, 'getbootstrap.com'));
+                }
+                if (ln.indexOf('//getbootstrap.com/docs/4') >= 0) {
+                    void (location.href = ln.replace(/http(s?)\:\/\/getbootstrap\.com\/docs\/4.\d/i, 'http://bootstrap.hexschool.com/docs/4.2'));
+                }
+                if (ln.indexOf('//getbootstrap.com/docs/5') >= 0) {
+                    void (location.href = ln.replace(/http(s?)\:\/\/getbootstrap\.com\/docs\/5.\d/i, 'http://bootstrap5.hexschool.com/docs/5.1'));
+                }
                 if (ln.indexOf('//doc.rust-lang.org/stable/book/') >= 0) {
                     void (location.href = ln.replace(/\/\/doc\.rust\-lang\.org\/stable\/book\//i, '//rust-lang.tw/book-tw/'));
                 }
