@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 語音輸入與語音合成功能 (支援中/英/日/韓語言)
-// @version      2.4.1
+// @version      2.4.2
 // @description  讓你可以透過語音輸入要問 ChatGPT 的問題並支援語音合成功能 (支援中文、英文、日文、韓文)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -8,8 +8,8 @@
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTVoiceInput.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTVoiceInput.user.js
-// @match        *://chat.openai.com/chat
-// @match        *://chat.openai.com/chat/*
+// @match        *://chat.openai.com/
+// @match        *://chat.openai.com/*
 // @author       Will Huang
 // @run-at       document-idle
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=openai.com
@@ -160,7 +160,7 @@
     const microphoneButtonElement = document.createElement('button');
     microphoneButtonElement.id = 'btn-microphone';
     microphoneButtonElement.type = 'button';
-    microphoneButtonElement.classList = 'absolute p-1 rounded-md text-gray-500 bottom-1.5 right-1 md:bottom-2.5 md:right-2 hover:bg-gray-100 dark:hover:text-gray-400 dark:hover:bg-gray-900 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent';
+    microphoneButtonElement.classList = 'absolute p-1 rounded-md text-gray-500 bottom-1.5 right-1 md:bottom-3.5 md:right-2 hover:bg-gray-100 dark:hover:text-gray-400 dark:hover:bg-gray-900 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent';
     microphoneButtonElement.style.right = '2.5rem';
     microphoneButtonElement.title = `開啟語音辨識功能 (${isMac() ? 'command+option+s' : 'alt+s'})`;
     microphoneButtonElement.innerHTML = svgMicOff;
@@ -273,7 +273,7 @@
     const speakerButtonElement = document.createElement('button');
     speakerButtonElement.id = 'btn-speaker';
     speakerButtonElement.type = 'button';
-    speakerButtonElement.classList = 'absolute p-1 rounded-md text-gray-500 bottom-1.5 right-1 md:bottom-2.5 md:right-2 hover:bg-gray-100 dark:hover:text-gray-400 dark:hover:bg-gray-900 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent';
+    speakerButtonElement.classList = 'absolute p-1 rounded-md text-gray-500 bottom-1.5 right-1 md:bottom-3.5 md:right-2 hover:bg-gray-100 dark:hover:text-gray-400 dark:hover:bg-gray-900 disabled:hover:bg-transparent dark:disabled:hover:bg-transparent';
     speakerButtonElement.style.right = '4.5rem';
     speakerButtonElement.innerHTML = svgSpeakerOff;
     speakerButtonElement.title = `開啟語音合成功能 (${isMac() ? 'command+option+m' : 'alt+m'})`;
