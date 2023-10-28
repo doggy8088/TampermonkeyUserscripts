@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.11
+// @version      1.12
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -59,6 +59,12 @@
             .removeByDomain('www.dropbox.com', '_ad')
             .removeByDomain('www.dropbox.com', '_camp')
             .removeByDomain('www.dropbox.com', '_tk')
+
+            // YouTube
+            // https://youtu.be/4f-Y9G5ENPc?si=SHSu2hEdSbXGy4_Q
+            // https://www.youtube.com/embed/4f-Y9G5ENPc?si=GQFJV_nKMXxpiQb6
+            .removeByDomain('youtu.be', 'si')
+            .removeByDomain('www.youtube.com', 'si')
 
             // Google Analytics
             // https://support.google.com/analytics/answer/1033863?hl=en
