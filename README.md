@@ -231,6 +231,24 @@
     </tr>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>Azure DevOps: 優化快速鍵操作</td>
+      <td>讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 操作</td>
+    </tr>
+    <tr>
+      <td>
+      </td>
+      <td colspan="2">
+        支援快速鍵:
+        <ol>
+          <li><code>Ctrl+B</code>: 切換側邊欄</li>
+          <li><code>gw</code>: 快速跳轉到 Wiki 頁面</li>
+        </ol>
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsEnableKeyboardShortcuts.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Azure DevOps: 啟用鍵盤快速鍵</td>
