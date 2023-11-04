@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 調整工作項目直接播放螢幕錄影影片
-// @version      1.0
+// @version      1.1
 // @description  將 Azure Boards 的 Work Item 內容中出現的 Screen recording 連結都改成可以直接播放影片
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -27,16 +27,12 @@
         })
     }
 
-    function executeActions() {
-        replaceVideos();
-    }
-
     (function () {
         'use strict';
+
         document.addEventListener('keyup', function (e) {
-            console.log(e)
             if (e.ctrlKey && e.altKey && e.shiftKey && e.key == 'P') {
-                executeActions();
+                replaceVideos();
             }
         });
 
