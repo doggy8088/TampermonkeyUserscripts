@@ -234,16 +234,25 @@
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Azure DevOps: 優化快速鍵操作</td>
-      <td>讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 操作</td>
+      <td>讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作</td>
     </tr>
     <tr>
       <td>
       </td>
       <td colspan="2">
-        支援快速鍵:
+        <p>特色</p>
+        <ul>
+          <li>可快速切換側邊欄顯示或隱藏</li>
+          <li>在 Wikis 頁面增加 vim 風格的光棒移動，可用 <code>j</code>, <code>k</code> 移動左側光棒並按下 Enter 開啟頁面</li>
+        </ul>
+        <p>支援快速鍵</p>
         <ol>
           <li><code>Ctrl+B</code>: 切換側邊欄</li>
-          <li><code>gw</code>: 快速跳轉到 Wiki 頁面</li>
+          <li><code>gw</code>: 快速跳轉到 Overview &gt; Wiki 頁面</li>
+          <li><code>gb</code>: 快速跳轉到 Boards &gt; Backlogs 頁面</li>
+          <li><code>j</code>: 向下移動左側選取項目</li>
+          <li><code>k</code>: 向上移動左側選取項目</li>
+          <li><code>Enter</code>: 開啟目前選取項目</li>
         </ol>
       </td>
     </tr>
