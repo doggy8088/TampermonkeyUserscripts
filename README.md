@@ -245,14 +245,37 @@
           <li>可快速切換側邊欄顯示或隱藏</li>
           <li>在 Wikis 頁面增加 vim 風格的光棒移動，可用 <code>j</code>, <code>k</code> 移動左側光棒並按下 Enter 開啟頁面</li>
         </ul>
-        <p>支援快速鍵</p>
+        <p>全站快速鍵</p>
         <ol>
-          <li><code>Ctrl+B</code>: 切換側邊欄</li>
+          <li><code>Alt+1~3</code>: 切換頁籤</li>
+        </ol>
+        <p>首頁快速鍵</p>
+        <ol>
+          <li><code>1 ~ 4</code>: 快速進入首頁的前三張卡片</li>
+          <li><code>j</code>: 向下移動專案清單項目 (按下 Enter 可進入)</li>
+          <li><code>k</code>: 向上移動專案清單項目 (按下 Enter 可進入)</li>
+          <li><code>h</code>: 向左移動選取專案清單的左右連結 (按下 Enter 可進入)</li>
+          <li><code>l</code>: 向右左移動選取專案清單的左右連結 (按下 Enter 可進入)</li>
+          <li><code>f</code>: 移動游標至 Filter projects (按下 Escape 可離開)</li>
+          <li><code>s</code>: 移動游標至 Search (搜尋整個組織) (按下 Escape 可離開)</li>
+        </ol>
+        <p>專案所有頁面快速鍵</p>
+        <ol>
+          <li><code>Ctrl+B</code>: 切換側邊欄顯示/隱藏</li>
           <li><code>gw</code>: 快速跳轉到 Overview &gt; Wiki 頁面</li>
-          <li><code>gb</code>: 快速跳轉到 Boards &gt; Backlogs 頁面</li>
-          <li><code>j</code>: 向下移動左側選取項目</li>
-          <li><code>k</code>: 向上移動左側選取項目</li>
-          <li><code>Enter</code>: 開啟目前選取項目</li>
+          <li><code>gd</code>: 快速跳轉到 Overview &gt; Dashboards 頁面</li>
+          <li><code>gl</code>: 快速跳轉到 Boards &gt; Backlogs 頁面</li>
+          <li><code>gs</code>: 快速跳轉到 Boards &gt; Sprints 頁面</li>
+          <li><code>gb</code>: 快速跳轉到 Pipelines &gt; Builds 頁面</li>
+          <li><code>gr</code>: 快速跳轉到 Pipelines &gt; Releases 頁面</li>
+        </ol>
+        <p>Wikis 快速鍵</p>
+        <ol>
+          <li><code>j</code>: 向下移動左側選取項目 (按下 Enter 可進入)</li>
+          <li><code>k</code>: 向上移動左側選取項目 (按下 Enter 可進入)</li>
+          <li><code>f</code>: 移動游標至 Filter pages by title 欄位 (按下 Enter 可回到 j, k 移動模式) (按下 Escape 可離開)</li>
+          <li><code>Space</code>: 向下捲動 Wiki 文章</li>
+          <li><code>Shift+Space</code>: 向上捲動 Wiki 文章</li>
         </ol>
       </td>
     </tr>
