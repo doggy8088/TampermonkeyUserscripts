@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 優化快速鍵操作
-// @version      0.3
+// @version      0.4
 // @description  讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -374,14 +374,18 @@
                     if (theButton) {
                         console.log('切換 splitterPane 的按鈕已找到', theButton);
                         theButton.click();
+                        return;
                     }
-                } else if (navigationPane) {
+                }
+
+                if (navigationPane) {
                     const showLessInformationBtn = navigationPane.querySelector('[aria-label="Show less information"][role="button"]');
                     const showMoreInformationBtn = navigationPane.querySelector('[aria-label="Show more information"][role="button"]');
                     const theButton = showLessInformationBtn || showMoreInformationBtn;
                     if (theButton) {
                         console.log('切換 navigationPane 的按鈕已找到', theButton);
                         theButton.click();
+                        return
                     }
                 }
             }
