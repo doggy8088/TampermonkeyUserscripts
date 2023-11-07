@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 優化快速鍵操作
-// @version      0.5
+// @version      0.6
 // @description  讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -22,12 +22,14 @@
     // DEBUG
     var console = {
         log: function () {
-            // window.console.log.apply(console, arguments);
+            window.console.log.apply(console, arguments);
         }
     };
 
     (function () {
         'use strict';
+
+        console.log('Current URL: ', window.location.href);
 
         var [orgBaseUrl, orgName, urlType] = getOrgInfo();
         console.log(`Organization Info: orgBaseUrl = ${orgBaseUrl}, orgName = ${orgName}, urlType = ${urlType}`);
@@ -36,8 +38,8 @@
             throw new Error('無法取得 Azure DevOps 網址');
         }
 
-        var [projectUrl, projectName,] = getProjectInfo();
-        console.log(`Project Info: projectUrl = ${projectUrl}, projectName = ${projectName}`);
+        var [projectUrl, projectName, isRepos, repoUrlBase] = getProjectInfo();
+        console.log(`Project Info: projectUrl = ${projectUrl}, projectName = ${projectName}, isRepos = ${isRepos}, repoUrlBase = ${repoUrlBase}`);
 
         let keySequence = '';
 
@@ -266,6 +268,8 @@
 
                 var [projectBaseUrl, projectName, isInRepos] = getProjectInfo();
 
+                let contentArea = document.querySelector('div[data-renderedregion="content"]');
+
                 if (isTyping) {
                     if (event.key === 'Escape' && event.target.tagName === 'INPUT') {
                         event.target.blur();
@@ -330,7 +334,6 @@
                 }
 
                 if (isInProjectWikis()) {
-
                     // 若使用者按下 j 鍵，就將文件選取的光棒往下移動一行
                     if (keySequence.endsWith('j')) {
                         moveWikiItemsCursor('down');
@@ -359,7 +362,17 @@
                         event.preventDefault();
                         resetKeySequence();
                     }
+                }
 
+                if (isInProjectReposPullRequests()) {
+                    // 判斷使用者是否按下 c 鍵，當有看到 Create a pull request 按鈕時，就自動點擊
+                    if (keySequence.endsWith('c')) {
+                        let link = contentArea?.querySelector('a[role="link"]');
+                        if (link && link.innerText.includes('Create a pull request')) {
+                            link.click();
+                            resetKeySequence();
+                        }
+                    }
                 }
             }
 
@@ -452,11 +465,6 @@
         return prjName === undefined;
     }
 
-    function getProjectReposInfo() {
-        var [, , isInRepos] = getProjectInfo();
-        return isInRepos;
-    }
-
     function isInProjectWikis() {
         var [baseUrl] = getProjectInfo();
         var baseUrlRegex = escapeRegExp(baseUrl);
@@ -523,108 +531,69 @@
         return url.toString();
     }
 
-    function getProjectReposInfo() {
-        var [projectBaseUrl, , isInRepos] = getProjectInfo();
-        if (!isInRepos) return false;
-
-        var baseUrlRegex = escapeRegExp(projectBaseUrl);
-
-        var baseUrl;
-        var repoName;
-
-        // Repo names
-        // https://learn.microsoft.com/en-us/azure/devops/organizations/settings/naming-restrictions?view=azure-devops&WT.mc_id=DT-MVP-4015686#azure-repos-git
-
-        /*
-            Length: Must not contain more than 64 Unicode characters.
-            Uniqueness: Must not be identical to any other Git repo name in the project.
-            Special characters:
-            - Must not contain any Unicode control characters or surrogate characters.
-            - Must not contain the following printable characters: \ / : * ? " < > | ; # $ * { } , + = [ ].
-            - Must not start with an underscore _.
-            - Must not start or end with a period ..
-            - Must not be a system reserved name.
-        */
-
-        let repoNameRegex = '(?!_)(?!.*([.]{2}|[\\\\/:*?"<>|;#$*{},+=\\[\\]])|^[\\x00-\\x1F\\x7F])(?![.])[^\\x00-\\x1F\\x7F]{1,64})';
-
-        const regex = new RegExp(`^${baseUrlRegex}/(${repoNameRegex})`, 'i');
-        var match = getCurrentURL().match(regex);
-        if (match) {
-            baseUrl = match[0];
-            repoName = match[1];
-        }
-
-        return [baseUrl, repoName];
-    }
-
     function isInProjectReposFiles() {
-        var [repoBaseUrl, repoName] = getProjectReposInfo();
+        var [projectBaseUrl, projectName, isInRepos, repoUrlBase] = getProjectInfo();
 
-        var baseUrlRegex = escapeRegExp(repoBaseUrl);
+        var baseUrlRegex = escapeRegExp(repoUrlBase);
         const regex = new RegExp(`^${baseUrlRegex}$`, 'i');
         var match = getCurrentURL().match(regex);
         return !!match;
     }
 
     function isInProjectReposCommits() {
-        var [repoBaseUrl, repoName] = getProjectReposInfo();
-
-        var baseUrlRegex = escapeRegExp(repoBaseUrl);
+        var [projectBaseUrl, projectName, isInRepos, repoUrlBase] = getProjectInfo();
+        var baseUrlRegex = escapeRegExp(repoUrlBase);
         const regex = new RegExp(`^${baseUrlRegex}/commit(s)?`, 'i');
         var match = getCurrentURL().match(regex);
         return !!match;
     }
 
     function isInProjectReposPushes() {
-        var [repoBaseUrl, repoName] = getProjectReposInfo();
-
-        var baseUrlRegex = escapeRegExp(repoBaseUrl);
+        var [projectBaseUrl, projectName, isInRepos, repoUrlBase] = getProjectInfo();
+        var baseUrlRegex = escapeRegExp(repoUrlBase);
         const regex = new RegExp(`^${baseUrlRegex}/pushes$`, 'i');
         var match = getCurrentURL().match(regex);
         return !!match;
     }
 
     function isInProjectReposBranches() {
-        var [repoBaseUrl, repoName] = getProjectReposInfo();
-
-        var baseUrlRegex = escapeRegExp(repoBaseUrl);
+        var [projectBaseUrl, projectName, isInRepos, repoUrlBase] = getProjectInfo();
+        var baseUrlRegex = escapeRegExp(repoUrlBase);
         const regex = new RegExp(`^${baseUrlRegex}/branches$`, 'i');
         var match = getCurrentURL().match(regex);
         return !!match;
     }
 
     function isInProjectReposTags() {
-        var [repoBaseUrl, repoName] = getProjectReposInfo();
-
-        var baseUrlRegex = escapeRegExp(repoBaseUrl);
+        var [projectBaseUrl, projectName, isInRepos, repoUrlBase] = getProjectInfo();
+        var baseUrlRegex = escapeRegExp(repoUrlBase);
         const regex = new RegExp(`^${baseUrlRegex}/tags$`, 'i');
         var match = getCurrentURL().match(regex);
         return !!match;
     }
 
     function isInProjectReposPullRequests() {
-        var [repoBaseUrl, repoName] = getProjectReposInfo();
-
-        var baseUrlRegex = escapeRegExp(repoBaseUrl);
+        var [projectBaseUrl, projectName, isInRepos, repoUrlBase] = getProjectInfo();
+        var baseUrlRegex = escapeRegExp(repoUrlBase);
         const regex = new RegExp(`^${baseUrlRegex}/pullrequests$`, 'i');
         var match = getCurrentURL().match(regex);
+
+        console.log(`isInProjectReposPullRequests: ${!!match}, repoUrlBase = ${repoUrlBase}, getCurrentURL() = ${getCurrentURL()}, regex = ${regex}`);
+
         return !!match;
     }
 
     function isInProjectReposPullRequestsCreate() {
-        var [repoBaseUrl, repoName] = getProjectReposInfo();
-
-        var baseUrlRegex = escapeRegExp(repoBaseUrl);
+        var [projectBaseUrl, projectName, isInRepos, repoUrlBase] = getProjectInfo();
+        var baseUrlRegex = escapeRegExp(repoUrlBase);
         const regex = new RegExp(`^${baseUrlRegex}/pullrequestcreate$`, 'i');
         var match = getCurrentURL().match(regex);
         return !!match;
     }
 
     function isInProjectReposAdvancedSecurity() {
-        var [repoBaseUrl, repoName] = getProjectReposInfo();
-
-        var baseUrlRegex = escapeRegExp(repoBaseUrl);
+        var [projectBaseUrl, projectName, isInRepos, repoUrlBase] = getProjectInfo();
+        var baseUrlRegex = escapeRegExp(repoUrlBase);
         const regex = new RegExp(`^${baseUrlRegex}/alerts$`, 'i');
         var match = getCurrentURL().match(regex);
         return !!match;
@@ -688,10 +657,14 @@
     }
 
     function getProjectInfo() {
+        'use strict';
 
         let urlBase;
+        let projectUrlBase;
         let prjName;
         let isRepos;
+        let repoName;
+        let repoUrlBase;
 
         var [orgBaseUrl, , urlType] = getOrgInfo();
         var orgBaseUrlRegex = escapeRegExp(orgBaseUrl);
@@ -715,50 +688,81 @@
             - Must not start or end with a period ..
          */
 
-        const projectNameRegex = '(?!.*[\\:\\*\\?"<>|;#$*\\{\\},+=\\[\\]])[^._][^/]{1,63}'
-        let regexUrl;
-        let match;
-        switch (urlType) {
-            case 1:
-                // https://miniasp.visualstudio.com
-                regexUrl = new RegExp(`^${orgBaseUrlRegex}/(${projectNameRegex})(/_git)?`, 'i');
-                match = window.location.href.match(regexUrl);
-                if (match) {
-                    urlBase = match[0];
-                    prjName = match[1];
-                    isRepos = match[2] === '/_git';
-                    break;
-                }
-                // 後來好像改成這種網址
-                regexUrl = new RegExp(`^${orgBaseUrlRegex}/(_git/)?(${projectNameRegex})`, 'i');
-                match = window.location.href.match(regexUrl);
-                if (match) {
-                    urlBase = match[0];
-                    isRepos = match[1] === '_git/';
-                    prjName = match[2];
-                }
+        /*
+         * Regex 解釋：https://javascript.info/regexp-lookahead-lookbehind
+         * (?!   ) 是 Negative Lookbehind
+         *      裡面的 [^/]{1,64} 代表不包含 / 的字元，{1,64} 代表長度 1 ~ 64 個字元
+         *      裡面的 [\\:\\*\\?"<>|;#$*\\{\\},+=\\[\\]] 是會出現的特殊字元
+         *      如果比對到，那就代表有特殊字元
+         * [^._]  代表不能是 . 或 _ 開頭，僅包含 1 個字元
+         * [^/]{1,63} 代表不能包含 / 的字元，長度 1 ~ 63 個字元
+         */
+        const projectNameRegex = '(?![^/]{1,64}[\\:\\*\\?"<>|;#$*\\{\\},+=\\[\\]])[^._][^/]{1,63}'
 
-                break;
-            case 2:
-                // https://dev.azure.com/miniasp
-                regexUrl = new RegExp(`^${orgBaseUrlRegex}/(_git/)?(${projectNameRegex})`, 'i');
-                match = window.location.href.match(regexUrl);
-                if (match) {
-                    urlBase = match[0];
-                    isRepos = match[1] === '_git/';
-                    prjName = match[2];
-                }
-                break;
-            default:
-                throw new Error('無法取得專案名稱');
-                break;
+        /*
+         * Repository Names
+         * https://learn.microsoft.com/en-us/azure/devops/organizations/settings/naming-restrictions?view=azure-devops&WT.mc_id=DT-MVP-4015686#azure-repos-git
+         */
+
+        /*
+            Length: Must not contain more than 64 Unicode characters.
+            Uniqueness: Must not be identical to any other Git repo name in the project.
+            Special characters:
+            - Must not contain any Unicode control characters or surrogate characters.
+            - Must not contain the following printable characters: \ / : * ? " < > | ; # $ * { } , + = [ ].
+            - Must not start with an underscore _.
+            - Must not start or end with a period ..
+            - Must not be a system reserved name.
+        */
+
+        const forbiddenChars = '[\\:*?"<>|;#$*{},+=\\[\\]]';
+        const UnicodeInvalid = '[\\x00-\\x1F\\x7F]';
+        let repoNameRegex = `(?![_.])(?![^/]{1,64}${UnicodeInvalid})(?![^/]{1,64}${forbiddenChars})[^/]{1,64}`;
+
+        // 網址的結構有以下幾種變形：
+        // Type 1
+        // 1. 當 Repo Name 跟 Project Name 一樣時
+        //    https://miniasp.visualstudio.com/_git/FTPM-digital-nomad/pullrequests?_a=mine
+        // 2. 當 Repo Name 跟 Project Name 不一樣時
+        //    https://miniasp.visualstudio.com/FTPM-digital-nomad/_git/HTMLTemplate/pullrequests?_a=mine
+
+        let regexUrl1 = new RegExp(`^${orgBaseUrlRegex}/_git/(${projectNameRegex})`, 'i');
+        let matchUrl1 = window.location.href.match(regexUrl1);
+        if (!!matchUrl1) {
+            prjName = matchUrl1[1];
+            urlBase = `${orgBaseUrl}/${prjName}`;
+            repoName = prjName;
+            isRepos = true;
+            repoUrlBase = `${orgBaseUrl}/_git/${prjName}`;
+
+            return [urlBase, prjName, isRepos, repoUrlBase];
         }
 
-        if (isRepos) {
-            urlBase = urlBase.replace('/_git', '');
+        let regexUrl2 = new RegExp(`^${orgBaseUrlRegex}/(${projectNameRegex})/_git/(${repoNameRegex})`, 'i');
+        // console.log('regexUrl2', regexUrl2)
+        let matchUrl2 = window.location.href.match(regexUrl2);
+        if (!!matchUrl2) {
+            prjName = matchUrl2[1];
+            urlBase = `${orgBaseUrl}/${prjName}`;
+            repoName = matchUrl2[2];
+            isRepos = true;
+            repoUrlBase = `${urlBase}/_git/${repoName}`;
+
+            return [urlBase, prjName, isRepos, repoUrlBase];
         }
 
-        return [urlBase, prjName, isRepos];
+        let regexUrl3 = new RegExp(`^${orgBaseUrlRegex}/(${projectNameRegex})`, 'i');
+        let matchUrl3 = window.location.href.match(regexUrl3);
+        if (!!matchUrl3) {
+            prjName = matchUrl3[1];
+            urlBase = `${orgBaseUrl}/${prjName}`;
+            repoName = '';
+            isRepos = false;
+            repoUrlBase = '';
+
+            return [urlBase, prjName, isRepos, repoUrlBase];
+        }
+
     }
 
     // https://stackoverflow.com/a/23637821/910074
