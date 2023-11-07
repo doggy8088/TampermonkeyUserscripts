@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 優化快速鍵操作
-// @version      0.4
+// @version      0.5
 // @description  讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -29,8 +29,8 @@
     (function () {
         'use strict';
 
-        var [orgBaseUrl, orgName] = getOrgInfo();
-        console.log(`Organization Info: orgBaseUrl = ${orgBaseUrl}, orgName = ${orgName}`);
+        var [orgBaseUrl, orgName, urlType] = getOrgInfo();
+        console.log(`Organization Info: orgBaseUrl = ${orgBaseUrl}, orgName = ${orgName}, urlType = ${urlType}`);
 
         if (!orgBaseUrl) {
             throw new Error('無法取得 Azure DevOps 網址');
@@ -717,29 +717,31 @@
 
         const projectNameRegex = '(?!.*[\\:\\*\\?"<>|;#$*\\{\\},+=\\[\\]])[^._][^/]{1,63}'
         let regexUrl;
-        switch (urlType) {
-            case 1:
-                regexUrl = new RegExp(`^${orgBaseUrlRegex}/(${projectNameRegex})(/_git)?`, 'i');
-                break;
-            case 2:
-                regexUrl = new RegExp(`^${orgBaseUrlRegex}/(_git/)?(${projectNameRegex})`, 'i');
-                break;
-            default:
-                throw new Error('無法取得專案名稱');
-                break;
-        }
-
         let match;
         switch (urlType) {
             case 1:
+                // https://miniasp.visualstudio.com
+                regexUrl = new RegExp(`^${orgBaseUrlRegex}/(${projectNameRegex})(/_git)?`, 'i');
                 match = window.location.href.match(regexUrl);
                 if (match) {
                     urlBase = match[0];
                     prjName = match[1];
                     isRepos = match[2] === '/_git';
+                    break;
                 }
+                // 後來好像改成這種網址
+                regexUrl = new RegExp(`^${orgBaseUrlRegex}/(_git/)?(${projectNameRegex})`, 'i');
+                match = window.location.href.match(regexUrl);
+                if (match) {
+                    urlBase = match[0];
+                    isRepos = match[1] === '_git/';
+                    prjName = match[2];
+                }
+
                 break;
             case 2:
+                // https://dev.azure.com/miniasp
+                regexUrl = new RegExp(`^${orgBaseUrlRegex}/(_git/)?(${projectNameRegex})`, 'i');
                 match = window.location.href.match(regexUrl);
                 if (match) {
                     urlBase = match[0];
