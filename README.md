@@ -281,6 +281,11 @@
         <ol>
           <li><code>c</code>: 當有出現 Create a pull request 按鈕時，按下 c 就會自動點擊該按鈕</li>
         </ol>
+        <p>Pipelines &gt; Builds 快速鍵</p>
+        <ol>
+          <li><code>j</code>: 向下移動左側選取項目 (按下 Enter 可進入)</li>
+          <li><code>k</code>: 向上移動左側選取項目 (按下 Enter 可進入)</li>
+        </ol>
       </td>
     </tr>
     <tr>

@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 優化快速鍵操作
-// @version      0.6
+// @version      0.7
 // @description  讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -22,7 +22,7 @@
     // DEBUG
     var console = {
         log: function () {
-            window.console.log.apply(console, arguments);
+            // window.console.log.apply(console, arguments);
         }
     };
 
@@ -374,6 +374,59 @@
                         }
                     }
                 }
+
+                if (isInProjectPipelinesBuilds()) {
+                    if (keySequence.endsWith('j')) {
+                        let recentPipelines = contentArea?.querySelector('table[aria-label="Recent pipelines"]');
+                        console.log('recentPipelines', recentPipelines);
+                        let links = recentPipelines?.querySelectorAll('a[role="row"]');
+                        console.log('recentPipelines > links', links);
+                        if (links && Array.from(links).length > 0) {
+                            links = Array.from(links);
+                            console.log('recentPipelines > links.length', links.length);
+                            let focusedIndex = links.findIndex((link) => link.classList.contains('focused'));
+                            console.log('recentPipelines > links > focusedIndex', focusedIndex);
+                            if (focusedIndex === -1) {
+                                links[0].classList.add('focused');
+                                links[0].focus();
+                            } else {
+                                links[focusedIndex].classList.remove('focused');
+                                focusedIndex++;
+                                if (focusedIndex >= links.length) {
+                                    focusedIndex = 0;
+                                }
+                                links[focusedIndex].classList.add('focused');
+                                links[focusedIndex].focus();
+                            }
+                            resetKeySequence();
+                        }
+                    }
+                    if (keySequence.endsWith('k')) {
+                        let recentPipelines = contentArea?.querySelector('table[aria-label="Recent pipelines"]');
+                        console.log('recentPipelines', recentPipelines);
+                        let links = recentPipelines?.querySelectorAll('a[role="row"]');
+                        console.log('recentPipelines > links', links);
+                        if (links && Array.from(links).length > 0) {
+                            links = Array.from(links);
+                            console.log('recentPipelines > links.length', links.length);
+                            let focusedIndex = links.findIndex((link) => link.classList.contains('focused'));
+                            console.log('recentPipelines > links > focusedIndex', focusedIndex);
+                            if (focusedIndex === -1) {
+                                links[0].classList.add('focused');
+                                links[0].focus();
+                            } else {
+                                links[focusedIndex].classList.remove('focused');
+                                focusedIndex--;
+                                if (focusedIndex == -1) {
+                                    focusedIndex = links.length - 1;
+                                }
+                                links[focusedIndex].classList.add('focused');
+                                links[focusedIndex].focus();
+                            }
+                            resetKeySequence();
+                        }
+                    }
+                }
             }
 
             function toggleSidePane() {
@@ -603,7 +656,9 @@
         var [baseUrl] = getProjectInfo();
         var baseUrlRegex = escapeRegExp(baseUrl);
         const regex = new RegExp(`^${baseUrlRegex}/_build$`, 'i');
-        return !!window.location.href.match(regex);
+        var matched = !!getCurrentURL().match(regex);
+        console.log(`isInProjectPipelinesBuilds: ${matched}`);
+        return matched;
     }
 
     function isInProjectPipelinesEnvironments() {
