@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 優化快速鍵操作
-// @version      0.7
+// @version      0.7.1
 // @description  讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -818,6 +818,7 @@
             return [urlBase, prjName, isRepos, repoUrlBase];
         }
 
+        return [, , , ];
     }
 
     // https://stackoverflow.com/a/23637821/910074
