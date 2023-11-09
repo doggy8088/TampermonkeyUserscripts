@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 優化快速鍵操作
-// @version      0.7.1
+// @version      0.8.0
 // @description  讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -291,6 +291,13 @@
                 // 按下 gcq 會進入 Repos > Pull requests 頁面
                 // 按下 r 可以選擇 Repository
 
+                // 連續按下 gw 就會進入 Overview > Summary 頁面
+                if (keySequence.endsWith("go")) {
+                    console.log("連續按下 g 和 o 觸發事件");
+                    window.location.href = `${projectBaseUrl}`;
+                    return;
+                }
+
                 // 連續按下 gw 就會進入 Overview > Wiki 頁面
                 if (keySequence.endsWith("gw")) {
                     console.log("連續按下 g 和 w 觸發事件");
@@ -338,21 +345,21 @@
                     if (keySequence.endsWith('j')) {
                         moveWikiItemsCursor('down');
                         focusWikiViewContainer();
-                        resetKeySequence();
+                        return resetKeySequence();
                     }
 
                     // 若使用者按下 k 鍵，就將文件選取的光棒往下移動一行
                     if (keySequence.endsWith('k')) {
                         moveWikiItemsCursor('up');
                         focusWikiViewContainer();
-                        resetKeySequence();
+                        return resetKeySequence();
                     }
 
                     // 若使用者按下 Enter 鍵，就執行光棒的 click 事件
                     if (keySequence.endsWith('Enter')) {
                         get_current_leftpane_cursor().click();
                         focusWikiViewContainer();
-                        resetKeySequence();
+                        return resetKeySequence();
                     }
 
                     // 若使用者按下 f 鍵，就將游標移至 Filter pages by title 欄位
@@ -360,7 +367,7 @@
                         const splitterPane = get_splitter_pane();
                         splitterPane.querySelector('input[role="searchbox"]')?.focus();
                         event.preventDefault();
-                        resetKeySequence();
+                        return resetKeySequence();
                     }
                 }
 
@@ -370,62 +377,23 @@
                         let link = contentArea?.querySelector('a[role="link"]');
                         if (link && link.innerText.includes('Create a pull request')) {
                             link.click();
-                            resetKeySequence();
+                            return resetKeySequence();
                         }
                     }
                 }
 
-                if (isInProjectPipelinesBuilds()) {
-                    if (keySequence.endsWith('j')) {
-                        let recentPipelines = contentArea?.querySelector('table[aria-label="Recent pipelines"]');
-                        console.log('recentPipelines', recentPipelines);
-                        let links = recentPipelines?.querySelectorAll('a[role="row"]');
-                        console.log('recentPipelines > links', links);
-                        if (links && Array.from(links).length > 0) {
-                            links = Array.from(links);
-                            console.log('recentPipelines > links.length', links.length);
-                            let focusedIndex = links.findIndex((link) => link.classList.contains('focused'));
-                            console.log('recentPipelines > links > focusedIndex', focusedIndex);
-                            if (focusedIndex === -1) {
-                                links[0].classList.add('focused');
-                                links[0].focus();
-                            } else {
-                                links[focusedIndex].classList.remove('focused');
-                                focusedIndex++;
-                                if (focusedIndex >= links.length) {
-                                    focusedIndex = 0;
-                                }
-                                links[focusedIndex].classList.add('focused');
-                                links[focusedIndex].focus();
-                            }
-                            resetKeySequence();
-                        }
-                    }
-                    if (keySequence.endsWith('k')) {
-                        let recentPipelines = contentArea?.querySelector('table[aria-label="Recent pipelines"]');
-                        console.log('recentPipelines', recentPipelines);
-                        let links = recentPipelines?.querySelectorAll('a[role="row"]');
-                        console.log('recentPipelines > links', links);
-                        if (links && Array.from(links).length > 0) {
-                            links = Array.from(links);
-                            console.log('recentPipelines > links.length', links.length);
-                            let focusedIndex = links.findIndex((link) => link.classList.contains('focused'));
-                            console.log('recentPipelines > links > focusedIndex', focusedIndex);
-                            if (focusedIndex === -1) {
-                                links[0].classList.add('focused');
-                                links[0].focus();
-                            } else {
-                                links[focusedIndex].classList.remove('focused');
-                                focusedIndex--;
-                                if (focusedIndex == -1) {
-                                    focusedIndex = links.length - 1;
-                                }
-                                links[focusedIndex].classList.add('focused');
-                                links[focusedIndex].focus();
-                            }
-                            resetKeySequence();
-                        }
-                    }
+                // 全站所有的 Table 都可以用這個快速鍵導覽
+                if (keySequence.endsWith('j')) {
+                    moveGeneralTableItemsCursor('down');
+                    moveGeneralGridItemsCursor('down');
+                    moveGeneralTreeGridItemsCursor('down');
+                    return resetKeySequence();
+                }
+                if (keySequence.endsWith('k')) {
+                    moveGeneralTableItemsCursor('up');
+                    moveGeneralGridItemsCursor('up');
+                    moveGeneralTreeGridItemsCursor('up');
+                    return resetKeySequence();
                 }
             }
 
@@ -818,7 +786,7 @@
             return [urlBase, prjName, isRepos, repoUrlBase];
         }
 
-        return [, , , ];
+        return [, , ,];
     }
 
     // https://stackoverflow.com/a/23637821/910074
@@ -894,6 +862,128 @@
             nextItem.classList.add('selected');
 
             nextItem.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+        }
+    }
+
+    function moveGeneralTableItemsCursor(direction = 'down') {
+        let contentArea = document.querySelector('div[data-renderedregion="content"]');
+        let tableArea = contentArea?.querySelector(`table[aria-label]`);
+        if (!!tableArea) {
+            let label = tableArea.getAttribute('aria-label');
+            console.log(`aria-label = ${label}`);
+            let rows = tableArea?.querySelectorAll('[role="row"]:not([data-row-index="-1"])');
+            console.log(`${label} > links`, rows);
+            if (rows && Array.from(rows).length > 0) {
+                rows = Array.from(rows);
+                console.log(`${label} > links.length`, rows.length);
+                let focusedIndex = rows.findIndex((link) => link.classList.contains('focused'));
+                console.log(`${label} > links > focusedIndex:`, focusedIndex);
+                if (focusedIndex === -1) {
+                    focusedIndex = 0;
+                } else {
+                    rows[focusedIndex].classList.remove('focused');
+                    if (direction == 'down') {
+                        focusedIndex++;
+                    } else {
+                        focusedIndex--;
+                    }
+                    if (focusedIndex >= rows.length) {
+                        focusedIndex = 0;
+                    }
+                    if (focusedIndex == -1) {
+                        focusedIndex = rows.length - 1;
+                    }
+                }
+                console.log(`${label} > links > focusedIndex > focused:`, focusedIndex);
+                rows[focusedIndex].classList.add('focused');
+                rows[focusedIndex].focus();
+                return resetKeySequence();
+            }
+        }
+    }
+
+    function moveGeneralGridItemsCursor(direction = 'down') {
+        let contentArea = document.querySelector('div[data-renderedregion="content"]');
+        let gridArea = contentArea?.querySelector(`div[role="grid"]`);
+        if (!!gridArea) {
+            let label = gridArea.getAttribute('aria-label');
+            console.log(`aria-label = ${label}`);
+            let rows = gridArea?.querySelectorAll('[role="row"]:not([data-automationid="DetailsHeader"])');
+            console.log(`${label} > links`, rows);
+            if (rows && Array.from(rows).length > 0) {
+                rows = Array.from(rows);
+                console.log(`${label} > links.length`, rows.length);
+                let selectedIndex = rows.findIndex((link) => link.classList.contains('is-selected'));
+                console.log(`${label} > links > selectedIndex:`, selectedIndex);
+                if (selectedIndex === -1) {
+                    selectedIndex = 0;
+                } else {
+                    rows[selectedIndex].classList.remove('is-selected');
+                    rows[selectedIndex].setAttribute('aria-selected', 'false');
+                    if (direction == 'down') {
+                        selectedIndex++;
+                    } else {
+                        selectedIndex--;
+                    }
+                    if (selectedIndex >= rows.length) {
+                        selectedIndex = 0;
+                    }
+                    if (selectedIndex == -1) {
+                        selectedIndex = rows.length - 1;
+                    }
+                }
+                console.log(`${label} > links > selectedIndex > selected:`, selectedIndex);
+                // rows[selectedIndex].classList.add('is-selected');
+                let systemId = rows[selectedIndex].querySelector('div[data-automation-key="System.Id"]');
+                if (systemId) {
+                    systemId.click();
+                }
+                rows[selectedIndex].focus();
+                rows[selectedIndex].scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+            }
+        }
+    }
+
+    function moveGeneralTreeGridItemsCursor(direction = 'down') {
+        let contentArea = document.querySelector('div[data-renderedregion="content"]');
+        let gridArea = contentArea?.querySelector(`table[role="treegrid"]`);
+        if (!!gridArea) {
+            let label = 'treegrid';
+            console.log(`treegrid found!`);
+            let rows = gridArea?.querySelectorAll('[role="row"]:not([data-row-index="-1"])');
+            console.log(`${label} > links`, rows);
+            if (rows && Array.from(rows).length > 0) {
+                rows = Array.from(rows);
+                console.log(`${label} > links.length`, rows.length);
+                let selectedIndex = rows.findIndex((link) => link.classList.contains('selected'));
+                console.log(`${label} > links > selectedIndex:`, selectedIndex);
+                if (selectedIndex === -1) {
+                    selectedIndex = 0;
+                } else {
+                    rows[selectedIndex].classList.remove('selected');
+                    rows[selectedIndex].setAttribute('aria-selected', 'false');
+                    if (direction == 'down') {
+                        selectedIndex++;
+                    } else {
+                        selectedIndex--;
+                    }
+                    if (selectedIndex >= rows.length) {
+                        selectedIndex = 0;
+                    }
+                    if (selectedIndex == -1) {
+                        selectedIndex = rows.length - 1;
+                    }
+                }
+                console.log(`${label} > links > selectedIndex > selected:`, selectedIndex);
+                rows[selectedIndex].classList.add('selected');
+                rows[selectedIndex].setAttribute('aria-selected', 'true');
+                let systemId = rows[selectedIndex].querySelector('td[data-column-index="1"]');
+                if (systemId) {
+                    systemId.click();
+                }
+                rows[selectedIndex].focus();
+                rows[selectedIndex].scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+            }
         }
     }
 

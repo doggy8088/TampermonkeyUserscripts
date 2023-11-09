@@ -248,6 +248,8 @@
         <p>全站快速鍵</p>
         <ol>
           <li><code>Alt+1~3</code>: 切換頁籤</li>
+          <li><code>j</code>: 任何列表項目向下移動選取項目 (按下 Enter 可進入)</li>
+          <li><code>k</code>: 任何列表項目向上移動選取項目 (按下 Enter 可進入)</li>
         </ol>
         <p>首頁快速鍵</p>
         <ol>
@@ -262,6 +264,7 @@
         <p>專案所有頁面快速鍵</p>
         <ol>
           <li><code>Ctrl+B</code>: 切換側邊欄顯示/隱藏</li>
+          <li><code>go</code>: 快速跳轉到 Overview &gt; Summary 頁面</li>
           <li><code>gw</code>: 快速跳轉到 Overview &gt; Wiki 頁面</li>
           <li><code>gd</code>: 快速跳轉到 Overview &gt; Dashboards 頁面</li>
           <li><code>gl</code>: 快速跳轉到 Boards &gt; Backlogs 頁面</li>
@@ -280,11 +283,6 @@
         <p>Repos &gt; Pull requests 快速鍵</p>
         <ol>
           <li><code>c</code>: 當有出現 Create a pull request 按鈕時，按下 c 就會自動點擊該按鈕</li>
-        </ol>
-        <p>Pipelines &gt; Builds 快速鍵</p>
-        <ol>
-          <li><code>j</code>: 向下移動左側選取項目 (按下 Enter 可進入)</li>
-          <li><code>k</code>: 向上移動左側選取項目 (按下 Enter 可進入)</li>
         </ol>
       </td>
     </tr>
