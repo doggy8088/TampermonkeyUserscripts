@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 優化快速鍵操作
-// @version      0.8.0
+// @version      0.9.0
 // @description  讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -45,12 +45,6 @@
 
         document.addEventListener('keydown', function (event) {
 
-            // 按下 Ctrl+B 可以切換側邊欄 (只有 Wiki 頁面才有這個按鈕)
-            if (event.ctrlKey && event.key === 'b') {
-                console.log('按下 Ctrl+B 可以切換側邊欄');
-                toggleSidePane();
-            }
-
             var isTyping = false;
 
             // 檢查焦點是否在文字輸入框中
@@ -59,6 +53,12 @@
                 resetKeySequence();
             } else {
                 isTyping = false;
+            }
+
+            // 按下 Ctrl+B 可以切換側邊欄 (只有 Wiki 頁面才有這個按鈕)
+            if (!isTyping && event.ctrlKey && event.key === 'b') {
+                console.log('按下 Ctrl+B 可以切換側邊欄');
+                toggleSidePane();
             }
 
             //  有任何一個修飾鍵被按下時，就不要處理事件
