@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         GitHub: 佈景主題切換器
-// @version      0.2.0
+// @version      0.2.1
 // @description  按下 alt+s 快速鍵就會自動切換目前網頁的 Dark/Light 模式，網頁右上角 Actions 按鈕列也會多一顆切換按鈕
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -64,6 +64,27 @@
 
         // 將 a 元素加入到 DOM 中
         document.querySelector('.AppHeader-actions')?.appendChild(a);
+
+        // 建立 tool-tip 元素
+        let toolTip = document.createElement('tool-tip');
+
+        // 設定屬性
+        toolTip.setAttribute('id', `tooltip-${guid}`);
+        toolTip.setAttribute('for', `icon-button-${guid}`);
+        toolTip.setAttribute('popover', 'manual');
+        toolTip.setAttribute('data-direction', 's');
+        toolTip.setAttribute('data-type', 'label');
+        toolTip.setAttribute('data-view-component', 'true');
+        toolTip.classList.add('position-absolute', 'sr-only');
+        toolTip.setAttribute('aria-hidden', 'true');
+        toolTip.setAttribute('role', 'tooltip');
+        // toolTip.setAttribute('style', '--tool-tip-position-top: 58px; --tool-tip-position-left: 1496.9427871704102px;');
+
+        // 設定內容
+        toolTip.textContent = 'Toggle Dark/Light Mode';
+
+        // 將 tool-tip 元素加入到 DOM 中
+        document.querySelector('.AppHeader-actions')?.appendChild(toolTip);
     }
 
     async function run() {
