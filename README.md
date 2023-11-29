@@ -64,7 +64,7 @@
       </td>
       <td>GitHub: 佈景主題切換器</td>
       <td>
-        按下 alt+s 快速鍵就會自動切換目前網頁的 Dark/Light 模式
+        按下 alt+s 快速鍵就會自動切換目前網頁的 Dark/Light 模式，網頁右上角 Actions 按鈕列也會多一顆切換按鈕
       </td>
     </tr>
     <tr>
