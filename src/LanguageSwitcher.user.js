@@ -15,11 +15,15 @@
 (function () {
     'use strict';
     document.addEventListener('keydown', (ev) => {
-        if (ev.altKey && ev.key === 'S' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
-            alert('你是不是不小心按到了 CAPSLOCK 鍵？');
-            return;
-        }
-        if (ev.altKey && ev.key === 's' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
+        const isCapsLockOn = ev.getModifierState('CapsLock');
+        const isAltS = ev.altKey && ev.code === 'KeyS';
+        const inExcludedTargets = /^(?:input|select|textarea|button)$/i.test(ev.target.nodeName);
+
+        if (isAltS && !inExcludedTargets) {
+            if (isCapsLockOn) {
+              alert('你是不是不小心按到了 CAPSLOCK 鍵？');
+              return;
+            }
 
             (function () {
                 var idx,
@@ -227,7 +231,6 @@
                     }
                 }
             }());
-
         }
     });
 })();
