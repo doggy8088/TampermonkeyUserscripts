@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         將網頁選取範圍的內容轉成 Markdown 格式的內容
-// @version      1.0.0
+// @version      1.1.0
 // @description  在網頁選取文字範圍後，使用者按下滑鼠右鍵，就可以將選取範圍的 HTML 轉成 Markdown 格式並寫入剪貼簿
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -15,925 +15,138 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=www.duotify.com
 // ==/UserScript==
 
-// to-markdown.js
-(function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.toMarkdown = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-/*
- * to-markdown - an HTML to Markdown converter
- *
- * Copyright 2011+, Dom Christie
- * Licenced under the MIT licence
- *
- */
-
-'use strict'
-
-var toMarkdown
-var converters
-var mdConverters = require('./lib/md-converters')
-var gfmConverters = require('./lib/gfm-converters')
-var HtmlParser = require('./lib/html-parser')
-var collapse = require('collapse-whitespace')
-
-/*
- * Utilities
- */
-
-var blocks = ['address', 'article', 'aside', 'audio', 'blockquote', 'body',
-  'canvas', 'center', 'dd', 'dir', 'div', 'dl', 'dt', 'fieldset', 'figcaption',
-  'figure', 'footer', 'form', 'frameset', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
-  'header', 'hgroup', 'hr', 'html', 'isindex', 'li', 'main', 'menu', 'nav',
-  'noframes', 'noscript', 'ol', 'output', 'p', 'pre', 'section', 'table',
-  'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul'
-]
-
-function isBlock (node) {
-  return blocks.indexOf(node.nodeName.toLowerCase()) !== -1
-}
-
-var voids = [
-  'area', 'base', 'br', 'col', 'command', 'embed', 'hr', 'img', 'input',
-  'keygen', 'link', 'meta', 'param', 'source', 'track', 'wbr'
-]
-
-function isVoid (node) {
-  return voids.indexOf(node.nodeName.toLowerCase()) !== -1
-}
-
-function htmlToDom (string) {
-  var tree = new HtmlParser().parseFromString(string, 'text/html')
-  collapse(tree.documentElement, isBlock)
-  return tree
-}
-
-/*
- * Flattens DOM tree into single array
- */
-
-function bfsOrder (node) {
-  var inqueue = [node]
-  var outqueue = []
-  var elem
-  var children
-  var i
-
-  while (inqueue.length > 0) {
-    elem = inqueue.shift()
-    outqueue.push(elem)
-    children = elem.childNodes
-    for (i = 0; i < children.length; i++) {
-      if (children[i].nodeType === 1) inqueue.push(children[i])
-    }
-  }
-  outqueue.shift()
-  return outqueue
-}
-
-/*
- * Contructs a Markdown string of replacement text for a given node
- */
-
-function getContent (node) {
-  var text = ''
-  for (var i = 0; i < node.childNodes.length; i++) {
-    if (node.childNodes[i].nodeType === 1) {
-      text += node.childNodes[i]._replacement
-    } else if (node.childNodes[i].nodeType === 3) {
-      text += node.childNodes[i].data
-    } else continue
-  }
-  return text
-}
-
-/*
- * Returns the HTML string of an element with its contents converted
- */
-
-function outer (node, content) {
-  return node.cloneNode(false).outerHTML.replace('><', '>' + content + '<')
-}
-
-function canConvert (node, filter) {
-  if (typeof filter === 'string') {
-    return filter === node.nodeName.toLowerCase()
-  }
-  if (Array.isArray(filter)) {
-    return filter.indexOf(node.nodeName.toLowerCase()) !== -1
-  } else if (typeof filter === 'function') {
-    return filter.call(toMarkdown, node)
-  } else {
-    throw new TypeError('`filter` needs to be a string, array, or function')
-  }
-}
-
-function isFlankedByWhitespace (side, node) {
-  var sibling
-  var regExp
-  var isFlanked
-
-  if (side === 'left') {
-    sibling = node.previousSibling
-    regExp = / $/
-  } else {
-    sibling = node.nextSibling
-    regExp = /^ /
-  }
-
-  if (sibling) {
-    if (sibling.nodeType === 3) {
-      isFlanked = regExp.test(sibling.nodeValue)
-    } else if (sibling.nodeType === 1 && !isBlock(sibling)) {
-      isFlanked = regExp.test(sibling.textContent)
-    }
-  }
-  return isFlanked
-}
-
-function flankingWhitespace (node) {
-  var leading = ''
-  var trailing = ''
-
-  if (!isBlock(node)) {
-    var hasLeading = /^[ \r\n\t]/.test(node.innerHTML)
-    var hasTrailing = /[ \r\n\t]$/.test(node.innerHTML)
-
-    if (hasLeading && !isFlankedByWhitespace('left', node)) {
-      leading = ' '
-    }
-    if (hasTrailing && !isFlankedByWhitespace('right', node)) {
-      trailing = ' '
-    }
-  }
-
-  return { leading: leading, trailing: trailing }
-}
-
-/*
- * Finds a Markdown converter, gets the replacement, and sets it on
- * `_replacement`
- */
-
-function process (node) {
-  var replacement
-  var content = getContent(node)
-
-  // Remove blank nodes
-  if (!isVoid(node) && !/A|TH|TD/.test(node.nodeName) && /^\s*$/i.test(content)) {
-    node._replacement = ''
-    return
-  }
-
-  for (var i = 0; i < converters.length; i++) {
-    var converter = converters[i]
-
-    if (canConvert(node, converter.filter)) {
-      if (typeof converter.replacement !== 'function') {
-        throw new TypeError(
-          '`replacement` needs to be a function that returns a string'
-        )
-      }
-
-      var whitespace = flankingWhitespace(node)
-
-      if (whitespace.leading || whitespace.trailing) {
-        content = content.trim()
-      }
-      replacement = whitespace.leading +
-        converter.replacement.call(toMarkdown, content, node) +
-        whitespace.trailing
-      break
-    }
-  }
-
-  node._replacement = replacement
-}
-
-toMarkdown = function (input, options) {
-  options = options || {}
-
-  if (typeof input !== 'string') {
-    throw new TypeError(input + ' is not a string')
-  }
-
-  // Escape potential ol triggers
-  input = input.replace(/(>[\r\n\s]*)(\d+)\.(&nbsp;| )/g, '$1$2\\.$3')
-
-  var clone = htmlToDom(input).body
-  var nodes = bfsOrder(clone)
-  var output
-
-  converters = mdConverters.slice(0)
-  if (options.gfm) {
-    converters = gfmConverters.concat(converters)
-  }
-
-  if (options.converters) {
-    converters = options.converters.concat(converters)
-  }
-
-  // Process through nodes in reverse (so deepest child elements are first).
-  for (var i = nodes.length - 1; i >= 0; i--) {
-    process(nodes[i])
-  }
-  output = getContent(clone)
-
-  return output.replace(/^[\t\r\n]+|[\t\r\n\s]+$/g, '')
-    .replace(/\n\s+\n/g, '\n\n')
-    .replace(/\n{3,}/g, '\n\n')
-}
-
-toMarkdown.isBlock = isBlock
-toMarkdown.isVoid = isVoid
-toMarkdown.outer = outer
-
-module.exports = toMarkdown
-
-},{"./lib/gfm-converters":2,"./lib/html-parser":3,"./lib/md-converters":4,"collapse-whitespace":7}],2:[function(require,module,exports){
-'use strict'
-
-function cell (content, node) {
-  var index = Array.prototype.indexOf.call(node.parentNode.childNodes, node)
-  var prefix = ' '
-  if (index === 0) prefix = '| '
-  return prefix + content + ' |'
-}
-
-var highlightRegEx = /highlight highlight-(\S+)/
-
-module.exports = [
-  {
-    filter: 'br',
-    replacement: function () {
-      return '\n'
-    }
-  },
-  {
-    filter: ['del', 's', 'strike'],
-    replacement: function (content) {
-      return '~~' + content + '~~'
-    }
-  },
-
-  {
-    filter: function (node) {
-      return node.type === 'checkbox' && node.parentNode.nodeName === 'LI'
-    },
-    replacement: function (content, node) {
-      return (node.checked ? '[x]' : '[ ]') + ' '
-    }
-  },
-
-  {
-    filter: ['th', 'td'],
-    replacement: function (content, node) {
-      return cell(content, node)
-    }
-  },
-
-  {
-    filter: 'tr',
-    replacement: function (content, node) {
-      var borderCells = ''
-      var alignMap = { left: ':--', right: '--:', center: ':-:' }
-
-      if (node.parentNode.nodeName === 'THEAD') {
-        for (var i = 0; i < node.childNodes.length; i++) {
-          var align = node.childNodes[i].attributes.align
-          var border = '---'
-
-          if (align) border = alignMap[align.value] || border
-
-          borderCells += cell(border, node.childNodes[i])
-        }
-      }
-      return '\n' + content + (borderCells ? '\n' + borderCells : '')
-    }
-  },
-
-  {
-    filter: 'table',
-    replacement: function (content) {
-      return '\n\n' + content + '\n\n'
-    }
-  },
-
-  {
-    filter: ['thead', 'tbody', 'tfoot'],
-    replacement: function (content) {
-      return content
-    }
-  },
-
-  // Fenced code blocks
-  {
-    filter: function (node) {
-      return node.nodeName === 'PRE' &&
-      node.firstChild &&
-      node.firstChild.nodeName === 'CODE'
-    },
-    replacement: function (content, node) {
-      return '\n\n```\n' + node.firstChild.textContent.trim() + '\n```\n\n'
-    }
-  },
-
-  // Syntax-highlighted code blocks
-  {
-    filter: function (node) {
-      return node.nodeName === 'PRE' &&
-      node.parentNode.nodeName === 'DIV' &&
-      highlightRegEx.test(node.parentNode.className)
-    },
-    replacement: function (content, node) {
-      var language = node.parentNode.className.match(highlightRegEx)[1]
-      return '\n\n```' + language + '\n' + node.textContent + '\n```\n\n'
-    }
-  },
-
-  {
-    filter: function (node) {
-      return node.nodeName === 'DIV' &&
-      highlightRegEx.test(node.className)
-    },
-    replacement: function (content) {
-      return '\n\n' + content + '\n\n'
-    }
-  }
-]
-
-},{}],3:[function(require,module,exports){
-/*
- * Set up window for Node.js
- */
-
-var _window = (typeof window !== 'undefined' ? window : this)
-
-/*
- * Parsing HTML strings
- */
-
-function canParseHtmlNatively () {
-  var Parser = _window.DOMParser
-  var canParse = false
-
-  // Adapted from https://gist.github.com/1129031
-  // Firefox/Opera/IE throw errors on unsupported types
-  try {
-    // WebKit returns null on unsupported types
-    if (new Parser().parseFromString('', 'text/html')) {
-      canParse = true
-    }
-  } catch (e) {}
-
-  return canParse
-}
-
-function createHtmlParser () {
-  var Parser = function () {}
-
-  // For Node.js environments
-  if (typeof document === 'undefined') {
-    var jsdom = require('jsdom')
-    Parser.prototype.parseFromString = function (string) {
-      return jsdom.jsdom(string, {
-        features: {
-          FetchExternalResources: [],
-          ProcessExternalResources: false
-        }
-      })
-    }
-  } else {
-    if (!shouldUseActiveX()) {
-      Parser.prototype.parseFromString = function (string) {
-        var doc = document.implementation.createHTMLDocument('')
-        doc.open()
-        doc.write(string)
-        doc.close()
-        return doc
-      }
-    } else {
-      Parser.prototype.parseFromString = function (string) {
-        var doc = new window.ActiveXObject('htmlfile')
-        doc.designMode = 'on' // disable on-page scripts
-        doc.open()
-        doc.write(string)
-        doc.close()
-        return doc
-      }
-    }
-  }
-  return Parser
-}
-
-function shouldUseActiveX () {
-  var useActiveX = false
-
-  try {
-    document.implementation.createHTMLDocument('').open()
-  } catch (e) {
-    if (window.ActiveXObject) useActiveX = true
-  }
-
-  return useActiveX
-}
-
-module.exports = canParseHtmlNatively() ? _window.DOMParser : createHtmlParser()
-
-},{"jsdom":6}],4:[function(require,module,exports){
-'use strict'
-
-module.exports = [
-  {
-    filter: 'p',
-    replacement: function (content) {
-      return '\n\n' + content + '\n\n'
-    }
-  },
-
-  {
-    filter: 'br',
-    replacement: function () {
-      return '  \n'
-    }
-  },
-
-  {
-    filter: ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-    replacement: function (content, node) {
-      var hLevel = node.nodeName.charAt(1)
-      var hPrefix = ''
-      for (var i = 0; i < hLevel; i++) {
-        hPrefix += '#'
-      }
-      return '\n\n' + hPrefix + ' ' + content + '\n\n'
-    }
-  },
-
-  {
-    filter: 'hr',
-    replacement: function () {
-      return '\n\n* * *\n\n'
-    }
-  },
-
-  {
-    filter: ['em', 'i'],
-    replacement: function (content) {
-      return '_' + content + '_'
-    }
-  },
-
-  {
-    filter: ['strong', 'b'],
-    replacement: function (content) {
-      return '**' + content + '**'
-    }
-  },
-
-  // Inline code
-  {
-    filter: function (node) {
-      var hasSiblings = node.previousSibling || node.nextSibling
-      var isCodeBlock = node.parentNode.nodeName === 'PRE' && !hasSiblings
-
-      return node.nodeName === 'CODE' && !isCodeBlock
-    },
-    replacement: function (content) {
-      return '`' + content + '`'
-    }
-  },
-
-  {
-    filter: function (node) {
-      return node.nodeName === 'A' && node.getAttribute('href')
-    },
-    replacement: function (content, node) {
-      var titlePart = node.title ? ' "' + node.title + '"' : ''
-      return '[' + content + '](' + node.getAttribute('href') + titlePart + ')'
-    }
-  },
-
-  {
-    filter: 'img',
-    replacement: function (content, node) {
-      var alt = node.alt || 'image'
-      var src = node.getAttribute('src') || ''
-      var title = node.title || ''
-      var titlePart = title ? ' "' + title + '"' : ''
-      return src ? '![' + alt + ']' + '(' + src + titlePart + ')' : ''
-    }
-  },
-
-  // Code blocks
-  {
-    filter: function (node) {
-      return node.nodeName === 'PRE' && node.firstChild.nodeName === 'CODE'
-    },
-    replacement: function (content, node) {
-      return '\n\n    ' + node.firstChild.textContent.replace(/\n/g, '\n    ') + '\n\n'
-    }
-  },
-
-  {
-    filter: 'blockquote',
-    replacement: function (content) {
-      content = content.trim()
-      content = content.replace(/\n{3,}/g, '\n\n')
-      content = content.replace(/^/gm, '> ')
-      return '\n\n' + content + '\n\n'
-    }
-  },
-
-  {
-    filter: 'li',
-    replacement: function (content, node) {
-      content = content.replace(/^\s+/, '').replace(/\n/gm, '\n    ')
-      var prefix = '*   '
-      var parent = node.parentNode
-      var index = Array.prototype.indexOf.call(parent.children, node) + 1
-
-      prefix = /ol/i.test(parent.nodeName) ? index + '.  ' : '*   '
-      return prefix + content
-    }
-  },
-
-  {
-    filter: ['ul', 'ol'],
-    replacement: function (content, node) {
-      var strings = []
-      for (var i = 0; i < node.childNodes.length; i++) {
-        strings.push(node.childNodes[i]._replacement)
-      }
-
-      if (/li/i.test(node.parentNode.nodeName)) {
-        return '\n' + strings.join('\n')
-      }
-      return '\n\n' + strings.join('\n') + '\n\n'
-    }
-  },
-
-  {
-    filter: function (node) {
-      return this.isBlock(node)
-    },
-    replacement: function (content, node) {
-      // return '\n\n' + this.outer(node, content) + '\n\n'
-      return '\n\n' + content + '\n\n'
-    }
-  },
-
-  // Anything else!
-  {
-    filter: function () {
-      return true
-    },
-    replacement: function (content, node) {
-      // return this.outer(node, content)
-      return content
-    }
-  }
-]
-
-},{}],5:[function(require,module,exports){
-/**
- * This file automatically generated from `build.js`.
- * Do not manually edit.
- */
-
-module.exports = [
-  "address",
-  "article",
-  "aside",
-  "audio",
-  "blockquote",
-  "canvas",
-  "dd",
-  "div",
-  "dl",
-  "fieldset",
-  "figcaption",
-  "figure",
-  "footer",
-  "form",
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "h5",
-  "h6",
-  "header",
-  "hgroup",
-  "hr",
-  "main",
-  "nav",
-  "noscript",
-  "ol",
-  "output",
-  "p",
-  "pre",
-  "section",
-  "table",
-  "tfoot",
-  "ul",
-  "video"
-];
-
-},{}],6:[function(require,module,exports){
-
-},{}],7:[function(require,module,exports){
-'use strict';
-
-var voidElements = require('void-elements');
-Object.keys(voidElements).forEach(function (name) {
-  voidElements[name.toUpperCase()] = 1;
-});
-
-var blockElements = {};
-require('block-elements').forEach(function (name) {
-  blockElements[name.toUpperCase()] = 1;
-});
-
-/**
- * isBlockElem(node) determines if the given node is a block element.
- *
- * @param {Node} node
- * @return {Boolean}
- */
-function isBlockElem(node) {
-  return !!(node && blockElements[node.nodeName]);
-}
-
-/**
- * isVoid(node) determines if the given node is a void element.
- *
- * @param {Node} node
- * @return {Boolean}
- */
-function isVoid(node) {
-  return !!(node && voidElements[node.nodeName]);
-}
-
-/**
- * whitespace(elem [, isBlock]) removes extraneous whitespace from an
- * the given element. The function isBlock may optionally be passed in
- * to determine whether or not an element is a block element; if none
- * is provided, defaults to using the list of block elements provided
- * by the `block-elements` module.
- *
- * @param {Node} elem
- * @param {Function} blockTest
- */
-function collapseWhitespace(elem, isBlock) {
-  if (!elem.firstChild || elem.nodeName === 'PRE') return;
-
-  if (typeof isBlock !== 'function') {
-    isBlock = isBlockElem;
-  }
-
-  var prevText = null;
-  var prevVoid = false;
-
-  var prev = null;
-  var node = next(prev, elem);
-
-  while (node !== elem) {
-    if (node.nodeType === 3) {
-      // Node.TEXT_NODE
-      var text = node.data.replace(/[ \r\n\t]+/g, ' ');
-
-      if ((!prevText || / $/.test(prevText.data)) && !prevVoid && text[0] === ' ') {
-        text = text.substr(1);
-      }
-
-      // `text` might be empty at this point.
-      if (!text) {
-        node = remove(node);
-        continue;
-      }
-
-      node.data = text;
-      prevText = node;
-    } else if (node.nodeType === 1) {
-      // Node.ELEMENT_NODE
-      if (isBlock(node) || node.nodeName === 'BR') {
-        if (prevText) {
-          prevText.data = prevText.data.replace(/ $/, '');
-        }
-
-        prevText = null;
-        prevVoid = false;
-      } else if (isVoid(node)) {
-        // Avoid trimming space around non-block, non-BR void elements.
-        prevText = null;
-        prevVoid = true;
-      }
-    } else {
-      node = remove(node);
-      continue;
-    }
-
-    var nextNode = next(prev, node);
-    prev = node;
-    node = nextNode;
-  }
-
-  if (prevText) {
-    prevText.data = prevText.data.replace(/ $/, '');
-    if (!prevText.data) {
-      remove(prevText);
-    }
-  }
-}
-
-/**
- * remove(node) removes the given node from the DOM and returns the
- * next node in the sequence.
- *
- * @param {Node} node
- * @return {Node} node
- */
-function remove(node) {
-  var next = node.nextSibling || node.parentNode;
-
-  node.parentNode.removeChild(node);
-
-  return next;
-}
-
-/**
- * next(prev, current) returns the next node in the sequence, given the
- * current and previous nodes.
- *
- * @param {Node} prev
- * @param {Node} current
- * @return {Node}
- */
-function next(prev, current) {
-  if (prev && prev.parentNode === current || current.nodeName === 'PRE') {
-    return current.nextSibling || current.parentNode;
-  }
-
-  return current.firstChild || current.nextSibling || current.parentNode;
-}
-
-module.exports = collapseWhitespace;
-
-},{"block-elements":5,"void-elements":8}],8:[function(require,module,exports){
-/**
- * This file automatically generated from `pre-publish.js`.
- * Do not manually edit.
- */
-
-module.exports = {
-  "area": true,
-  "base": true,
-  "br": true,
-  "col": true,
-  "embed": true,
-  "hr": true,
-  "img": true,
-  "input": true,
-  "keygen": true,
-  "link": true,
-  "menuitem": true,
-  "meta": true,
-  "param": true,
-  "source": true,
-  "track": true,
-  "wbr": true
-};
-
-},{}]},{},[1])(1)
-});
-
 // main.js
 (async function () {
     "use strict";
 
-    // http://pandoc.org/README.html#pandocs-markdown
-    var pandoc = [
-        {
-            filter: 'h1',
-            replacement: function (content, node) {
-                return '# ' + content + '\n\n';
-            }
-        },
+    var html2markdown = function (html) {
+        var toMarkdown = function(e,n){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else{if("function"!=typeof define||!define.amd)return e();define([],e)}}(function(){return(function e(n,t,r){function o(a,c){if(!t[a]){if(!n[a]){var l="function"==typeof require&&require;if(!c&&l)return l(a,!0);if(i)return i(a,!0);var u=Error("Cannot find module '"+a+"'");throw u.code="MODULE_NOT_FOUND",u}var f=t[a]={exports:{}};n[a][0].call(f.exports,function(e){var t;return o(n[a][1][e]||e)},f,f.exports,e,n,t,r)}return t[a].exports}for(var i="function"==typeof require&&require,a=0;a<r.length;a++)o(r[a]);return o})({1:[function(e,n,t){"use strict";var r,o,i=e("./lib/md-converters"),a=e("./lib/gfm-converters"),c=e("./lib/html-parser"),l=e("collapse-whitespace"),u=["address","article","aside","audio","blockquote","body","canvas","center","dd","dir","div","dl","dt","fieldset","figcaption","figure","footer","form","frameset","h1","h2","h3","h4","h5","h6","header","hgroup","hr","html","isindex","li","main","menu","nav","noframes","noscript","ol","output","p","pre","section","table","tbody","td","tfoot","th","thead","tr","ul"];function f(e){return -1!==u.indexOf(e.nodeName.toLowerCase())}var s=["area","base","br","col","command","embed","hr","img","input","keygen","link","meta","param","source","track","wbr"];function d(e){return -1!==s.indexOf(e.nodeName.toLowerCase())}function p(e){for(var n="",t=0;t<e.childNodes.length;t++)if(1===e.childNodes[t].nodeType)n+=e.childNodes[t]._replacement;else{if(3!==e.childNodes[t].nodeType)continue;n+=e.childNodes[t].data}return n}function m(e,n){if("string"==typeof n)return n===e.nodeName.toLowerCase();if(Array.isArray(n))return -1!==n.indexOf(e.nodeName.toLowerCase());if("function"==typeof n)return n.call(r,e);throw TypeError("`filter` needs to be a string, array, or function")}function h(e,n){var t,r,o;return"left"===e?(t=n.previousSibling,r=/ $/):(t=n.nextSibling,r=/^ /),t&&(3===t.nodeType?o=r.test(t.nodeValue):1!==t.nodeType||f(t)||(o=r.test(t.textContent))),o}function g(e){var n="",t="";if(!f(e)){var r=/^[ \r\n\t]/.test(e.innerHTML),o=/[ \r\n\t]$/.test(e.innerHTML);r&&!h("left",e)&&(n=" "),o&&!h("right",e)&&(t=" ")}return{leading:n,trailing:t}}function v(e){var n,t=p(e);if(!d(e)&&!/A|TH|TD/.test(e.nodeName)&&/^\s*$/i.test(t)){e._replacement="";return}for(var i=0;i<o.length;i++){var a=o[i];if(m(e,a.filter)){if("function"!=typeof a.replacement)throw TypeError("`replacement` needs to be a function that returns a string");var c=g(e);(c.leading||c.trailing)&&(t=t.trim()),n=c.leading+a.replacement.call(r,t,e)+c.trailing;break}}e._replacement=n}(r=function(e,n){if(n=n||{},"string"!=typeof e)throw TypeError(e+" is not a string");var t,r,u,s=(t=e=e.replace(/(>[\r\n\s]*)(\d+)\.(&nbsp;| )/g,"$1$2\\.$3"),r=new c().parseFromString(t,"text/html"),l(r.documentElement,f),r).body,d=function e(n){for(var t,r,o,i=[n],a=[];i.length>0;)for(a.push(t=i.shift()),r=t.childNodes,o=0;o<r.length;o++)1===r[o].nodeType&&i.push(r[o]);return a.shift(),a}(s);o=i.slice(0),n.gfm&&(o=a.concat(o)),n.converters&&(o=n.converters.concat(o));for(var m=d.length-1;m>=0;m--)v(d[m]);return(u=p(s)).replace(/^[\t\r\n]+|[\t\r\n\s]+$/g,"").replace(/\n\s+\n/g,"\n\n").replace(/\n{3,}/g,"\n\n")}).isBlock=f,r.isVoid=d,r.outer=function e(n,t){return n.cloneNode(!1).outerHTML.replace("><",">"+t+"<")},n.exports=r},{"./lib/gfm-converters":2,"./lib/html-parser":3,"./lib/md-converters":4,"collapse-whitespace":7}],2:[function(e,n,t){"use strict";function r(e,n){var t=Array.prototype.indexOf.call(n.parentNode.childNodes,n),r=" ";return 0===t&&(r="| "),r+e+" |"}var o=/highlight highlight-(\S+)/;n.exports=[{filter:"br",replacement:function(){return"\n"}},{filter:["del","s","strike"],replacement:function(e){return"~~"+e+"~~"}},{filter:function(e){return"checkbox"===e.type&&"LI"===e.parentNode.nodeName},replacement:function(e,n){return(n.checked?"[x]":"[ ]")+" "}},{filter:["th","td"],replacement:function(e,n){return r(e,n)}},{filter:"tr",replacement:function(e,n){var t="",o={left:":--",right:"--:",center:":-:"};if("THEAD"===n.parentNode.nodeName)for(var i=0;i<n.childNodes.length;i++){var a=n.childNodes[i].attributes.align,c="---";a&&(c=o[a.value]||c),t+=r(c,n.childNodes[i])}return"\n"+e+(t?"\n"+t:"")}},{filter:"table",replacement:function(e){return"\n\n"+e+"\n\n"}},{filter:["thead","tbody","tfoot"],replacement:function(e){return e}},{filter:function(e){return"PRE"===e.nodeName&&e.firstChild&&"CODE"===e.firstChild.nodeName},replacement:function(e,n){return"\n\n```\n"+n.firstChild.textContent.trim()+"\n```\n\n"}},{filter:function(e){return"PRE"===e.nodeName&&"DIV"===e.parentNode.nodeName&&o.test(e.parentNode.className)},replacement:function(e,n){return"\n\n```"+n.parentNode.className.match(o)[1]+"\n"+n.textContent+"\n```\n\n"}},{filter:function(e){return"DIV"===e.nodeName&&o.test(e.className)},replacement:function(e){return"\n\n"+e+"\n\n"}}]},{}],3:[function(e,n,t){var r="undefined"!=typeof window?window:this;n.exports=!function e(){var n=r.DOMParser,t=!1;try{new n().parseFromString("","text/html")&&(t=!0)}catch(o){}return t}()?function n(){var t=function(){};if("undefined"==typeof document){var r=e("jsdom");t.prototype.parseFromString=function(e){return r.jsdom(e,{features:{FetchExternalResources:[],ProcessExternalResources:!1}})}}else!function e(){var n=!1;try{document.implementation.createHTMLDocument("").open()}catch(t){window.ActiveXObject&&(n=!0)}return n}()?t.prototype.parseFromString=function(e){var n=document.implementation.createHTMLDocument("");return n.open(),n.write(e),n.close(),n}:t.prototype.parseFromString=function(e){var n=new window.ActiveXObject("htmlfile");return n.designMode="on",n.open(),n.write(e),n.close(),n};return t}():r.DOMParser},{jsdom:6}],4:[function(e,n,t){"use strict";n.exports=[{filter:"p",replacement:function(e){return"\n\n"+e+"\n\n"}},{filter:"br",replacement:function(){return"  \n"}},{filter:["h1","h2","h3","h4","h5","h6"],replacement:function(e,n){for(var t=n.nodeName.charAt(1),r="",o=0;o<t;o++)r+="#";return"\n\n"+r+" "+e+"\n\n"}},{filter:"hr",replacement:function(){return"\n\n* * *\n\n"}},{filter:["em","i"],replacement:function(e){return"_"+e+"_"}},{filter:["strong","b"],replacement:function(e){return"**"+e+"**"}},{filter:function(e){var n=e.previousSibling||e.nextSibling,t="PRE"===e.parentNode.nodeName&&!n;return"CODE"===e.nodeName&&!t},replacement:function(e){return"`"+e+"`"}},{filter:function(e){return"A"===e.nodeName&&e.getAttribute("href")},replacement:function(e,n){var t=n.title?' "'+n.title+'"':"";return"["+e+"]("+n.getAttribute("href")+t+")"}},{filter:"img",replacement:function(e,n){var t=n.alt||"image",r=n.getAttribute("src")||"",o=n.title||"";return r?"!["+t+"]("+r+(o?' "'+o+'"':"")+")":""}},{filter:function(e){return"PRE"===e.nodeName&&"CODE"===e.firstChild.nodeName},replacement:function(e,n){return"\n\n    "+n.firstChild.textContent.replace(/\n/g,"\n    ")+"\n\n"}},{filter:"blockquote",replacement:function(e){return"\n\n"+(e=(e=(e=e.trim()).replace(/\n{3,}/g,"\n\n")).replace(/^/gm,"> "))+"\n\n"}},{filter:"li",replacement:function(e,n){e=e.replace(/^\s+/,"").replace(/\n/gm,"\n    ");var t="*   ",r=n.parentNode,o=Array.prototype.indexOf.call(r.children,n)+1;return(t=/ol/i.test(r.nodeName)?o+".  ":"*   ")+e}},{filter:["ul","ol"],replacement:function(e,n){for(var t=[],r=0;r<n.childNodes.length;r++)t.push(n.childNodes[r]._replacement);return/li/i.test(n.parentNode.nodeName)?"\n"+t.join("\n"):"\n\n"+t.join("\n")+"\n\n"}},{filter:function(e){return this.isBlock(e)},replacement:function(e,n){return"\n\n"+e+"\n\n"}},{filter:function(){return!0},replacement:function(e,n){return e}}]},{}],5:[function(e,n,t){n.exports=["address","article","aside","audio","blockquote","canvas","dd","div","dl","fieldset","figcaption","figure","footer","form","h1","h2","h3","h4","h5","h6","header","hgroup","hr","main","nav","noscript","ol","output","p","pre","section","table","tfoot","ul","video"]},{}],6:[function(e,n,t){},{}],7:[function(e,n,t){"use strict";var r=e("void-elements");Object.keys(r).forEach(function(e){r[e.toUpperCase()]=1});var o={};function i(e){return!!(e&&o[e.nodeName])}function a(e){return!!(e&&r[e.nodeName])}function c(e){var n=e.nextSibling||e.parentNode;return e.parentNode.removeChild(e),n}function l(e,n){return e&&e.parentNode===n||"PRE"===n.nodeName?n.nextSibling||n.parentNode:n.firstChild||n.nextSibling||n.parentNode}e("block-elements").forEach(function(e){o[e.toUpperCase()]=1}),n.exports=function e(n,t){if(n.firstChild&&"PRE"!==n.nodeName){"function"!=typeof t&&(t=i);for(var r=null,o=!1,u=null,f=l(u,n);f!==n;){if(3===f.nodeType){var s=f.data.replace(/[ \r\n\t]+/g," ");if((!r||/ $/.test(r.data))&&!o&&" "===s[0]&&(s=s.substr(1)),!s){f=c(f);continue}f.data=s,r=f}else if(1===f.nodeType)t(f)||"BR"===f.nodeName?(r&&(r.data=r.data.replace(/ $/,"")),r=null,o=!1):a(f)&&(r=null,o=!0);else{f=c(f);continue}var d=l(u,f);u=f,f=d}r&&(r.data=r.data.replace(/ $/,""),r.data||c(r))}}},{"block-elements":5,"void-elements":8}],8:[function(e,n,t){n.exports={area:!0,base:!0,br:!0,col:!0,embed:!0,hr:!0,img:!0,input:!0,keygen:!0,link:!0,menuitem:!0,meta:!0,param:!0,source:!0,track:!0,wbr:!0}},{}]},{},[1])(1)});
 
-        {
-            filter: 'h2',
-            replacement: function (content, node) {
-                return '## ' + content + '\n\n';
-            }
-        },
-
-        {
-            filter: 'sup',
-            replacement: function (content) {
-                return '^' + content + '^';
-            }
-        },
-
-        {
-            filter: 'sub',
-            replacement: function (content) {
-                return '~' + content + '~';
-            }
-        },
-
-        {
-            filter: 'br',
-            replacement: function () {
-                return '\\\n';
-            }
-        },
-
-        {
-            filter: 'hr',
-            replacement: function () {
-                return '\n\n* * * * *\n\n';
-            }
-        },
-
-        {
-            filter: ['em', 'i', 'cite', 'var'],
-            replacement: function (content) {
-                return '*' + content + '*';
-            }
-        },
-
-        {
-            filter: function (node) {
-                var hasSiblings = node.previousSibling || node.nextSibling;
-                var isCodeBlock = node.parentNode.nodeName === 'PRE' && !hasSiblings;
-                var isCodeElem = node.nodeName === 'CODE' ||
-                    node.nodeName === 'KBD' ||
-                    node.nodeName === 'SAMP' ||
-                    node.nodeName === 'TT';
-
-                return isCodeElem && !isCodeBlock;
+        // http://pandoc.org/README.html#pandocs-markdown
+        var pandoc = [
+            {
+                filter: 'h1',
+                replacement: function (content, node) {
+                    return '# ' + content + '\n\n';
+                }
             },
-            replacement: function (content) {
-                return '`' + content + '`';
-            }
-        },
 
-        {
-            filter: function (node) {
-                return node.nodeName === 'A' && node.getAttribute('href');
+            {
+                filter: 'h2',
+                replacement: function (content, node) {
+                    return '## ' + content + '\n\n';
+                }
             },
-            replacement: function (content, node) {
-                var url = node.getAttribute('href');
-                var titlePart = node.title ? ' "' + node.title + '"' : '';
-                if (content === '') {
-                    return '';
-                } else if (content === url) {
-                    return '<' + url + '>';
-                } else if (url === ('mailto:' + content)) {
-                    return '<' + content + '>';
-                } else {
-                    return '[' + content + '](' + url + titlePart + ')';
+
+            {
+                filter: 'sup',
+                replacement: function (content) {
+                    return '^' + content + '^';
+                }
+            },
+
+            {
+                filter: 'sub',
+                replacement: function (content) {
+                    return '~' + content + '~';
+                }
+            },
+
+            {
+                filter: 'br',
+                replacement: function () {
+                    return '\\\n';
+                }
+            },
+
+            {
+                filter: 'hr',
+                replacement: function () {
+                    return '\n\n* * * * *\n\n';
+                }
+            },
+
+            {
+                filter: ['em', 'i', 'cite', 'var'],
+                replacement: function (content) {
+                    return '*' + content + '*';
+                }
+            },
+
+            {
+                filter: function (node) {
+                    var hasSiblings = node.previousSibling || node.nextSibling;
+                    var isCodeBlock = node.parentNode.nodeName === 'PRE' && !hasSiblings;
+                    var isCodeElem = node.nodeName === 'CODE' ||
+                        node.nodeName === 'KBD' ||
+                        node.nodeName === 'SAMP' ||
+                        node.nodeName === 'TT';
+
+                    return isCodeElem && !isCodeBlock;
+                },
+                replacement: function (content) {
+                    return '`' + content + '`';
+                }
+            },
+
+            {
+                filter: function (node) {
+                    return node.nodeName === 'A' && node.getAttribute('href');
+                },
+                replacement: function (content, node) {
+                    var url = node.getAttribute('href');
+                    var titlePart = node.title ? ' "' + node.title + '"' : '';
+                    if (content === '') {
+                        return '';
+                    } else if (content === url) {
+                        return '<' + url + '>';
+                    } else if (url === ('mailto:' + content)) {
+                        return '<' + content + '>';
+                    } else {
+                        return '[' + content + '](' + url + titlePart + ')';
+                    }
+                }
+            },
+            {
+                filter: 'li',
+                replacement: function (content, node) {
+                    content = content.replace(/^\s+/, '').replace(/\n/gm, '\n    ');
+                    var prefix = '- ';
+                    var parent = node.parentNode;
+
+                    if (/ol/i.test(parent.nodeName)) {
+                        var index = Array.prototype.indexOf.call(parent.children, node) + 1;
+                        prefix = index + '. ';
+                    }
+
+                    return prefix + content;
                 }
             }
-        },
-        {
-            filter: 'li',
-            replacement: function (content, node) {
-                content = content.replace(/^\s+/, '').replace(/\n/gm, '\n    ');
-                var prefix = '- ';
-                var parent = node.parentNode;
+        ];
 
-                if (/ol/i.test(parent.nodeName)) {
-                    var index = Array.prototype.indexOf.call(parent.children, node) + 1;
-                    prefix = index + '. ';
-                }
+        // http://pandoc.org/README.html#smart-punctuation
+        var escape = function (str) {
+            return str.replace(/[\u2018\u2019\u00b4]/g, "'")
+                .replace(/[\u201c\u201d\u2033]/g, '"')
+                .replace(/[\u2212\u2022\u00b7\u25aa]/g, '-')
+                .replace(/[\u2013\u2015]/g, '--')
+                .replace(/\u2014/g, '---')
+                .replace(/\u2026/g, '...')
+                .replace(/[ ]+\n/g, '\n')
+                .replace(/\s*\\\n/g, '\\\n')
+                .replace(/\s*\\\n\s*\\\n/g, '\n\n')
+                .replace(/\s*\\\n\n/g, '\n\n')
+                .replace(/\n-\n/g, '\n')
+                .replace(/\n\n\s*\\\n/g, '\n\n')
+                .replace(/\n\n\n*/g, '\n\n')
+                .replace(/[ ]+$/gm, '')
+                .replace(/^\s+|[\s\\]+$/g, '')
+                .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+                // ZERO WIDTH SPACE: https://jkorpela.fi/chars/spaces.html
+                .replace(/[\u200B\uFEFF]/g, '');
+        };
 
-                return prefix + content;
-            }
-        }
-    ];
-
-    // http://pandoc.org/README.html#smart-punctuation
-    var escape = function (str) {
-        return str.replace(/[\u2018\u2019\u00b4]/g, "'")
-            .replace(/[\u201c\u201d\u2033]/g, '"')
-            .replace(/[\u2212\u2022\u00b7\u25aa]/g, '-')
-            .replace(/[\u2013\u2015]/g, '--')
-            .replace(/\u2014/g, '---')
-            .replace(/\u2026/g, '...')
-            .replace(/[ ]+\n/g, '\n')
-            .replace(/\s*\\\n/g, '\\\n')
-            .replace(/\s*\\\n\s*\\\n/g, '\n\n')
-            .replace(/\s*\\\n\n/g, '\n\n')
-            .replace(/\n-\n/g, '\n')
-            .replace(/\n\n\s*\\\n/g, '\n\n')
-            .replace(/\n\n\n*/g, '\n\n')
-            .replace(/[ ]+$/gm, '')
-            .replace(/^\s+|[\s\\]+$/g, '')
-            .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
-            // ZERO WIDTH SPACE: https://jkorpela.fi/chars/spaces.html
-            .replace(/[\u200B\uFEFF]/g, '');
-    };
-
-    var convert = function (str) {
-        return escape(toMarkdown(str, { converters: pandoc, gfm: true }));
+        return escape(toMarkdown(html, { converters: pandoc, gfm: true }));
     }
 
     // main section
@@ -946,7 +159,7 @@ module.exports = {
         var container = document.createElement('div');
         container.appendChild(range.cloneContents());
 
-        var markdown = convert(container.innerHTML);
+        var markdown = html2markdown(container.innerHTML);
 
         GM_setClipboard(markdown, 'text');
     }
