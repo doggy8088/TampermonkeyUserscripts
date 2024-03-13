@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 翻譯選取文字的內容 (中翻英)
-// @version      1.3.0
+// @version      1.3.1
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行翻譯 (中翻英)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -192,7 +192,7 @@
 
     let selection = window.getSelection();
     let html = '';
-    let prompt = 'You are a professional, authentic translation engine, only returns translations. Translate the text into English:\n\n';
+    let prompt = '請以台灣常用的正體中文回應。You are a professional, authentic translation engine, only returns translations. Translate the text into English:\n\n';
 
     if (selection.rangeCount > 0) {
         let range = selection.getRangeAt(0);
@@ -209,7 +209,7 @@
             markdown = html2markdown(html);
         }
 
-        let url = `https://gemini.google.com/app#autoSubmit=1&prompt=${b64EncodeUnicode(prompt+markdown)}`;
+        let url = `https://gemini.google.com/app#autoSubmit=1&prompt=${encodeURIComponent(b64EncodeUnicode(prompt+markdown))}`;
         GM_openInTab(url, false);
     }
 
