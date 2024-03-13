@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 翻譯選取文字的內容 (中翻英)
-// @version      1.2.0
+// @version      1.3.0
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行翻譯 (中翻英)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -153,6 +153,43 @@
         return Array.from(doc.body.childNodes).some(node => node.nodeType === 1);
     }
 
+    function b64EncodeUnicode(str) {
+        const bytes = new TextEncoder().encode(str);
+        const base64 = window.btoa(String.fromCharCode(...new Uint8Array(bytes)));
+        return base64;
+    }
+
+    function isBase64Unicode(str) {
+        // Base64編碼後的字串僅包含 A-Z、a-z、0-9、+、/、= 這些字元
+        const base64Regex = /^[\w\+\/=]+$/;
+        if (!base64Regex.test(str)) return false;
+
+        try {
+            const decoded = window.atob(str);
+
+            // 解碼後的字串應該是合法的 UTF-8 序列
+            // 使用 TextDecoder 檢查是否可以成功解碼為 Unicode 字串
+            const bytes = new Uint8Array(decoded.length);
+            for (let i = 0; i < decoded.length; i++) {
+                bytes[i] = decoded.charCodeAt(i);
+            }
+            const decoder = new TextDecoder('utf-8');
+            decoder.decode(bytes);
+
+            // 如果沒有拋出異常，則表示是合法的 Base64Unicode 編碼字串
+            return true;
+        } catch (e) {
+            // 解碼失敗，則不是合法的 Base64Unicode 編碼字串
+            return false;
+        }
+    }
+
+    function b64DecodeUnicode(str) {
+        const bytes = Uint8Array.from(window.atob(str), c => c.charCodeAt(0));
+        const decoded = new TextDecoder().decode(bytes);
+        return decoded;
+    }
+
     let selection = window.getSelection();
     let html = '';
     let prompt = 'You are a professional, authentic translation engine, only returns translations. Translate the text into English:\n\n';
@@ -172,7 +209,7 @@
             markdown = html2markdown(html);
         }
 
-        let url = `https://gemini.google.com/app#autoSubmit=1&prompt=${encodeURIComponent(prompt+markdown)}`;
+        let url = `https://gemini.google.com/app#autoSubmit=1&prompt=${b64EncodeUnicode(prompt+markdown)}`;
         GM_openInTab(url, false);
     }
 
