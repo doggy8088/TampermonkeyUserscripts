@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         將網頁選取範圍的內容轉成 Markdown 格式的內容
-// @version      1.1.0
+// @version      1.2.0
 // @description  在網頁選取文字範圍後，使用者按下滑鼠右鍵，就可以將選取範圍的 HTML 轉成 Markdown 格式並寫入剪貼簿
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -163,11 +163,18 @@
         var container = document.createElement('div');
         container.appendChild(range.cloneContents());
         var markdown = container.innerHTML;
+
         if (isHTML(container.innerHTML)) {
             markdown = html2markdown(container.innerHTML);
         }
+
         markdown = escape(markdown);
-        GM_setClipboard(markdown, 'text');
+
+        if (!!markdown) {
+            GM_setClipboard(markdown, 'text');
+        } else {
+            alert('無法將選取範圍的 HTML 轉成 Markdown 格式');
+        }
     }
 
 })();
