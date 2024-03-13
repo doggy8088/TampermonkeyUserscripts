@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 總結選取文字的內容
-// @version      1.2.0
+// @version      1.3.3
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行總結
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -192,14 +192,16 @@
 
     let selection = window.getSelection();
     let html = '';
-    let prompt = 'Summarize the text to a abstract and in few bullets points. Use the original language to summarize text. The text is:\n{input}';
+    let prompt = '請幫我總結以下內容並條列內容重點：\n```\n{input}\n```';
 
     if (selection.rangeCount > 0) {
         let range = selection.getRangeAt(0);
         let container = document.createElement('div');
         container.appendChild(range.cloneContents());
         html = container.innerHTML;
-    } else {
+    }
+
+    if (!html) {
         html = document.querySelector('article')?.innerHTML;
     }
 

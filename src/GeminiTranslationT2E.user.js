@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 翻譯選取文字的內容 (中翻英)
-// @version      1.3.2
+// @version      1.3.3
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行翻譯 (中翻英)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -199,7 +199,9 @@
         let container = document.createElement('div');
         container.appendChild(range.cloneContents());
         html = container.innerHTML;
-    } else {
+    }
+
+    if (!html) {
         html = document.querySelector('article')?.innerHTML;
     }
 
