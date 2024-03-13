@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 總結選取文字的內容
-// @version      1.1.0
+// @version      1.2.0
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行總結
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -148,21 +148,68 @@
         return toMarkdown(html, { converters: pandoc, gfm: true });
     }
 
-    var selection = window.getSelection();
+    function isHTML(str) {
+        var doc = new DOMParser().parseFromString(str, "text/html");
+        return Array.from(doc.body.childNodes).some(node => node.nodeType === 1);
+    }
+
+    function b64EncodeUnicode(str) {
+        const bytes = new TextEncoder().encode(str);
+        const base64 = window.btoa(String.fromCharCode(...new Uint8Array(bytes)));
+        return base64;
+    }
+
+    function isBase64Unicode(str) {
+        // Base64編碼後的字串僅包含 A-Z、a-z、0-9、+、/、= 這些字元
+        const base64Regex = /^[\w\+\/=]+$/;
+        if (!base64Regex.test(str)) return false;
+
+        try {
+            const decoded = window.atob(str);
+
+            // 解碼後的字串應該是合法的 UTF-8 序列
+            // 使用 TextDecoder 檢查是否可以成功解碼為 Unicode 字串
+            const bytes = new Uint8Array(decoded.length);
+            for (let i = 0; i < decoded.length; i++) {
+                bytes[i] = decoded.charCodeAt(i);
+            }
+            const decoder = new TextDecoder('utf-8');
+            decoder.decode(bytes);
+
+            // 如果沒有拋出異常，則表示是合法的 Base64Unicode 編碼字串
+            return true;
+        } catch (e) {
+            // 解碼失敗，則不是合法的 Base64Unicode 編碼字串
+            return false;
+        }
+    }
+
+    function b64DecodeUnicode(str) {
+        const bytes = Uint8Array.from(window.atob(str), c => c.charCodeAt(0));
+        const decoded = new TextDecoder().decode(bytes);
+        return decoded;
+    }
+
+    let selection = window.getSelection();
+    let html = '';
+    let prompt = 'Summarize the text to a abstract and in few bullets points. Use the original language to summarize text. The text is:\n{input}';
 
     if (selection.rangeCount > 0) {
-        var range = selection.getRangeAt(0);
-        var container = document.createElement('div');
+        let range = selection.getRangeAt(0);
+        let container = document.createElement('div');
         container.appendChild(range.cloneContents());
-        var markdown = container.innerHTML;
-        if (isHTML(container.innerHTML)) {
-            markdown = html2markdown(container.innerHTML);
+        html = container.innerHTML;
+    } else {
+        html = document.querySelector('article')?.innerHTML;
+    }
+
+    if (!!html) {
+        let markdown = html;
+        if (isHTML(html)) {
+            markdown = html2markdown(html);
         }
-        markdown = escape(markdown);
 
-        var prompt = `Summarize the text to a abstract and in few bullets points. Use the original language to summarize text. The text is:\n\n${markdown}`;
-        var url = `https://gemini.google.com/app#autoSubmit=1&prompt=${encodeURIComponent(prompt)}`;
-
+        let url = `https://gemini.google.com/app#autoSubmit=1&prompt=${encodeURIComponent(b64EncodeUnicode(prompt.replace('{input}', markdown)))}`;
         GM_openInTab(url, false);
     }
 
