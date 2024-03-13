@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 翻譯選取文字的內容 (英翻中)
-// @version      1.1.0
+// @version      1.2.0
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行翻譯 (英翻中)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -148,21 +148,33 @@
         return toMarkdown(html, { converters: pandoc, gfm: true });
     }
 
-    var selection = window.getSelection();
+    function isHTML(str) {
+        var doc = new DOMParser().parseFromString(str, "text/html");
+        return Array.from(doc.body.childNodes).some(node => node.nodeType === 1);
+    }
+
+    let selection = window.getSelection();
+    let html = '';
+    let prompt = 'You are a professional, authentic translation engine, only returns translations. Translate the text into Traditional Chinese:\n\n';
 
     if (selection.rangeCount > 0) {
-        var range = selection.getRangeAt(0);
-        var container = document.createElement('div');
+        let range = selection.getRangeAt(0);
+        let container = document.createElement('div');
         container.appendChild(range.cloneContents());
-        var markdown = container.innerHTML;
-        if (isHTML(container.innerHTML)) {
-            markdown = html2markdown(container.innerHTML);
+        html = container.innerHTML;
+    }
+
+    if (!html) {
+        html = document.querySelector('article')?.innerHTML;
+    }
+
+    if (!!html) {
+        let markdown = html;
+        if (isHTML(html)) {
+            markdown = html2markdown(html);
         }
-        markdown = escape(markdown);
 
-        var prompt = `You are a professional, authentic translation engine, only returns translations. Translate the text into Traditional Chinese:\n\n${markdown}`;
-        var url = `https://gemini.google.com/app#autoSubmit=1&prompt=${encodeURIComponent(prompt)}`;
-
+        let url = `https://gemini.google.com/app#autoSubmit=1&prompt=${encodeURIComponent(prompt+markdown)}`;
         GM_openInTab(url, false);
     }
 
