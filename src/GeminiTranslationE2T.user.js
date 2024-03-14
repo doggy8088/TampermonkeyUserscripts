@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 翻譯選取文字的內容 (英翻中)
-// @version      1.3.3
+// @version      1.4.0
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行翻譯 (英翻中)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -194,22 +194,49 @@
     let html = '';
     let prompt = '請將以下文字翻譯為台灣常用的正體中文：\n```\n{input}\n```';
 
+    let container = document.createElement('div');
+
     if (selection.rangeCount > 0) {
         let range = selection.getRangeAt(0);
-        let container = document.createElement('div');
         container.appendChild(range.cloneContents());
-        html = container.innerHTML;
     }
 
-    if (!html) {
-        html = document.querySelector('article')?.innerHTML;
+    if (!container.innerHTML) {
+        container = document.querySelector('article');
     }
+
+    if (!!container) {
+        // 找出 container.innerHTML 的 HTML 中所有的圖片，如果網址是 / 開頭，就幫我轉成完整的網址
+        var images = container.querySelectorAll('img');
+        images.forEach(function (img) {
+            var src = img.getAttribute('src');
+            if (src.startsWith('/')) {
+                var fullUrl = window.location.origin + src;
+                img.setAttribute('src', fullUrl);
+            }
+        });
+
+        // 找出 container.innerHTML 的 HTML 中所有的 Hyperlink，如果網址是 / 開頭，就幫我轉成完整的網址
+        var images = container.querySelectorAll('a');
+        images.forEach(function (img) {
+            var href = img.getAttribute('href');
+            if (href.startsWith('/')) {
+                var fullUrl = window.location.origin + href;
+                img.setAttribute('href', fullUrl);
+            }
+        });
+    }
+
+    html = container?.innerHTML;
 
     if (!!html) {
         let markdown = html;
+
         if (isHTML(html)) {
             markdown = html2markdown(html);
         }
+
+        markdown = escape(markdown);
 
         let url = `https://gemini.google.com/app#autoSubmit=1&prompt=${encodeURIComponent(b64EncodeUnicode(prompt.replace('{input}', markdown)))}`;
         GM_openInTab(url, false);
