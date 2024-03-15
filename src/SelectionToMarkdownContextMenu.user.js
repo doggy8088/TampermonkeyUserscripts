@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         將網頁選取範圍的內容轉成 Markdown 格式的內容
-// @version      1.3.0
+// @version      1.5.0
 // @description  在網頁選取文字範圍後，使用者按下滑鼠右鍵，就可以將選取範圍的 HTML 轉成 Markdown 格式並寫入剪貼簿
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -157,14 +157,28 @@
     // main section
 
     var selection = window.getSelection();
+    let html = '';
+
+    let container = document.createElement('div');
 
     if (selection.rangeCount > 0) {
-        var range = selection.getRangeAt(0);
-        var container = document.createElement('div');
+        let range = selection.getRangeAt(0);
         container.appendChild(range.cloneContents());
+    }
+
+    if (!container.innerHTML) {
+        container = document.querySelector('article');
+    }
+
+    if (!!container) {
+        // 刪除 container 中的所有 script 標籤
+        let scripts = container.querySelectorAll('script');
+        scripts.forEach(function (script) {
+            script.remove();
+        });
 
         // 找出 container.innerHTML 的 HTML 中所有的圖片，如果網址是 / 開頭，就幫我轉成完整的網址
-        var images = container.querySelectorAll('img');
+        let images = container.querySelectorAll('img');
         images.forEach(function (img) {
             var src = img.getAttribute('src');
             if (src.startsWith('/')) {
@@ -174,28 +188,30 @@
         });
 
         // 找出 container.innerHTML 的 HTML 中所有的 Hyperlink，如果網址是 / 開頭，就幫我轉成完整的網址
-        var images = container.querySelectorAll('a');
-        images.forEach(function (img) {
+        let links = container.querySelectorAll('a');
+        links.forEach(function (img) {
             var href = img.getAttribute('href');
             if (href.startsWith('/')) {
                 var fullUrl = window.location.origin + href;
                 img.setAttribute('href', fullUrl);
             }
         });
+    }
 
-        var markdown = container.innerHTML;
+    html = container?.innerHTML;
 
-        if (isHTML(container.innerHTML)) {
-            markdown = html2markdown(container.innerHTML);
-        }
+    let markdown = html;
 
-        markdown = escape(markdown);
+    if (isHTML(html)) {
+        markdown = html2markdown(html);
+    }
 
-        if (!!markdown) {
-            GM_setClipboard(markdown, 'text');
-        } else {
-            alert('無法將選取範圍的 HTML 轉成 Markdown 格式');
-        }
+    markdown = escape(markdown);
+
+    if (!!markdown) {
+        GM_setClipboard(markdown, 'text');
+    } else {
+        alert('無法將選取範圍的 HTML 轉成 Markdown 格式');
     }
 
 })();
