@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 翻譯選取文字的內容 (英翻中)
-// @version      1.4.0
+// @version      1.5.0
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行翻譯 (英翻中)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -192,7 +192,7 @@
 
     let selection = window.getSelection();
     let html = '';
-    let prompt = '請將以下文字翻譯為台灣常用的正體中文：\n```\n{input}\n```';
+    let prompt = 'Please translate the following text into Traditional Chinese, ensuring that the words and phrases are commonly used in Taiwan. No explanations and additional information of the translations are required. Ensure the translations\' completeness. Here is the text:\n```\n{input}\n```';
 
     let container = document.createElement('div');
 
@@ -206,8 +206,14 @@
     }
 
     if (!!container) {
+        // 刪除 container 中的所有 script 標籤
+        let scripts = container.querySelectorAll('script');
+        scripts.forEach(function (script) {
+            script.remove();
+        });
+
         // 找出 container.innerHTML 的 HTML 中所有的圖片，如果網址是 / 開頭，就幫我轉成完整的網址
-        var images = container.querySelectorAll('img');
+        let images = container.querySelectorAll('img');
         images.forEach(function (img) {
             var src = img.getAttribute('src');
             if (src.startsWith('/')) {
@@ -217,8 +223,8 @@
         });
 
         // 找出 container.innerHTML 的 HTML 中所有的 Hyperlink，如果網址是 / 開頭，就幫我轉成完整的網址
-        var images = container.querySelectorAll('a');
-        images.forEach(function (img) {
+        let links = container.querySelectorAll('a');
+        links.forEach(function (img) {
             var href = img.getAttribute('href');
             if (href.startsWith('/')) {
                 var fullUrl = window.location.origin + href;
