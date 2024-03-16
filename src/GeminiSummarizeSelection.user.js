@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 總結選取文字的內容
-// @version      1.3.3
+// @version      1.3.4
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行總結
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -192,7 +192,7 @@
 
     let selection = window.getSelection();
     let html = '';
-    let prompt = '請幫我總結以下內容並條列內容重點：\n```\n{input}\n```';
+    let prompt = 'Please help me summarize the following text and list the key points. Then translate all the content into Traditional Chinese. No explanations and additional information of the translations are required. Do not add pronunciation annotations. Here is the text: Here is the text:\n```\n{input}\n```';
 
     if (selection.rangeCount > 0) {
         let range = selection.getRangeAt(0);
