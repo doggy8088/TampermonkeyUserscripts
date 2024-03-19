@@ -1,0 +1,19 @@
+{
+  "name": "readability",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "esbuild index.js --bundle --outfile=dist/out.js --platform=browser && cat header.txt > dist/Readability.user.js && cat dist/out.js >> dist/Readability.user.js",
+    "build:prod": "esbuild index.js --bundle --minify --outfile=dist/out.js --platform=browser && cat header.txt > dist/Readability.user.js && cat dist/out.js >> dist/Readability.user.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@mozilla/readability": "^0.5.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.19.5"
+  }
+}
