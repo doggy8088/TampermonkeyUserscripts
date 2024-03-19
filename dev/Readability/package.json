@@ -2,10 +2,17 @@
   "name": "readability",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "SelectionToMarkdownContextMenu.user.src.js",
   "scripts": {
-    "build": "esbuild index.js --bundle --outfile=dist/out.js --platform=browser && cat header.txt > dist/Readability.user.js && cat dist/out.js >> dist/Readability.user.js",
-    "build:prod": "esbuild index.js --bundle --minify --outfile=dist/out.js --platform=browser && cat header.txt > dist/Readability.user.js && cat dist/out.js >> dist/Readability.user.js"
+    "GeminiTranslationE2TContextMenu:build": "esbuild GeminiTranslationE2TContextMenu.user.src.js --bundle --outfile=dist/out.js --platform=browser && cat GeminiTranslationE2TContextMenu.user.header.txt > dist/GeminiTranslationE2TContextMenu.user.js && cat dist/out.js >> dist/GeminiTranslationE2TContextMenu.user.js",
+    "GeminiTranslationE2TContextMenu:build:prod": "esbuild GeminiTranslationE2TContextMenu.user.src.js --bundle --minify --outfile=dist/out.js --platform=browser && cat GeminiTranslationE2TContextMenu.user.header.txt > dist/GeminiTranslationE2TContextMenu.user.js && cat dist/out.js >> dist/GeminiTranslationE2TContextMenu.user.js",
+    "GeminiTranslationT2EContextMenu:build": "esbuild GeminiTranslationT2EContextMenu.user.src.js --bundle --outfile=dist/out.js --platform=browser && cat GeminiTranslationT2EContextMenu.user.header.txt > dist/GeminiTranslationT2EContextMenu.user.js && cat dist/out.js >> dist/GeminiTranslationT2EContextMenu.user.js",
+    "GeminiTranslationT2EContextMenu:build:prod": "esbuild GeminiTranslationT2EContextMenu.user.src.js --bundle --minify --outfile=dist/out.js --platform=browser && cat GeminiTranslationT2EContextMenu.user.header.txt > dist/GeminiTranslationT2EContextMenu.user.js && cat dist/out.js >> dist/GeminiTranslationT2EContextMenu.user.js",
+    "GeminiSummarizeSelectionContextMenu:build": "esbuild GeminiSummarizeSelectionContextMenu.user.src.js --bundle --outfile=dist/out.js --platform=browser && cat GeminiSummarizeSelectionContextMenu.user.header.txt > dist/GeminiSummarizeSelectionContextMenu.user.js && cat dist/out.js >> dist/GeminiSummarizeSelectionContextMenu.user.js",
+    "GeminiSummarizeSelectionContextMenu:build:prod": "esbuild GeminiSummarizeSelectionContextMenu.user.src.js --bundle --minify --outfile=dist/out.js --platform=browser && cat GeminiSummarizeSelectionContextMenu.user.header.txt > dist/GeminiSummarizeSelectionContextMenu.user.js && cat dist/out.js >> dist/GeminiSummarizeSelectionContextMenu.user.js",
+    "SelectionToMarkdownContextMenu:build": "esbuild SelectionToMarkdownContextMenu.user.src.js --bundle --outfile=dist/out.js --platform=browser && cat SelectionToMarkdownContextMenu.user.header.txt > dist/SelectionToMarkdownContextMenu.user.js && cat dist/out.js >> dist/SelectionToMarkdownContextMenu.user.js",
+    "SelectionToMarkdownContextMenu:build:prod": "esbuild SelectionToMarkdownContextMenu.user.src.js --bundle --minify --outfile=dist/out.js --platform=browser && cat SelectionToMarkdownContextMenu.user.header.txt > dist/SelectionToMarkdownContextMenu.user.js && cat dist/out.js >> dist/SelectionToMarkdownContextMenu.user.js",
+    "build": "npm run SelectionToMarkdownContextMenu:build && npm run GeminiSummarizeSelectionContextMenu:build && npm run GeminiTranslationE2TContextMenu:build && npm run GeminiTranslationT2EContextMenu:build && rimraf dist/out.js"
   },
   "keywords": [],
   "author": "",
@@ -14,6 +21,7 @@
     "@mozilla/readability": "^0.5.0"
   },
   "devDependencies": {
-    "esbuild": "^0.19.5"
+    "esbuild": "^0.19.5",
+    "rimraf": "^5.0.5"
   }
 }

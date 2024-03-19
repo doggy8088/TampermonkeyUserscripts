@@ -1,18 +1,18 @@
 // ==UserScript==
-// @name         將網頁內容轉成 Markdown 格式並寫入剪貼簿
+// @name         Gemini: 翻譯選取文字的內容 (英翻中)
 // @version      1.6.0
-// @description  在網頁選取文字範圍後，使用者按下滑鼠右鍵，就可以將選取範圍的 HTML 轉成 Markdown 格式並寫入剪貼簿
+// @description  自動將當前頁面的選取範圍送到 Gemini 進行翻譯 (英翻中)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SelectionToMarkdownContextMenu.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SelectionToMarkdownContextMenu.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiTranslationE2TContextMenu.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiTranslationE2TContextMenu.user.js
 // @match        *://*/*
 // @author       Will Huang
 // @run-at       context-menu
-// @grant        GM_setClipboard
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=www.duotify.com
+// @grant        GM_openInTab
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=gemini.google.com
 // ==/UserScript==
 (() => {
   var __create = Object.create;
@@ -1883,7 +1883,7 @@
     }
   });
 
-  // SelectionToMarkdownContextMenu.user.src.js
+  // GeminiTranslationE2TContextMenu.user.src.js
   var import_readability = __toESM(require_readability());
   function getHTMLfromSelectorOrContent() {
     let selection = window.getSelection();
@@ -2305,14 +2305,17 @@
     }
     return escape(markdown);
   };
+  function b64EncodeUnicode(str) {
+    const bytes = new TextEncoder().encode(str);
+    const base64 = window.btoa(String.fromCharCode(...new Uint8Array(bytes)));
+    return base64;
+  }
   var html = getHTMLfromSelectorOrContent();
   if (!!html) {
     markdown = html2markdown(html);
-    if (!!markdown) {
-      GM_setClipboard(markdown, "text");
-    } else {
-      alert("\u7121\u6CD5\u5C07\u9078\u53D6\u7BC4\u570D\u7684 HTML \u8F49\u6210 Markdown \u683C\u5F0F");
-    }
+    let prompt = "Please translate the following text into Traditional Chinese, ensuring that the words and phrases are commonly used in Taiwan. No explanations and additional information of the translations are required. Ensure the translations' completeness. Here is the text:\n```\n{input}\n```";
+    let url = `https://gemini.google.com/app#autoSubmit=1&prompt=${encodeURIComponent(b64EncodeUnicode(prompt.replace("{input}", markdown)))}`;
+    GM_openInTab(url, false);
   }
   var markdown;
 })();
