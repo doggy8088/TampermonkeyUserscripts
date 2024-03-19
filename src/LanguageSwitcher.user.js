@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.8.0
+// @version      1.9.0
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -32,11 +32,19 @@
                     pn = location.pathname;
 
                 if (location.hostname == 'zh.wikipedia.org') {
-                    document.querySelector("#p-lang > div > ul > li.interlanguage-link.interwiki-en > a").click();
+                    document.querySelector('#p-lang-btn-checkbox')?.click();
+                    setTimeout(() => {
+                        document.querySelector('.uls-language-list')?.querySelector('a[hreflang="en"]')?.click();
+                        document.querySelector('#p-lang-btn-checkbox')?.click();
+                    }, 500);
                 }
 
                 if (location.hostname == 'en.wikipedia.org') {
-                    document.querySelector("#p-lang > div > ul > li.interlanguage-link.interwiki-zh > a").click();
+                    document.querySelector('#p-lang-btn-checkbox')?.click();
+                    setTimeout(() => {
+                        document.querySelector('.uls-language-list')?.querySelector('a[hreflang="zh"]')?.click();
+                        document.querySelector('#p-lang-btn-checkbox')?.click();
+                    }, 500);
                 }
 
                 if (ln.indexOf('//getbootstrap.com/docs/3.3/') >= 0) {
