@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.9.0
+// @version      1.9.1
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -31,20 +31,34 @@
                     ln = location.href,
                     pn = location.pathname;
 
+                function switchWikipediaLang(toLang) {
+                    let link = document.querySelector("#p-lang")?.querySelector(`a[hreflang="${toLang}"]`);
+                    if (link) { link.click(); return }
+
+                    let chkbox = document.querySelector('#p-lang-btn-checkbox');
+                    if (chkbox) {
+                        chkbox.click();
+                        let waitTimer = 0;
+                        let si = setInterval(() => {
+                            let langList = document.querySelector('.uls-language-list');
+                            if (langList) {
+                                clearInterval(si);
+                                chkbox.click();
+                                document.querySelector('.uls-language-list')?.querySelector(`a[hreflang="${toLang}"]`)?.click();
+                            } else {
+                                if (waitTimer++ > 100) { clearInterval(si); }
+                            }
+                        }, 50);
+                        return;
+                    }
+                }
+
                 if (location.hostname == 'zh.wikipedia.org') {
-                    document.querySelector('#p-lang-btn-checkbox')?.click();
-                    setTimeout(() => {
-                        document.querySelector('.uls-language-list')?.querySelector('a[hreflang="en"]')?.click();
-                        document.querySelector('#p-lang-btn-checkbox')?.click();
-                    }, 500);
+                    switchWikipediaLang('en');
                 }
 
                 if (location.hostname == 'en.wikipedia.org') {
-                    document.querySelector('#p-lang-btn-checkbox')?.click();
-                    setTimeout(() => {
-                        document.querySelector('.uls-language-list')?.querySelector('a[hreflang="zh"]')?.click();
-                        document.querySelector('#p-lang-btn-checkbox')?.click();
-                    }, 500);
+                    switchWikipediaLang('zh');
                 }
 
                 if (ln.indexOf('//getbootstrap.com/docs/3.3/') >= 0) {
