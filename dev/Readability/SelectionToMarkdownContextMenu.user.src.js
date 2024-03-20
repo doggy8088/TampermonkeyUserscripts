@@ -1,5 +1,6 @@
 import {
-    Readability
+    Readability,
+    isProbablyReaderable
 } from '@mozilla/readability';
 
 function getHTMLfromSelectorOrContent() {
@@ -43,6 +44,10 @@ function getHTMLfromSelectorOrContent() {
     }
 
     if (!container.innerHTML) {
+        if (!isProbablyReaderable(document)) {
+            console.warn('目前的頁面無法使用 Readability 來處理，輸出結果可能不如預期。');
+        }
+
         var documentClone = document.cloneNode(true);
         var article = new Readability(documentClone).parse();
         html = `<h1>${article.title}</h1>` + article.content;

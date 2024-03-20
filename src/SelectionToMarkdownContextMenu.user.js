@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         將網頁內容轉成 Markdown 格式並寫入剪貼簿
-// @version      1.6.0
+// @version      1.7.0
 // @description  在網頁選取文字範圍後，使用者按下滑鼠右鍵，就可以將選取範圍的 HTML 轉成 Markdown 格式並寫入剪貼簿
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -1827,7 +1827,7 @@
       function isNodeVisible(node) {
         return (!node.style || node.style.display != "none") && !node.hasAttribute("hidden") && (!node.hasAttribute("aria-hidden") || node.getAttribute("aria-hidden") != "true" || node.className && node.className.indexOf && node.className.indexOf("fallback-image") !== -1);
       }
-      function isProbablyReaderable(doc, options = {}) {
+      function isProbablyReaderable2(doc, options = {}) {
         if (typeof options == "function") {
           options = { visibilityChecker: options };
         }
@@ -1866,7 +1866,7 @@
         });
       }
       if (typeof module === "object") {
-        module.exports = isProbablyReaderable;
+        module.exports = isProbablyReaderable2;
       }
     }
   });
@@ -1875,10 +1875,10 @@
   var require_readability = __commonJS({
     "node_modules/@mozilla/readability/index.js"(exports, module) {
       var Readability2 = require_Readability();
-      var isProbablyReaderable = require_Readability_readerable();
+      var isProbablyReaderable2 = require_Readability_readerable();
       module.exports = {
         Readability: Readability2,
-        isProbablyReaderable
+        isProbablyReaderable: isProbablyReaderable2
       };
     }
   });
@@ -1917,6 +1917,9 @@
       html2 = container?.innerHTML;
     }
     if (!container.innerHTML) {
+      if (!(0, import_readability.isProbablyReaderable)(document)) {
+        console.warn("\u76EE\u524D\u7684\u9801\u9762\u7121\u6CD5\u4F7F\u7528 Readability \u4F86\u8655\u7406\uFF0C\u8F38\u51FA\u7D50\u679C\u53EF\u80FD\u4E0D\u5982\u9810\u671F\u3002");
+      }
       var documentClone = document.cloneNode(true);
       var article = new import_readability.Readability(documentClone).parse();
       html2 = `<h1>${article.title}</h1>` + article.content;
