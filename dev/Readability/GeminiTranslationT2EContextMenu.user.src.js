@@ -24,7 +24,7 @@ function getHTMLfromSelectorOrContent() {
             let images = container.querySelectorAll('img');
             images.forEach(function (img) {
                 var src = img.getAttribute('src');
-                if (src.startsWith('/')) {
+                if (src && src.startsWith('/')) {
                     var fullUrl = window.location.origin + src;
                     img.setAttribute('src', fullUrl);
                 }
@@ -32,11 +32,11 @@ function getHTMLfromSelectorOrContent() {
 
             // 找出 container.innerHTML 的 HTML 中所有的 Hyperlink，如果網址是 / 開頭，就幫我轉成完整的網址
             let links = container.querySelectorAll('a');
-            links.forEach(function (img) {
-                var href = img.getAttribute('href');
-                if (href.startsWith('/')) {
+            links.forEach(function (a) {
+                var href = a.getAttribute('href');
+                if (href && href.startsWith('/')) {
                     var fullUrl = window.location.origin + href;
-                    img.setAttribute('href', fullUrl);
+                    a.setAttribute('href', fullUrl);
                 }
             });
         }

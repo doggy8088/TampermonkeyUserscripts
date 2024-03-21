@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 總結選取文字的內容
-// @version      1.7.0
+// @version      1.7.1
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行總結
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -1900,17 +1900,17 @@
         let images = container.querySelectorAll("img");
         images.forEach(function(img) {
           var src = img.getAttribute("src");
-          if (src.startsWith("/")) {
+          if (src && src.startsWith("/")) {
             var fullUrl = window.location.origin + src;
             img.setAttribute("src", fullUrl);
           }
         });
         let links = container.querySelectorAll("a");
-        links.forEach(function(img) {
-          var href = img.getAttribute("href");
-          if (href.startsWith("/")) {
+        links.forEach(function(a) {
+          var href = a.getAttribute("href");
+          if (href && href.startsWith("/")) {
             var fullUrl = window.location.origin + href;
-            img.setAttribute("href", fullUrl);
+            a.setAttribute("href", fullUrl);
           }
         });
       }
