@@ -60,6 +60,15 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/CtrlCCtrlCCopyURL.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>按下兩次 Ctrl+C 就會自動複製網址</td>
+      <td>
+        按下兩次 Ctrl+C 就會自動複製網址，為了方便自行實作複製網址的邏輯，因此這份腳本不會變更版號，請自行檢查是否有新版。
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiTranslationT2EContextMenu.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Gemini: 翻譯選取文字的內容 (中翻英)</td>
