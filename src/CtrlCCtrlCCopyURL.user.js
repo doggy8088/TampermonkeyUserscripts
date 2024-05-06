@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         按下兩次 Ctrl+C 就會自動複製網址
-// @version      0.1.0
+// @version      0.2.0
 // @description  按下兩次 Ctrl+C 就會自動複製網址，為了方便自行實作複製網址的邏輯，因此這份腳本不會變更版號，請自行檢查是否有新版。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -19,7 +19,7 @@
         let now = new Date().getTime();
 
         // 只要在 1 秒內連續按兩次 Ctrl+C，就會自動複製網址
-        if (now - lastCopy < 1000) {
+        if (now - lastCopy < 1000 && !window.getSelection().toString()) {
             let url = window.location.href;
 
             // 過濾掉 learn.microsoft.com 網站上的 view=aspnetcore- 參數，確保拿到的網址一定是最新版
