@@ -1,0 +1,16 @@
+// ==UserScript==
+// @name         自動將 DOM 轉成 Image 的小工具
+// @version      0.1.0
+// @description  自動將 DOM 轉成 Image 的小工具
+// @license      MIT
+// @homepage     https://blog.miniasp.com/
+// @homepageURL  https://blog.miniasp.com/
+// @website      https://www.facebook.com/will.fans
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/DOM2Image.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/DOM2Image.user.js
+// @match        *://*/*
+// @author       Will Huang
+// @grant        none
+// @run-at       document-idle
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=www.duotify.com
+// ==/UserScript==

@@ -1,0 +1,19 @@
+{
+  "name": "dom-to-image",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "esbuild DOM2Image.user.src.js --bundle --outfile=dist/out.js --platform=browser && cat header.txt > dist/DOM2Image.user.js && cat dist/out.js >> dist/DOM2Image.user.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "dom-to-image": "^2.6.0",
+    "file-saver": "^2.0.5"
+  },
+  "devDependencies": {
+    "esbuild": "^0.21.3"
+  }
+}
