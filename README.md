@@ -80,9 +80,13 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/CtrlCCtrlCCopyURL.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>按下兩次 Ctrl+C 就會自動複製網址</td>
+      <td>按下多次 Ctrl-C 就會自動複製網址</td>
       <td>
-        按下兩次 Ctrl+C 就會自動複製網址，為了方便自行實作複製網址的邏輯，因此這份腳本不會變更版號，請自行檢查是否有新版。
+        目前支援兩個網站：<br>
+        <ol>
+          <li><code>learn.microsoft.com</code>: 按下 <code>Ctrl-C</code> 兩次以上就會自動將查詢字串中的 <code>view</code> 參數移除，確保複製的網址可以連到最新版。</li>
+          <li><code>github.com</code>: 按下兩次 <code>Ctrl-C</code> 會自動複製當前 Repo 網址，按下三次 <code>Ctrl-C</code> 會複製包含 <code>git clone REPO_URL</code> 命令。如果在 <code>特定分支</code> 頁面中按三次，會自動取出該分支的內容。如果在 <code>pull requests</code> 頁面中按三次，會自動取出該 PR 回來。</li>
+        </ol>
       </td>
     </tr>
     <tr>
