@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         按下多次 Ctrl-C 就會自動複製網址
-// @version      0.4.0
+// @version      0.5.0
 // @description  按下多次 Ctrl-C 就會自動複製網址，為了方便自行實作複製網址的邏輯。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -46,7 +46,7 @@
                 // url: https://github.com/google-gemini/gemma-cookbook/tree/main
                 const parts = url.split('/');
                 const owner = parts?.[3];
-                const repo = parts?.[4];
+                const repo = parts?.[4].split('?')[0];
                 const type = parts?.[5];
                 const branch = parts?.[6];
                 if (owner && repo) {
