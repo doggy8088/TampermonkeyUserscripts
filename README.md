@@ -302,6 +302,13 @@
     </tr>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsDarkModeSwitcher.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>Azure DevOps: 佈景主題切換器</td>
+      <td>按下 <code>alt+s</code> 快速鍵就會自動切換目前網頁的 Dark/Light 模式</td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsWikiTocFullDisplay.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Azure DevOps: 調整 Wiki 文件的 TOC 標題寬度</td>
