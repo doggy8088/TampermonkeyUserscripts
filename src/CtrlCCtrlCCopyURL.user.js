@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         按下多次 Ctrl-C 就會自動複製網址
-// @version      0.5.0
+// @version      0.6.0
 // @description  按下多次 Ctrl-C 就會自動複製網址，為了方便自行實作複製網址的邏輯。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -57,7 +57,7 @@
                         url = `git clone https://github.com/${owner}/${repo}.git`;
 
                         // https://github.com/doggy8088/espanso/tree/add-taskbar-links
-                        if (type === 'tree' && branch) {
+                        if ((type === 'tree' || type === 'commits') && branch) {
                             url = `git clone https://github.com/${owner}/${repo}.git -b ${branch}`;
                         }
 
