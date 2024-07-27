@@ -11,10 +11,10 @@
     <table border="0">
     <tr>
       <td>
-        <a href="https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo" target="_blank"><img src="https://user-images.githubusercontent.com/88981/220149382-8ffa83d5-8561-4dc9-929f-96cde2f6ed43.png" alt="Chrome"></a>
+        <a href="https://chrome.google.com/webstore/detail/tampermonkey/dhdgffkkebhmkfjojejmpbldmpobfkfo"><img src="https://user-images.githubusercontent.com/88981/220149382-8ffa83d5-8561-4dc9-929f-96cde2f6ed43.png" alt="Chrome"></a>
       </td>
       <td>
-        <a href="https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd?hl=zh-TW" target="_blank"><img src="https://user-images.githubusercontent.com/88981/220149387-9e173b2c-b5f1-40bf-bdaf-c2f0d2bb5a6d.png" alt="Edge"></a>
+        <a href="https://microsoftedge.microsoft.com/addons/detail/tampermonkey/iikmkjmpaadaobahmlepeloendndfphd?hl=zh-TW"><img src="https://user-images.githubusercontent.com/88981/220149387-9e173b2c-b5f1-40bf-bdaf-c2f0d2bb5a6d.png" alt="Edge"></a>
       </td>
     </tr>
     <tr>
@@ -27,10 +27,10 @@
     </tr>
     <tr>
       <td>
-        <a href="https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/" target="_blank"><img src="https://user-images.githubusercontent.com/88981/220149390-50010c13-e3c8-4dc9-a120-e267fbcc1e73.png" alt="Firefox"></a>
+        <a href="https://addons.mozilla.org/en-US/firefox/addon/tampermonkey/"><img src="https://user-images.githubusercontent.com/88981/220149390-50010c13-e3c8-4dc9-a120-e267fbcc1e73.png" alt="Firefox"></a>
       </td>
       <td>
-        <a href="https://apps.apple.com/us/app/tampermonkey/id1482490089" target="_blank"><img src="https://user-images.githubusercontent.com/88981/220149393-374714eb-0d9e-4fe3-88d0-8195382cfe42.png" alt="Safari"></a>
+        <a href="https://apps.apple.com/us/app/tampermonkey/id1482490089"><img src="https://user-images.githubusercontent.com/88981/220149393-374714eb-0d9e-4fe3-88d0-8195382cfe42.png" alt="Safari"></a>
       </td>
     </tr>
     <tr>
@@ -60,9 +60,30 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/CozeShortcuts.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://www.coze.com/">Coze</a>: 提供額外的快速鍵方便使用</td>
+      <td>
+        目前提供以下快速鍵：<br>
+        <ol>
+          <li>按下 <code>h</code> 可開啟 Home 頁面</li>
+          <li>按下 <code>p</code> 可開啟 Personal 頁面</li>
+          <li>按下 <code>s</code> 可開啟 Manage Subscription 頁面</li>
+          <li>按下 <code>t</code> 可切換不同的 Teams 項目，按下 Enter 就可以進入頁面</li>
+          <li>按下 <code>alt+p</code> 可開啟 My profile 頁面</li>
+          <li>按下 <code>alt+1</code> 可在 Space 頁面切換上面的頁籤: Bots</li>
+          <li>按下 <code>alt+2</code> 可在 Space 頁面切換上面的頁籤: Plugins</li>
+          <li>按下 <code>alt+3</code> 可在 Space 頁面切換上面的頁籤: Workflows</li>
+          <li>按下 <code>alt+4</code> 可在 Space 頁面切換上面的頁籤: Knowledge</li>
+          <li>按下 <code>alt+5</code> 可在 Space 頁面切換上面的頁籤: Cards</li>
+        </ol>
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FeloSearchAutoFill.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Felo Search: 自動填入提示文字並自動送出</td>
+      <td><a href="https://felo.ai/">Felo Search</a>: 自動填入提示文字並自動送出</td>
       <td>
         自動填入 Felo Search 提示文字並可設定自動送出提問
       </td>
@@ -71,7 +92,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ClaudeFixChinesePunctuationMarks.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Claude: 自動校正 Claude AI 聊天介面上的標點符號</td>
+      <td><a href="https://claude.ai/">Claude</a>: 自動校正 Claude AI 聊天介面上的標點符號</td>
       <td>
         自動校正 Claude AI 聊天介面上的標點符號，還有替中英文之間加上空格，讓閱讀更順暢。
       </td>
@@ -93,7 +114,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiTranslationT2EContextMenu.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Gemini: 翻譯選取文字的內容 (中翻英)</td>
+      <td><a href="https://gemini.google.com/">Gemini</a>: 翻譯選取文字的內容 (中翻英)</td>
       <td>
         自動將當前頁面的選取範圍送到 Gemini 進行翻譯 (中翻英)
       </td>
@@ -102,7 +123,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiTranslationE2TContextMenu.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Gemini: 翻譯選取文字的內容 (英翻中)</td>
+      <td><a href="https://gemini.google.com/">Gemini</a>: 翻譯選取文字的內容 (英翻中)</td>
       <td>
         自動將當前頁面的選取範圍送到 Gemini 進行翻譯 (英翻中)
       </td>
@@ -111,7 +132,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiSummarizeSelectionContextMenu.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Gemini: 總結選取文字的內容</td>
+      <td><a href="https://gemini.google.com/">Gemini</a>: 總結選取文字的內容</td>
       <td>
         自動將當前頁面的選取範圍送到 Gemini 進行總結
       </td>
@@ -129,7 +150,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GoogleAiStudioLightTheme.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Google AI Studio Light Theme</td>
+      <td><a href="https://aistudio.google.com/">Google AI Studio</a>: Light Theme</td>
       <td>
         強迫讓 Google AI Studio 使用淺色主題，方便簡報時使用
       </td>
@@ -138,7 +159,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubDarkModeSwitcher.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>GitHub: 佈景主題切換器</td>
+      <td><a href="https://github.com/">GitHub</a>: 佈景主題切換器</td>
       <td>
         按下 alt+s 快速鍵就會自動切換目前網頁的 Dark/Light 模式，網頁右上角 Actions 按鈕列也會多一顆切換按鈕
       </td>
@@ -147,7 +168,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SinoBankMMASignIn.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>SinoBank: 永豐銀行 MMA 登入啟用密碼管理器機制</td>
+      <td><a href="https://mma.sinopac.com" target="_blank">SinoBank</a>: 永豐銀行 MMA 登入啟用密碼管理器機制</td>
       <td>
         讓<a href="https://mma.sinopac.com/MemberPortal/Member/NextWebLogin.aspx">永豐銀行 MMA 金融交易網</a>登入時可以讓現有的密碼管理器正常運作，如 LastPass, 1Password, Dashlane, Bitwarden, etc.
       </td>
@@ -156,7 +177,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTDoubleClickEdit.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT: 滑鼠雙擊編輯提示文字</td>
+      <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 滑鼠雙擊編輯提示文字</td>
       <td>
         滑鼠雙擊先前已經輸入的提示就可直接編輯
       </td>
@@ -165,7 +186,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTOpenLinks.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT: 開啟常用參考連結</td>
+      <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 開啟常用參考連結</td>
       <td>
         開啟常用的 ChatGPT 參考連結
       </td>
@@ -174,7 +195,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTranslationT2E.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT: 翻譯選取文字的內容 (中翻英)</td>
+      <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 翻譯選取文字的內容 (中翻英)</td>
       <td>
         自動將當前頁面的選取範圍送到 ChatGPT 進行翻譯 (中翻英)
       </td>
@@ -183,7 +204,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTranslationE2T.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT: 翻譯選取文字的內容 (英翻中)</td>
+      <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 翻譯選取文字的內容 (英翻中)</td>
       <td>
         自動將當前頁面的選取範圍送到 ChatGPT 進行翻譯 (英翻中)
       </td>
@@ -192,7 +213,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTCommonPrompts.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT: 在回應結果的地方加入常見提示回應按鈕</td>
+      <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 在回應結果的地方加入常見提示回應按鈕</td>
       <td>
         點擊按鈕就會自動填入 ChatGPT 提示文字輸入框並自動送出提問
       </td>
@@ -201,7 +222,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTokenizerCalculator.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT: 自動統計網頁中選取的文字範圍的 Token 數量</td>
+      <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 自動統計網頁中選取的文字範圍的 Token 數量</td>
       <td>
         自動統計網頁中選取的文字範圍的 Token 數量 使用 (OpenAI GPT-3 的 <a href="https://platform.openai.com/tokenizer">Tokenizer</a> 規則)
       </td>
@@ -210,7 +231,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTSummaryPage.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT: 自動總結網頁中的文章內容 (&lt;article&gt;)</td>
+      <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 自動總結網頁中的文章內容 (&lt;article&gt;)</td>
       <td>
         自動將當前頁面的選取範圍或預設文章內容送到 <a href="https://chat.openai.com/chat">ChatGPT</a> 進行總結 (頁面中第一個 &lt;article&gt; 標籤)
       </td>
@@ -219,7 +240,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTAutoFill.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT: 自動填入提示文字並自動送出</td>
+      <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 自動填入提示文字並自動送出</td>
       <td>
         自動填入 <a href="https://chat.openai.com/chat">ChatGPT</a> 提示文字並可設定自動送出提問
       </td>
@@ -228,7 +249,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTVoiceInput.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT: 語音輸入與語音合成功能 (支援中/英/日/韓語言)</td>
+      <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 語音輸入與語音合成功能 (支援中/英/日/韓語言)</td>
       <td>
         讓你可以透過語音輸入要問 <a href="https://chat.openai.com/chat">ChatGPT</a> 的問題並支援語音合成功能 (支援中文、英文、日文、韓文)
       </td>
@@ -252,7 +273,7 @@
           <li>按下 <code>alt+t</code> 可立即停止語音辨識與語音合成功能 (Mac: <code>command+option+t</code>)</li>
           <li>按下 <code>alt+r</code> 可重設語音辨識狀態 (Mac: <code>command+option+r</code>)</li>
           <li>按下 <code>Escape</code> 可重設語音辨識狀態</li>
-          <li>影片教學: <a href="https://www.youtube.com/watch?v=DgFwtRj4jkU" target="_blank">Part 1</a> (Outdated), <a href="https://www.youtube.com/watch?v=bMsh_Vw9SNc">Part 2</a> (Outdated)</li>
+          <li>影片教學: <a href="https://www.youtube.com/watch?v=DgFwtRj4jkU">Part 1</a> (Outdated), <a href="https://www.youtube.com/watch?v=bMsh_Vw9SNc">Part 2</a> (Outdated)</li>
           <li>支援多種語音命令：
             <ol>
               <li>送出: 可自動送出查詢</li>
@@ -304,28 +325,28 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsDarkModeSwitcher.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Azure DevOps: 佈景主題切換器</td>
+      <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 佈景主題切換器</td>
       <td>按下 <code>alt+s</code> 快速鍵就會自動切換目前網頁的 Dark/Light 模式</td>
     </tr>
     <tr>
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsWikiTocFullDisplay.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Azure DevOps: 調整 Wiki 文件的 TOC 標題寬度</td>
+      <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 調整 Wiki 文件的 TOC 標題寬度</td>
       <td>讓 Azure Wikis 的 TOC 標題可以完整顯示</td>
     </tr>
     <tr>
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzurePortalRemoveEllipsis.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Azure Portal: 移除所有會出現 ... 的樣式</td>
+      <td><a href="https://portal.azure.com/" target="_blank">Azure Portal</a>: 移除所有會出現 ... 的樣式</td>
       <td>移除在 Azure Portal 之中所有會出現 ... 的樣式，尤其是看帳單的時候不要顯示有 ... 的數字</td>
     </tr>
     <tr>
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Azure DevOps: 優化快速鍵操作</td>
+      <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 優化快速鍵操作</td>
       <td>讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作</td>
     </tr>
     <tr>
@@ -382,21 +403,21 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsEnableKeyboardShortcuts.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Azure DevOps: 啟用鍵盤快速鍵</td>
+      <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 啟用鍵盤快速鍵</td>
       <td>讓 Azure DevOps Service 的鍵盤快速鍵一直都可以使用</td>
     </tr>
     <tr>
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPageTitleModifier.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Azure DevOps: 調整工作項目頁面標題</td>
+      <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 調整工作項目頁面標題</td>
       <td>讓 Azure Boards 的 Work Item 顯示的「頁面標題」更加具有意義</td>
     </tr>
     <tr>
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPipelinesLogEnlarger.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Azure DevOps: 調整 Pipeline Log 的顯示寬度</td>
+      <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 調整 Pipeline Log 的顯示寬度</td>
       <td>
         在 Azure Pipelines 的 Logs
         可透過鍵盤(<code>+</code>/<code>-</code>)放大/縮小左欄寬度
@@ -406,7 +427,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPipelinesScreenRecordingPlayer.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Azure DevOps: 調整工作項目直接播放螢幕錄影影片</td>
+      <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 調整工作項目直接播放螢幕錄影影片</td>
       <td>
         將 Azure Boards 的 Work Item 可直接播放
         <code>Screen recording</code> 影片
