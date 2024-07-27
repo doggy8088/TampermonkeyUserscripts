@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         按下多次 Ctrl-C 就會自動複製網址
-// @version      0.7.0
+// @version      0.8.0
 // @description  按下多次 Ctrl-C 就會自動複製網址，為了方便自行實作複製網址的邏輯。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -66,6 +66,8 @@
         if (location.hash) {
             url += location.hash;
         }
+
+        return url;
     }
 
     function sanitizeGitHubUrl(url) {
