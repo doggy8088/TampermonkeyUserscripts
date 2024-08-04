@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Coze: 提供額外的快速鍵方便使用
-// @version      0.1.0
-// @description  Coze: 提供額外的快速鍵方便使用 (Alt+S: 開啟訂閱管理)
+// @name         Coze: 快速鍵增強
+// @version      0.2.0
+// @description  Coze: 提供額外的快速鍵方便使用
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -25,7 +25,7 @@
     document.addEventListener('keydown', function (event) {
 
         // 如果使用者停留在網址列或是輸入框中，就不要觸發快速鍵的功能
-        if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+        if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.isContentEditable) {
             return;
         }
 
@@ -53,7 +53,7 @@
 
         // 檢查是否按下了 Alt 鍵和 S 鍵
         if (!event.altKey && (event.key === 's' || event.key === 'S')) {
-            performActions_TwoStep('Will', 'Manage Subscription');
+            performActions_UserSubMenu('Manage Subscription');
         }
         if (!event.altKey && (event.key === 'p' || event.key === 'P')) {
             performActions('Personal');
@@ -67,7 +67,7 @@
 
         if (event.altKey && (event.key === 'p' || event.key === 'P')) {
             console.log('Alt + P')
-            performActions_TwoStep('Will', 'My profile');
+            performActions_UserSubMenu('My profile');
         }
         if (event.altKey && (parseInt(event.key) >= 1 && parseInt(event.key) <= 5)) {
             var elm = findTestId('bot.tab');
@@ -78,7 +78,6 @@
         }
     });
 
-    // 函數：查找包含特定文本的DOM節點並觸發mousedown事件
     function findAndTriggerMouseDown(text) {
         const elements = document.evaluate(
             `//*[contains(text(), '${text}')]`,
@@ -125,6 +124,39 @@
                 if (element) {
                     element.click();
                     console.log(`Clicked element containing "${text}"`);
+
+                    return true;
+                } else {
+                    console.log(`Found text "${text}", but no parent element with tabindex`);
+                }
+            }
+        }
+
+        console.log(`No element found containing "${text}"`);
+        return false;
+    }
+
+    function findParentTabindexAndNexItemAndClickElement(text) {
+        const elements = document.evaluate(
+            `//*[contains(text(), '${text}')]`,
+            document,
+            null,
+            XPathResult.UNORDERED_NODE_SNAPSHOT_TYPE,
+            null
+        );
+
+        for (let i = 0; i < elements.snapshotLength; i++) {
+            let element = elements.snapshotItem(i);
+            if (element) {
+                // 向上遍歷DOM樹，查找帶有tabindex屬性的節點
+                while (element && !element.hasAttribute('tabindex')) {
+                    element = element.parentElement;
+                }
+
+                if (element) {
+                    console.log(element)
+                    element?.parentElement?.parentElement?.nextSibling?.click();
+                    console.log(`Clicked element containing "${text}" and get it's next sibling`);
 
                     return true;
                 } else {
@@ -209,11 +241,11 @@
         findParentTabindexAndClickElement(clickstr);
     }
 
-    async function performActions_TwoStep(findstr, clickstr) {
-        findParentTabindexAndClickElement(findstr);
+    async function performActions_UserSubMenu(clickstr) {
+        findParentTabindexAndNexItemAndClickElement('Coze token');
         await new Promise(resolve => setTimeout(resolve, 100));
         findAndTriggerMouseDown(clickstr);
-        findParentTabindexAndClickElement(findstr);
+        findParentTabindexAndNexItemAndClickElement('Coze token');
     }
 
 })();
