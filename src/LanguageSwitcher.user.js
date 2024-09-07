@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.9.1
+// @version      1.10.0
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -108,10 +108,17 @@
                 }
 
                 if (ln.indexOf('//material.angular.io/') >= 0) {
-                    void (location.href = ln.replace(/material.angular\.io/i, 'material.angular.tw'));
+                    void (location.href = ln.replace(/material\.angular\.io/i, 'material.angular.tw'));
                 }
                 if (ln.indexOf('//material.angular.tw/') >= 0) {
-                    void (location.href = ln.replace(/material.angular\.tw/i, 'material.angular.io'));
+                    void (location.href = ln.replace(/material\.angular\.tw/i, 'material.angular.io'));
+                }
+
+                if (ln.indexOf('//playwright.dev/') >= 0) {
+                    void (location.href = ln.replace(/playwright\.dev/i, 'playwright.tw.gh.miniasp.com'));
+                }
+                if (ln.indexOf('//playwright.tw.gh.miniasp.com/') >= 0) {
+                    void (location.href = ln.replace(/playwright\.tw\.gh\.miniasp\.com/i, 'playwright.dev'));
                 }
 
                 if (ln.indexOf('//www.jquery123.com/') >= 0) {
