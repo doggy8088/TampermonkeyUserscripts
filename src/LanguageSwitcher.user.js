@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.10.0
+// @version      1.10.1
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -115,10 +115,10 @@
                 }
 
                 if (ln.indexOf('//playwright.dev/') >= 0) {
-                    void (location.href = ln.replace(/playwright\.dev/i, 'playwright.tw.gh.miniasp.com'));
+                    void (location.href = ln.replace(/playwright\.dev/i, 'playwright.tw'));
                 }
-                if (ln.indexOf('//playwright.tw.gh.miniasp.com/') >= 0) {
-                    void (location.href = ln.replace(/playwright\.tw\.gh\.miniasp\.com/i, 'playwright.dev'));
+                if (ln.indexOf('//playwright.tw/') >= 0) {
+                    void (location.href = ln.replace(/playwright\.tw/i, 'playwright.dev'));
                 }
 
                 if (ln.indexOf('//www.jquery123.com/') >= 0) {
