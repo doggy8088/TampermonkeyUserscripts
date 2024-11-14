@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 自動切換語音輸入模式 (alt+t)
-// @version      0.1.0
+// @version      0.2.0
 // @description  使用快速鍵 alt+t 來快速切換 Gemini 上面的語音輸入功能
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -30,11 +30,12 @@
                 event.preventDefault();
 
                 // 執行您需要的操作
-                const micButton = document.querySelector('[aria-label="麥克風"]');
+                const micButton = document.querySelector('[aria-label="麥克風"]')
+                    || document.querySelector('[aria-label="Microphone"]');
                 if (micButton) {
                     micButton.click();
                 } else {
-                    console.warn('找不到 [aria-label="麥克風"] 的按鈕');
+                    console.warn('找不到麥克風按鈕');
                 }
             }
         }
