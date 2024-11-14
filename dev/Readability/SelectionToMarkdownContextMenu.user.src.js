@@ -173,17 +173,15 @@ var html2markdown = function (html) {
             }
         },
         {
-            filter: 'li',
+            filter: "li",
             replacement: function (content, node) {
-                content = content.replace(/^\s+/, '').replace(/\n/gm, '\n  ');
-                var prefix = '- ';
+                content = content.replace(/^\s+/, "").replace(/\n/gm, "\n  ");
+                var prefix = "- ";
                 var parent = node.parentNode;
-                var parentParent = parent.parentNode;
                 var index = Array.prototype.indexOf.call(parent.children, node) + 1;
-
-                prefix = /ol/i.test(parent.nodeName) ? index + '.  ' : '- '
-
-                return prefix + content;
+                prefix = (parent.nodeName === 'OL') ? index + ".  " : "- ";
+                // 如果有選取範圍，且選取範圍只有 li 的話，就會缺少斷行符號，這裡需補上
+                return ((parent.nodeName === 'BODY') ? '\n' : '') + prefix + content;
             }
         }
     ];
