@@ -112,6 +112,15 @@
     </tr>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiToggleAudioInput.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://gemini.google.com/">Gemini</a>: 自動切換語音輸入模式 (alt+t)</td>
+      <td>
+        使用快速鍵 alt+t 來快速切換 Gemini 上面的語音輸入功能
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiTranslationT2EContextMenu.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://gemini.google.com/">Gemini</a>: 翻譯選取文字的內容 (中翻英)</td>
