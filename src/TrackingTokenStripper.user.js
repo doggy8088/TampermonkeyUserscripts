@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.12
+// @version      1.13
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -118,6 +118,19 @@
             .removeByDomain('www.bilibili.com', 'share_source')
             .removeByDomain('www.bilibili.com', 'share_medium')
 
+            // Substack, Latent Space
+            .removeByDomain('*.substack.com', 'publication_id')
+            .removeByDomain('*.substack.com', 'post_id')
+            .removeByDomain('*.substack.com', 'isFreemail')
+            .removeByDomain('*.substack.com', 'r')
+            .removeByDomain('*.substack.com', 'triedRedirect')
+
+            .removeByDomain('www.latent.space', 'publication_id')
+            .removeByDomain('www.latent.space', 'post_id')
+            .removeByDomain('www.latent.space', 'isFreemail')
+            .removeByDomain('www.latent.space', 'r')
+            .removeByDomain('www.latent.space', 'triedRedirect')
+
             // Others
             .remove('__tn__')
             .remove('gclsrc')
@@ -170,16 +183,28 @@
                     return TrackingTokenStripper(parsedUrl.toString());
                 },
                 removeByDomain(domain, name) {
-                    if (parsedUrl.hostname.toLocaleLowerCase() === domain.toLocaleLowerCase()) {
+                    const hostname = parsedUrl.hostname.toLocaleLowerCase();
+                    const normalizedDomain = domain.toLocaleLowerCase();
+        
+                    // 支援通配符匹配，例如 `*.substack.com` 或 `.substack.com`
+                    const isWildcard = normalizedDomain.startsWith('*') || normalizedDomain.startsWith('.');
+                    const domainToMatch = isWildcard
+                        ? normalizedDomain.replace(/^\*\./, '').replace(/^\./, '') // 移除通配符
+                        : normalizedDomain;
+        
+                    const domainMatch = isWildcard
+                        ? hostname.endsWith(domainToMatch) // 通配符只檢查是否以指定域名結尾
+                        : hostname === domainToMatch; // 非通配符完全匹配
+        
+                    if (domainMatch) {
                         if (name.indexOf('=') >= 0) {
                             var [key, value] = name.split("=");
                             return this.remove(key, value);
                         } else {
                             return this.remove(name);
                         }
-                    } else {
-                        return this;
                     }
+                    return this;
                 },
                 toString() {
                     return parsedUrl.toString();
