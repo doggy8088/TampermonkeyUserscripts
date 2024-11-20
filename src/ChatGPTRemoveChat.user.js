@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 按下 Ctrl+Delete 快速刪除當下聊天記錄
-// @version      0.1.0
+// @version      0.2.0
 // @description  按下 Ctrl+Delete 快速刪除 ChatGPT 聊天記錄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -9,8 +9,7 @@
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTRemoveChat.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTRemoveChat.user.js
 // @author       Will Huang
-// @match        https://chatgpt.com/c/*
-// @match        https://chatgpt.com/g/*/c/*
+// @match        https://chatgpt.com/*
 // ==/UserScript==
 
 (function () {
