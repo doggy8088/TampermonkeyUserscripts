@@ -1,22 +1,29 @@
 // ==UserScript==
-// @name         Reader: 將現有網頁轉成 Markdown 格式
+// @name         Jina Reader: 將現有網頁轉成 Markdown 格式 (alt+r)
 // @version      0.1
 // @description  將現有網頁轉成 Markdown 格式
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/Reader.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/Reader.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/JinaReader.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/JinaReader.user.js
 // @author       Will Huang
 // @match        *://*/*
 // @run-at       context-menu
 // ==/UserScript==
 
-(function() {
+(function () {
     'use strict';
 
-    // https://github.com/jina-ai/reader
-    location.href = 'https://r.jina.ai/' + location.href;
+    // 為整個文檔添加按鍵監聽器
+    document.addEventListener("keydown", (event) => {
+        // 判斷是否按下 Ctrl + Delete
+        if (event.altKey && event.key === "r") {
+            // https://github.com/jina-ai/reader
+            // https://jina.ai/reader
+            location.href = 'https://r.jina.ai/' + location.href;
+        }
+    });
 
 })();
