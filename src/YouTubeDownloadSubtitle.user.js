@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         YouTube: 自動下載影片字幕
+// @name         YouTube: 自動下載影片字幕 (alt+s)
 // @version      0.1.0
 // @description  按下 alt+s 就可以自動下載當前影片字幕
 // @license      MIT
