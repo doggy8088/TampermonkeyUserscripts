@@ -10,7 +10,7 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/JinaReader.user.js
 // @author       Will Huang
 // @match        *://*/*
-// @run-at       context-menu
+// @run-at       document-start
 // ==/UserScript==
 
 (function () {
