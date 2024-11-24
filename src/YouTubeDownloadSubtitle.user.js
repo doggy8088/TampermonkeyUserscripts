@@ -20,7 +20,8 @@
     // 監聽鍵盤事件 (YouTube)
     if (isValidYouTubeUrl()) {
         document.addEventListener('keydown', function (event) {
-            if (event.altKey && event.key.toLowerCase() === 's') { // alt+s
+            if ((event.metaKey && event.key === "s")
+             || (event.altKey && event.key === "s")) {
                 const currentUrl = window.location.href;
                 // const modifiedUrl = `https://subtitle.to/${currentUrl}`;
                 // const newWindow = window.open(modifiedUrl, '_blank');
