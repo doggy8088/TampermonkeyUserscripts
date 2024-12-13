@@ -1,23 +1,24 @@
 // ==UserScript==
-// @name         ChatGPT: 按下 Ctrl+Delete 快速刪除當下聊天記錄
-// @version      0.2.0
-// @description  按下 Ctrl+Delete 快速刪除 ChatGPT 聊天記錄
+// @name         ChatGPT: 好用的鍵盤快速鍵集合
+// @version      0.1.0
+// @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
-// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTRemoveChat.user.js
-// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTRemoveChat.user.js
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTHotkeys.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTHotkeys.user.js
 // @author       Will Huang
 // @match        https://chatgpt.com/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=openai.com
 // ==/UserScript==
 
 (function () {
     'use strict';
 
-    // 為整個文檔添加按鍵監聽器
     document.addEventListener("keydown", (event) => {
-        // 判斷是否按下 Ctrl + Delete
+
+        // 按下 Ctrl+Delete 快速刪除 ChatGPT 聊天記錄
         if (event.ctrlKey && event.key === "Delete") {
             console.log("Ctrl + Delete detected. Starting delete process...");
 
@@ -81,6 +82,21 @@
                 }
             } else {
                 console.error("找不到符合條件的超連結");
+            }
+        }
+
+        // 按下 Ctrl+B 快速切換側邊欄
+        if (event.ctrlKey && event.key === "b") {
+            console.log("Ctrl + B detected. Clicking close sidebar button...");
+
+            // 找到具有 data-testid="close-sidebar-button" 的按鈕
+            const closeButton = document.querySelector('[data-testid="close-sidebar-button"]');
+
+            if (closeButton) {
+                closeButton.click();
+                console.log("Close sidebar button clicked.");
+            } else {
+                console.error("找不到關閉側邊欄的按鈕");
             }
         }
     });
