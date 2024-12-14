@@ -482,6 +482,18 @@
     </tr>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FacebookHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>Facebook: 好用的鍵盤快速鍵集合</td>
+      <td>
+        目前提供以下快速鍵：<br>
+        <ol>
+          <li>按下 <code>ctrl+b</code> 可快速切換側邊欄</li>
+        </ol>
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSFormsShowLongerOption.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Microsoft Forms: 調整回應頁面顯示較寬的選項內容</td>
