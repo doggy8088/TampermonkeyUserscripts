@@ -118,18 +118,8 @@
             .removeByDomain('www.bilibili.com', 'share_source')
             .removeByDomain('www.bilibili.com', 'share_medium')
 
-            // Substack, Latent Space
-            .removeByDomain('*.substack.com', 'publication_id')
-            .removeByDomain('*.substack.com', 'post_id')
-            .removeByDomain('*.substack.com', 'isFreemail')
-            .removeByDomain('*.substack.com', 'r')
-            .removeByDomain('*.substack.com', 'triedRedirect')
-
-            .removeByDomain('www.latent.space', 'publication_id')
-            .removeByDomain('www.latent.space', 'post_id')
-            .removeByDomain('www.latent.space', 'isFreemail')
-            .removeByDomain('www.latent.space', 'r')
-            .removeByDomain('www.latent.space', 'triedRedirect')
+            // Substack related email
+            .removeByDomain(null, 'publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect')
 
             // Others
             .remove('__tn__')
@@ -182,35 +172,44 @@
                     }
                     return TrackingTokenStripper(parsedUrl.toString());
                 },
-                removeByDomain(domain, name) {
+                /**
+                 * 僅當所有 keys 都存在時，移除這些 Query string keys
+                 * @param {string|null} domain 指定的 domain，若為 null 則符合所有域名
+                 * @param  {...string} keys 不定個數的 query string keys
+                 * @returns {object} 返回 TrackingTokenStripper 物件
+                 */
+                removeByDomain(domain, ...keys) {
                     const hostname = parsedUrl.hostname.toLocaleLowerCase();
-                    const normalizedDomain = domain.toLocaleLowerCase();
-        
-                    // 支援通配符匹配，例如 `*.substack.com` 或 `.substack.com`
-                    const isWildcard = normalizedDomain.startsWith('*') || normalizedDomain.startsWith('.');
-                    const domainToMatch = isWildcard
-                        ? normalizedDomain.replace(/^\*\./, '').replace(/^\./, '') // 移除通配符
-                        : normalizedDomain;
-        
-                    const domainMatch = isWildcard
-                        ? hostname.endsWith(domainToMatch) // 通配符只檢查是否以指定域名結尾
-                        : hostname === domainToMatch; // 非通配符完全匹配
-        
-                    if (domainMatch) {
-                        if (name.indexOf('=') >= 0) {
-                            var [key, value] = name.split("=");
-                            return this.remove(key, value);
-                        } else {
-                            return this.remove(name);
-                        }
+                    const normalizedDomain = domain ? domain.toLocaleLowerCase() : null;
+
+                    const isWildcard = normalizedDomain && (normalizedDomain.startsWith('*') || normalizedDomain.startsWith('.'));
+                    const domainToMatch = normalizedDomain
+                        ? isWildcard
+                            ? normalizedDomain.replace(/^\*\./, '').replace(/^\./, '') // 移除萬用字元
+                            : normalizedDomain
+                        : null;
+
+                    const domainMatch = normalizedDomain
+                        ? isWildcard
+                            ? hostname.endsWith(domainToMatch) // 萬用字元只檢查是否以指定域名結尾
+                            : hostname === domainToMatch // 非萬用字元完全符合
+                        : true; // 如果 domain 為空，視為符合任何域名
+
+                    // 確認所有 keys 都存在
+                    const allKeysExist = keys.every(key => parsedUrl.searchParams.has(key));
+
+                    if (domainMatch && allKeysExist) {
+                        keys.forEach(key => {
+                            parsedUrl.searchParams.delete(key);
+                        });
                     }
+
                     return this;
                 },
                 toString() {
                     return parsedUrl.toString();
                 }
             }
-        }
+        };
     }
-
-})();
+}) ();
