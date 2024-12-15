@@ -119,7 +119,7 @@
             .removeByDomain('www.bilibili.com', 'share_medium')
 
             // Substack related email
-            .removeByDomain(null, 'publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect')
+            .removeByDomainWithKeys(null, 'publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect')
 
             // Others
             .remove('__tn__')
@@ -172,13 +172,25 @@
                     }
                     return TrackingTokenStripper(parsedUrl.toString());
                 },
+                removeByDomain(domain, name) {
+                    if (parsedUrl.hostname.toLocaleLowerCase() === domain.toLocaleLowerCase()) {
+                        if (name.indexOf('=') >= 0) {
+                            var [key, value] = name.split("=");
+                            return this.remove(key, value);
+                        } else {
+                            return this.remove(name);
+                        }
+                    } else {
+                        return this;
+                    }
+                },
                 /**
                  * 僅當所有 keys 都存在時，移除這些 Query string keys
                  * @param {string|null} domain 指定的 domain，若為 null 則符合所有域名
                  * @param  {...string} keys 不定個數的 query string keys
                  * @returns {object} 返回 TrackingTokenStripper 物件
                  */
-                removeByDomain(domain, ...keys) {
+                removeByDomainWithKeys(domain, ...keys) {
                     const hostname = parsedUrl.hostname.toLocaleLowerCase();
                     const normalizedDomain = domain ? domain.toLocaleLowerCase() : null;
 
