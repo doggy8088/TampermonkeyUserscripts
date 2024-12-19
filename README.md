@@ -60,6 +60,21 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FeloSearchHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>Felo Search: 好用的鍵盤快速鍵集合</td>
+      <td>
+        目前提供以下快速鍵：<br>
+        <ol>
+          <li>按下 <code>ctrl+b</code> 可快速切換側邊欄</li>
+          <li>按下 <code>ctrl+delete</code> 可快速刪除當前聊天記錄</li>
+          <li>按下 <code>j</code> 可快速切換到下一個歷史紀錄</li>
+          <li>按下 <code>k</code> 可快速切換到上一個歷史紀錄</li>
+        </ol>
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>ChatGPT: 好用的鍵盤快速鍵集合</td>
