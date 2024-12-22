@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.2.0
+// @version      0.3.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -109,6 +109,36 @@
                 || document.querySelector('button[aria-label="ウェブを検索"]')
 
             searchButton?.click();
+        }
+
+        // 按下 Alt + 1 ~ 4 快速切換檢視工具
+        if (event.altKey && +event.key > 0) {
+            // console.log(`Key pressed: ${event.key}`);
+            const useToolButton =
+                document.querySelector('button[aria-label="Use a tool"]')
+                || document.querySelector('button[aria-label="使用工具"]')
+                || document.querySelector('button[aria-label="ツールを使用する"]')
+
+            // trigger a keyborad event (Enter) to open the tool menu on useToolButton
+            const enterEvent = new KeyboardEvent("keydown", {
+                key: "Enter",
+                keyCode: 13,
+                code: "Enter",
+                which: 13,
+                bubbles: true,
+                cancelable: true
+            });
+            useToolButton?.dispatchEvent(enterEvent);
+
+
+            // find div[data-radix-popper-content-wrapper]
+            setTimeout(() => {
+                const popperWrappers = document.querySelectorAll('div[data-radix-popper-content-wrapper]');
+                popperWrappers.forEach((popperWrapper) => {
+                    const menuItems = popperWrapper.querySelectorAll('div[role="menuitem"]');
+                    menuItems[+event.key-1]?.click();
+                });
+            }, 300);
         }
     });
 
