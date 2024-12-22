@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.1.0
+// @version      0.2.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -98,6 +98,17 @@
             } else {
                 console.error("找不到關閉側邊欄的按鈕");
             }
+        }
+
+        // 按下 Alt + S 快速切換搜尋功能
+        if (event.altKey && event.key.toLowerCase() === 's') {
+            // 找到切換搜尋功能的按鈕
+            const searchButton =
+                document.querySelector('button[aria-label="Search the web"]')
+                || document.querySelector('button[aria-label="搜尋網頁"]')
+                || document.querySelector('button[aria-label="ウェブを検索"]')
+
+            searchButton?.click();
         }
     });
 
