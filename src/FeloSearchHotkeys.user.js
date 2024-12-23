@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.1.0
+// @version      0.2.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -34,11 +34,15 @@
                 const nextLink = matchingLink?.closest('li')?.nextElementSibling?.querySelector('a')
                     ?? matchingLink?.closest('li')?.nextElementSibling?.nextElementSibling?.querySelector('a');
                 if (nextLink) {
-                    nextLink.scrollIntoView();
+                    nextLink.parentElement.previousElementSibling.scrollIntoView();
                     nextLink.click();
                 }
             } else {
-                const firstLink = document.querySelector(`a[href^="/search/"]`);
+                const firstLink = document.querySelector(`a[href^="/search/"]`)
+                    || document.querySelector(`a[href^="/en/search/"]`)
+                    || document.querySelector(`a[href^="/ja/search/"]`)
+                    || document.querySelector(`a[href^="/zh-Hant/search/"]`)
+                    || document.querySelector(`a[href^="/zh-Hans/search/"]`)
                 firstLink?.click();
             }
         }
@@ -59,7 +63,7 @@
                 const previousLink = matchingLink?.closest('li')?.previousElementSibling?.querySelector('a')
                     ?? matchingLink?.closest('li')?.previousElementSibling?.previousElementSibling?.querySelector('a');
                 if (previousLink) {
-                    previousLink.scrollIntoView();
+                    previousLink.parentElement.previousElementSibling.scrollIntoView();
                     previousLink.click();
                 }
             }
