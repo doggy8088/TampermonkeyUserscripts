@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.3.0
+// @version      0.4.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -48,12 +48,19 @@
 
                     // 4. 等待 menu 彈出後，搜尋 div[data-radix-popper-content-wrapper]
                     setTimeout(() => {
-                        const popperWrapper = document.querySelector('div[data-radix-popper-content-wrapper]');
+                        const popperWrappers = document.querySelectorAll('div[data-radix-popper-content-wrapper]');
+                        let validPopperWrapper = null;
 
-                        if (popperWrapper) {
-                            // 5. 找到所有包含 div[role="menuitem"] 的節點
-                            const menuItems = popperWrapper.querySelectorAll('div[role="menuitem"]');
+                        popperWrappers.forEach((popperWrapper) => {
+                            if (popperWrapper.textContent.trim().length > 5) { // 檢查是否 popper 是否超過 5 個字
+                                validPopperWrapper = popperWrapper;
+                            }
+                        });
 
+                        console.log("validPopperWrapper", validPopperWrapper);
+
+                        if (validPopperWrapper) {
+                            const menuItems = validPopperWrapper.querySelectorAll('div[role="menuitem"]');
                             menuItems.forEach((menuItem) => {
                                 if (menuItem.textContent.trim() === "刪除") {
                                     // 點擊該「刪除」選項
@@ -74,7 +81,7 @@
                                 }
                             });
                         } else {
-                            console.error("找不到 div[data-radix-popper-content-wrapper]");
+                            console.error("找不到有效的 div[data-radix-popper-content-wrapper]");
                         }
                     }, 300); // 給予彈出 menu 的時間，依實際情況可調整
                 } else {
