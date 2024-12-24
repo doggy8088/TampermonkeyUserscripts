@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.13
+// @version      1.14
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -103,7 +103,10 @@
             .removeByDomain('devblogs.microsoft.com', 'utm_description')
             .removeByDomain('devblogs.microsoft.com', 'ocid')
 
-            // Microsoft
+            // blogs.microsoft.com
+            .removeByDomain('blogs.microsoft.com', 'cr_cc')
+
+            // Microsoft sites
             .remove('wt.mc_id')
             .removeByDomain('learn.microsoft.com', 'ocid')
             .removeByDomain('learn.microsoft.com', 'redirectedfrom')
@@ -123,16 +126,21 @@
             .removeByDomainThatMatchAllKeys("unchartedterritories.tomaspueyo.com", ['publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect'])
             .removeByDomainThatMatchAllKeys("www.latent.space", ['publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect'])
 
+            // sendgrid.com
+            .remove('sendgrid.com', 'mc')
+            .remove('sendgrid.com', 'mcd')
+            .remove('sendgrid.com', 'cvosrc')
+
+            // Yahoo sites
+            .remove('guce_referrer')
+            .remove('guce_referrer_sig')
+
             // Others
             .remove('__tn__')
             .remove('gclsrc')
             .remove('itm_source')
             .remove('itm_medium')
             .remove('itm_campaign')
-            .remove('mc') // sendgrid.com
-            .remove('mcd') // sendgrid.com
-            .remove('cvosrc') // sendgrid.com
-            .remove('cr_cc') // https://blogs.microsoft.com/
 
             .remove('sc_channel')
             .remove('sc_campaign')
@@ -148,10 +156,6 @@
             .remove('__hsfp')
             .remove('_gl')
 
-            // Yahoo News
-            .remove('guce_referrer')
-            .remove('guce_referrer_sig')
-
             .toString();
 
         if (s && location.href !== s) {
@@ -164,18 +168,25 @@
             const parsedUrl = new URL(url);
             return {
                 remove(name, value) {
-                    if (parsedUrl.searchParams.has(name)) {
-                        if (value && value === parsedUrl.searchParams.get(name)) {
-                            parsedUrl.searchParams.delete(name);
-                        }
-                        if (!value) {
-                            parsedUrl.searchParams.delete(name);
-                        }
+                    if (parsedUrl.searchParams.has(name) && (!value || value === parsedUrl.searchParams.get(name))) {
+                        parsedUrl.searchParams.delete(name);
                     }
                     return TrackingTokenStripper(parsedUrl.toString());
                 },
                 removeByDomain(domain, name) {
-                    if (parsedUrl.hostname.toLocaleLowerCase() === domain.toLocaleLowerCase()) {
+                    const hostname = parsedUrl.hostname.toLocaleLowerCase();
+                    const normalizedDomain = domain.toLocaleLowerCase();
+
+                    const isWildcard = normalizedDomain.startsWith('*') || normalizedDomain.startsWith('.');
+                    const domainToMatch = isWildcard
+                        ? normalizedDomain.replace(/^\*\./, '').replace(/^\./, '') // Remove wildcard character
+                        : normalizedDomain;
+
+                    const domainMatch = isWildcard
+                        ? hostname.endsWith(domainToMatch) // Wildcard only checks if it ends with the specified domain
+                        : hostname === domainToMatch; // Non-wildcard must match exactly
+
+                    if (domainMatch) {
                         if (name.indexOf('=') >= 0) {
                             var [key, value] = name.split("=");
                             return this.remove(key, value);
