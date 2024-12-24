@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.12
+// @version      1.13
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -118,6 +118,11 @@
             .removeByDomain('www.bilibili.com', 'share_source')
             .removeByDomain('www.bilibili.com', 'share_medium')
 
+            // Substack related email
+            .removeByDomainThatMatchAllKeys("*.substack.com", ['publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect'])
+            .removeByDomainThatMatchAllKeys("unchartedterritories.tomaspueyo.com", ['publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect'])
+            .removeByDomainThatMatchAllKeys("www.latent.space", ['publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect'])
+
             // Others
             .remove('__tn__')
             .remove('gclsrc')
@@ -181,11 +186,44 @@
                         return this;
                     }
                 },
+                /**
+                 * 僅當所有 keys 都存在時，移除這些 Query string keys
+                 * @param {string|null} domain 指定的 domain，若為 null 則符合所有域名
+                 * @param  {...string} keys 不定個數的 query string keys
+                 * @returns {object} 返回 TrackingTokenStripper 物件
+                 */
+                removeByDomainThatMatchAllKeys(domain, keys) {
+                    const hostname = parsedUrl.hostname.toLocaleLowerCase();
+                    const normalizedDomain = domain ? domain.toLocaleLowerCase() : null;
+
+                    const isWildcard = normalizedDomain && (normalizedDomain.startsWith('*') || normalizedDomain.startsWith('.'));
+                    const domainToMatch = normalizedDomain
+                        ? isWildcard
+                            ? normalizedDomain.replace(/^\*\./, '').replace(/^\./, '') // 移除萬用字元
+                            : normalizedDomain
+                        : null;
+
+                    const domainMatch = normalizedDomain
+                        ? isWildcard
+                            ? hostname.endsWith(domainToMatch) // 萬用字元只檢查是否以指定域名結尾
+                            : hostname === domainToMatch // 非萬用字元完全符合
+                        : true; // 如果 domain 為空，視為符合任何域名
+
+                    // 確認所有 keys 都存在
+                    const allKeysExist = keys.every(key => parsedUrl.searchParams.has(key));
+
+                    if (domainMatch && allKeysExist) {
+                        keys.forEach(key => {
+                            parsedUrl.searchParams.delete(key);
+                        });
+                    }
+
+                    return this;
+                },
                 toString() {
                     return parsedUrl.toString();
                 }
             }
-        }
+        };
     }
-
-})();
+}) ();
