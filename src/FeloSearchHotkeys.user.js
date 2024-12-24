@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.3.0
+// @version      0.4.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -35,7 +35,7 @@
 
         if (event.key === "j") {
             // 如果是輸入欄位，就不要觸發。但是按下 alt+j 就可以觸發這個功能。
-            if ((event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA") && !event.altKey) {
+            if ((event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA" || event.target.isContentEditable) && !event.altKey) {
                 return;
             }
 
@@ -61,7 +61,7 @@
 
         if (event.key === "k") {
             // 如果是輸入欄位，就不要觸發。但是按下 alt+k 就可以觸發這個功能。
-            if ((event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA") && !event.altKey) {
+            if ((event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA" || event.target.isContentEditable) && !event.altKey) {
                 return;
             }
 
@@ -82,7 +82,7 @@
         // 按下 Ctrl+Delete 快速刪除 Felo Search 聊天記錄
         if (event.ctrlKey && event.key === "Delete") {
             // 如果是輸入欄位，就不要觸發
-            if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA") {
+            if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA" || event.target.isContentEditable) {
                 return;
             }
 
@@ -124,7 +124,7 @@
         // 按下 Escape 就點擊 document.querySelector('img').click()
         if (event.key === "Escape") {
             // 如果是輸入欄位，就不要觸發
-            if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA") {
+            if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA" || event.target.isContentEditable) {
                 if (event.target.value === '' && currentPath.includes("/history")) {
                     // 只有在歷史紀錄頁面且搜尋欄位是空白時才會觸發
                     window.history.back();
