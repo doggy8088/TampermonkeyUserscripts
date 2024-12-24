@@ -119,7 +119,9 @@
             .removeByDomain('www.bilibili.com', 'share_medium')
 
             // Substack related email
-            .removeByDomainWithKeys(null, 'publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect')
+            .removeByDomainThatMatchAllKeys("*.substack.com", ['publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect'])
+            .removeByDomainThatMatchAllKeys("unchartedterritories.tomaspueyo.com", ['publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect'])
+            .removeByDomainThatMatchAllKeys("www.latent.space", ['publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect'])
 
             // Others
             .remove('__tn__')
@@ -190,7 +192,7 @@
                  * @param  {...string} keys 不定個數的 query string keys
                  * @returns {object} 返回 TrackingTokenStripper 物件
                  */
-                removeByDomainWithKeys(domain, ...keys) {
+                removeByDomainThatMatchAllKeys(domain, keys) {
                     const hostname = parsedUrl.hostname.toLocaleLowerCase();
                     const normalizedDomain = domain ? domain.toLocaleLowerCase() : null;
 
