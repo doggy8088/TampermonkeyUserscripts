@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         按下多次 Ctrl-C 就會自動複製網址
-// @version      0.8.0
+// @version      0.9.0
 // @description  按下多次 Ctrl-C 就會自動複製網址，為了方便自行實作複製網址的邏輯。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -12,12 +12,12 @@
 // @match        *://*/*
 // ==/UserScript==
 
-(function () {
+(async function () {
     'use strict';
     let lastCopy = 0;
     let numOfClicks = 0;
     let timeoutMs = 1000;
-    document.addEventListener('copy', function (event) {
+    document.addEventListener('copy', async (event) => {
         // 如果使用者正在選取文字，就不要觸發 Ctrl-C 複製網址的功能
         let isUserSelectingText = window.getSelection().toString().length > 0;
         if (isUserSelectingText) {
@@ -31,7 +31,7 @@
         lastCopy = now;
 
         // 只要在 1 秒內連續按兩次 Ctrl-C，就會自動複製網址
-        if (numOfClicks >= 2) {
+        if (numOfClicks == 2) {
             let url = window.location.href;
 
             if (location.host === 'learn.microsoft.com') {
@@ -39,7 +39,7 @@
             }
 
             if (location.host === 'github.com') {
-                url = sanitizeGitHubUrl(url);
+                url = await sanitizeGitHubUrl(url);
             }
 
             navigator.clipboard.writeText(url)
@@ -70,34 +70,65 @@
         return url;
     }
 
-    function sanitizeGitHubUrl(url) {
+    async function sanitizeGitHubUrl(url) {
         // https://github.com/doggy8088/Software-Engineering-at-Google
         // https://github.com/doggy8088/Software-Engineering-at-Google/tree/zh-tw-20240725
         // https://github.com/doggy8088/Software-Engineering-at-Google/tree/zh-tw/assets/images
+        // https://github.com/doggy8088/www-project-top-10-for-large-language-model-applications/tree/translations/zh-TW/2_0_vulns/translations/zh-TW
         // https://github.com/doggy8088/Software-Engineering-at-Google/commit/600c955ab0919648bd86953d9b61112a0c9010d3
         // https://github.com/doggy8088/Software-Engineering-at-Google/issues
-        const parts = url.split('/');
-        const owner = parts?.[3];
-        const repo = parts?.[4].split('?')[0];
-        const type = parts?.[5];
-        const branch = parts?.[6];
-        if (owner && repo) {
-            url = `https://github.com/${owner}/${repo}.git`;
 
-            if (numOfClicks >= 3) {
-                // https://github.com/doggy8088/espanso/
-                url = `git clone https://github.com/${owner}/${repo}.git`;
+        // get path info and separate to various meaningful parts
+        const urlParts = url.split('/');
+        const user = urlParts[3];
+        const repo = urlParts[4];
+        const type = urlParts[5];
+        // 因為 branch 名稱可能有包含斜線符號，所以不能這樣抓
+        // const branch = urlParts[6];
+        const commit = urlParts[6];
+        const issue = urlParts[6];
+        const pull = urlParts[6];
+        const tree = urlParts[6];
+        const blob = urlParts[6];
+        const path = urlParts.slice(7).join('/');
+        const hash = location.hash;
 
-                // https://github.com/doggy8088/espanso/tree/add-taskbar-links
-                if ((type === 'tree' || type === 'commits') && branch) {
-                    url = `git clone https://github.com/${owner}/${repo}.git -b ${branch}`;
+        if (!user) {
+            return url;
+        }
+
+
+        if (!repo) {
+            return url;
+        }
+
+        if (type === 'tree') {
+            async function getBranchName(user, repo, parts) {
+                let branch = '';
+                for (let i = 0; i < parts.length; i++) {
+                    branch += (i > 0 ? '/' : '') + parts[i];
+                    console.log(`Checking branch: https://github.com/${user}/${repo}/tree/${branch}`);
+                    const response = await fetch(`https://github.com/${user}/${repo}/tree/${branch}`);
+                    if (response.status !== 404) {
+                        return branch;
+                    }
                 }
-
-                // https://github.com/espanso/espanso/pull/1982
-                if (type === 'pull' && branch) {
-                    url = `${url} && cd ${repo} && git fetch origin pull/${branch}/head:pr-${branch} && git switch pr-${branch}`;
-                }
+                return branch;
             }
+            let branchName = await getBranchName(user, repo, urlParts.slice(6));
+            url = `git clone https://github.com/${user}/${repo}.git -b ${branchName}`;
+            return url;
+        }
+        else if (type === 'commit') {
+            url = `git clone https://github.com/${user}/${repo}.git --filter=blob:none --no-checkout --single-branch ${repo} && cd "${repo}" && git fetch --depth 1 origin ${commit} && git checkout ${commit}`;
+            return url;
+        }
+        else if (type === 'pull') {
+            url = `git clone https://github.com/${user}/${repo}.git ${repo}-pr-${pull} && cd "${repo}-pr-${pull}" && git fetch origin pull/${pull}/head:pr-${pull} && git checkout pr-${pull}`;
+            return url;
+        }
+        else {
+            url = `git clone https://github.com/${user}/${repo}.git && cd "${repo}"`;
         }
 
         return url;
