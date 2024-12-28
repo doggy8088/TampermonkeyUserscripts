@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 優化快速鍵操作
-// @version      0.9.0
+// @version      1.0.0
 // @description  讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -12,6 +12,7 @@
 // @match        *://dev.azure.com/*
 // @author       Will Huang
 // @run-at       document-idle
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=dev.azure.com
 // ==/UserScript==
 
 // https://www.tampermonkey.net/documentation.php#_run_at
@@ -271,11 +272,18 @@
                 let contentArea = document.querySelector('div[data-renderedregion="content"]');
 
                 if (isTyping) {
-                    if (event.key === 'Escape' && event.target.tagName === 'INPUT') {
+                    if (event.target.tagName === 'INPUT' && event.key === 'Escape') {
                         event.target.blur();
                     }
-                    if (event.key === 'Enter' && event.target.tagName === 'INPUT') {
+                    if (event.target.tagName === 'INPUT' && event.key === 'Enter') {
                         event.target.blur();
+                    }
+
+                    // 若使用者按下 alt+/ 鍵，就開啟 More options 選單
+                    if (event.target.tagName === 'TEXTAREA' && event.altKey && event.key === '/') {
+                        event.target.closest('div.wiki-editor')?.querySelector('button[aria-label="More options"]')?.click();
+                        event.preventDefault();
+                        return resetKeySequence();
                     }
                     return;
                 }
