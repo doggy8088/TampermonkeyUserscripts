@@ -109,15 +109,6 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FeloSearchAutoFill.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
-      </td>
-      <td><a href="https://felo.ai/">Felo Search</a>: 自動填入提示文字並自動送出</td>
-      <td>
-        自動填入 Felo Search 提示文字並可設定自動送出提問
-      </td>
-    </tr>
-    <tr>
-      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ClaudeFixChinesePunctuationMarks.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://claude.ai/">Claude</a>: 自動校正 Claude AI 聊天介面上的標點符號</td>
