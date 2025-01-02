@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure Portal: 移除所有會出現 ... 的樣式
-// @version      1.1
+// @version      1.2
 // @description  移除在 Azure Portal 之中所有會出現 ... 的樣式，尤其是看帳單的時候不要顯示有 ... 的數字
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -12,6 +12,7 @@
 // @match        *://portal.azure.com/*
 // @match        *://*.azure.net/*
 // @run-at       document-idle
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=portal.azure.com
 // ==/UserScript==
 
 (function () {
