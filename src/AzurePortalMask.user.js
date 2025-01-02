@@ -21,6 +21,24 @@
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=portal.azure.com
 // ==/UserScript==
 
+/*
+div#mectrl_currentAccount_primary,
+div#mectrl_currentAccount_secondary,
+div#mectrl_rememberedAccount_0_secondary,
+div#mectrl_rememberedAccount_1_secondary,
+div#mectrl_rememberedAccount_2_secondary,
+div#mectrl_rememberedAccount_3_secondary,
+div#mectrl_rememberedAccount_4_secondary,
+div#mectrl_rememberedAccount_5_secondary,
+div#mectrl_rememberedAccount_6_secondary,
+div#mectrl_rememberedAccount_7_secondary,
+div#mectrl_rememberedAccount_8_secondary,
+div#mectrl_rememberedAccount_9_secondary,
+div.fxs-avatarmenu-username,
+div.fxs-avatarmenu-tenant {
+  filter: blur(10px);
+}
+*/
 (function () {
     'use strict';
     const isMaskedKeyName = 'isMasked';
