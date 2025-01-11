@@ -60,6 +60,18 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubDocsHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>GitHub Docs: 好用的鍵盤快速鍵集合</td>
+      <td>
+        目前提供以下快速鍵：<br>
+        <ol>
+          <li>按下 <code>f</code> 可快速隱藏非主要內容的區塊 (方便進行翻譯)</li>
+        </ol>
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FeloSearchHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Felo Search: 好用的鍵盤快速鍵集合</td>
