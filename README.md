@@ -507,6 +507,7 @@
         目前提供以下快速鍵：<br>
         <ol>
           <li>按下 <code>ctrl+b</code> 可快速切換側邊欄</li>
+          <li>按下 <code>alt+b</code> 可快速封鎖濫發廣告的帳號</li>
         </ol>
       </td>
     </tr>
