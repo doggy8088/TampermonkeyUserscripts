@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.7.0
+// @version      0.8.3
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -11,6 +11,8 @@
 // @author       Will Huang
 // @match        https://felo.ai/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=felo.ai
+// @require      https://doggy8088.github.io/playwright-js/src/playwright.js
+// @grant        none
 // ==/UserScript==
 
 (async function () {
@@ -118,27 +120,9 @@
                 return;
             }
 
-            // 找到和目前 pathinfo 一樣的超連結
-            const matchingLink = document.querySelector(`a[href='${currentPath}']`);
-            const nextLink = matchingLink?.closest('li')?.nextElementSibling?.querySelector('a')
-                ?? matchingLink?.closest('li')?.nextElementSibling?.nextElementSibling?.querySelector('a');
-
-            // 找到超連結的下一個同層的 section 元素
-            const nextSection = matchingLink?.nextElementSibling;
-            // 找到下一層的 button 按鈕
-            const button = nextSection?.querySelector('button');
-            button?.click();
-
-            await delay(200); // 加入一點延遲來模擬真實打字過程
-            clickButtonByText(['確認', '确认', '確認', 'Confirm']);
-
-            await delay(200);
-
-            if (!!nextLink) {
-                nextLink?.click();
-            } else {
-                goHome(); // 回首頁
-            }
+            await (await window.page.getByRole('button', undefined, document.querySelector('header')).last()).press('Enter');
+            await window.page.getByRole('menuitem', { name: ['刪除討論串', '删除帖子', '投稿を削除', 'Delete Thread'] }).click();
+            await window.page.getByRole('button', { name: ['確認', '确认', '確認', 'Confirm'] }).click()
 
             event.preventDefault();
         }
@@ -190,89 +174,21 @@
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    function clickButtonByText(buttonTexts) {
-        let buttons = document.querySelectorAll('button');
+    async function clickButtonByText(buttonTexts) {
 
-        // 請把所有包含 [tabindex] 屬性都當成 buttons 來處理，並加入到 buttons 之中
-        let tabindexElements = document.querySelectorAll('[tabindex]');
+        page.WAIT_TIMEOUT = 0;
 
-        for (let i = 0; i < tabindexElements.length; i++) {
-            const tabindexElement = tabindexElements[i];
-            if (tabindexElement.tagName !== 'BUTTON' && tabindexElement.tabIndex != -1) {
-                buttons = [...buttons, tabindexElement];
-            }
+        let btnLocator = window.page.getByRole('button', { name: buttonTexts });
+        if (await btnLocator.isVisible()) {
+            await btnLocator.click();
         }
 
-        for (let i = 0; i < buttons.length; i++) {
-            const button = buttons[i];
-            // 將 buttonText 所有的 Unicode 空白字元都換成一個空白字元
-            let buttonText = button.textContent.trim().replace(/\s/g, ' ');
-            if (buttonTexts.includes(buttonText)) {
-                button.click();
-                break;
-            }
-        }
-    }
-
-    function display_hotkey_hints() {
-
-        longPressAltKey();
-
-        function showHotkeyHintForButtonByText(buttonTexts, hint) {
-            const buttons = document.querySelectorAll('button');
-            for (let i = 0; i < buttons.length; i++) {
-                const button = buttons[i];
-                let buttonText = button.textContent.trim().replace(/\s/g, ' ');
-                if (buttonTexts.includes(buttonText)) {
-                    addBadge(button, hint);
-                    break;
-                }
-            }
+        btnLocator = window.page.getByText(buttonTexts, { exact: false });
+        if (await btnLocator.isVisible()) {
+            await btnLocator.click();
         }
 
-        function addBadge(element, text) {
-            const badge = document.createElement('span');
-            badge.className = 'badge';
-            badge.textContent = text;
-            badge.style.backgroundColor = '#007bff'; // 改为蓝色
-            badge.style.color = '#fff';
-            badge.style.padding = '0.2em 0.4em';
-            badge.style.borderRadius = '0.25em';
-            badge.style.position = 'absolute';
-            badge.style.marginLeft = '0.5em';
-            badge.style.zIndex = '9999';
-
-            // 设定 badge 的位置
-            const rect = element.getBoundingClientRect();
-            badge.style.left = `${rect.right + window.scrollX + 8}px`;
-            badge.style.top = `${rect.top + window.scrollY}px`;
-
-            // 将 badge 插入到 body 中
-            document.body.appendChild(badge);
-        }
-
-        function longPressAltKey() {
-            let altKeyTimeout;
-            let altKeyIsOn = false;
-            document.addEventListener('keydown', (event) => {
-                if (event.key === 'Alt' && altKeyIsOn == false) {
-                    altKeyIsOn = true;
-                    altKeyTimeout = setTimeout(() => {
-                        showHotkeyHintForButtonByText(['主題集', '主题集', 'トピック集', 'Topic Collections'], 'Alt+T');
-                        showHotkeyHintForButtonByText(['歷史記錄', '历史记录', '履歴記録', 'History'], 'Alt+/');
-                        showHotkeyHintForButtonByText(['分享', '分享', '共有する', 'Share'], 'Alt+S');
-                    }, 1000); // 1 秒
-                }
-            });
-            document.addEventListener('keyup', (event) => {
-                altKeyIsOn = false;
-                if (event.key === 'Alt') {
-                    // 删除所有 span.badge
-                    document.querySelectorAll('span.badge').forEach((el) => el.remove());
-                    altKeyTimeout = clearTimeout(altKeyTimeout);
-                }
-            });
-        }
+        page.WAIT_TIMEOUT = 5000;
     }
 
 })();
