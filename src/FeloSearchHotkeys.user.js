@@ -240,30 +240,10 @@
         window.page.WAIT_TIMEOUT = 5000;
     }
 
-    async function toggle回答完成() {
-        window.page.WAIT_TIMEOUT = 0;
-
-        let answerDone = window.page.getByText('回答完成', { exact: true });
-
-        let elements = await answerDone.all()
-
-        elements.forEach((e) => {
-            let sectionStyle = e.closest('div.mb-6').style;
-            if (!sectionStyle) return;
-
-            if (sectionStyle.display === 'none') {
-                sectionStyle.display = 'block';
-            } else {
-                sectionStyle.display = 'none';
-            }
-        });
-
-        window.page.WAIT_TIMEOUT = 5000;
-    }
-
     async function toggle資料來源() {
         window.page.WAIT_TIMEOUT = 0;
 
+        // TODO: '資料來源' 這個文字可能會因為語系不同而有所不同
         let elmDataSource = window.page.getByRole('generic', { name: '資料來源', exact: true });
         let elements = await elmDataSource.all()
 
@@ -295,6 +275,7 @@
     async function toggle相關提問() {
         window.page.WAIT_TIMEOUT = 0;
 
+        // TODO: '重寫' 這個文字可能會因為語系不同而有所不同
         let btnRewrite = window.page.getByRole('button', { name: '重寫', exact: true });
         let elements = await btnRewrite.all()
 
