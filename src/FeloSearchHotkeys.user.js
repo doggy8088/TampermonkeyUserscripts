@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.8.3
+// @version      0.9.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -77,6 +77,21 @@
             }
 
             clickButtonByText(['歷史記錄', '历史记录', '履歴記録', 'History']);
+            event.preventDefault();
+        }
+
+        // 按下 f 就隱藏所有不必要的元素
+        if (!event.ctrlKey && !event.altKey && event.key === 'f') {
+            if ((event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA')) {
+                return;
+            }
+
+            await toggle追問區();
+            await toggle標題下的Metadata();
+            // await toggle回答完成();
+            await toggle資料來源();
+            await toggle相關提問();
+
             event.preventDefault();
         }
 
@@ -174,9 +189,11 @@
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
+
+
     async function clickButtonByText(buttonTexts) {
 
-        page.WAIT_TIMEOUT = 0;
+        window.page.WAIT_TIMEOUT = 0;
 
         let btnLocator = window.page.getByRole('button', { name: buttonTexts });
         if (await btnLocator.isVisible()) {
@@ -188,7 +205,120 @@
             await btnLocator.click();
         }
 
-        page.WAIT_TIMEOUT = 5000;
+        window.page.WAIT_TIMEOUT = 5000;
+    }
+
+
+    async function toggle標題下的Metadata() {
+        window.page.WAIT_TIMEOUT = 0;
+
+        let h1 = document.querySelectorAll('h1');
+        let elements = Array.from(h1);
+
+        elements.forEach((e) => {
+            // 標題下的Metadata
+            let sectionStyle = e.parentElement.nextElementSibling.style;
+            if (!sectionStyle) return;
+
+            if (sectionStyle.display === 'none') {
+                sectionStyle.display = 'block';
+            } else {
+                sectionStyle.display = 'none';
+            }
+
+            // 回答完成
+            sectionStyle = e.parentElement.parentElement.nextElementSibling.style;
+            if (!sectionStyle) return;
+
+            if (sectionStyle.display === 'none') {
+                sectionStyle.display = 'block';
+            } else {
+                sectionStyle.display = 'none';
+            }
+        });
+
+        window.page.WAIT_TIMEOUT = 5000;
+    }
+
+    async function toggle回答完成() {
+        window.page.WAIT_TIMEOUT = 0;
+
+        let answerDone = window.page.getByText('回答完成', { exact: true });
+
+        let elements = await answerDone.all()
+
+        elements.forEach((e) => {
+            let sectionStyle = e.closest('div.mb-6').style;
+            if (!sectionStyle) return;
+
+            if (sectionStyle.display === 'none') {
+                sectionStyle.display = 'block';
+            } else {
+                sectionStyle.display = 'none';
+            }
+        });
+
+        window.page.WAIT_TIMEOUT = 5000;
+    }
+
+    async function toggle資料來源() {
+        window.page.WAIT_TIMEOUT = 0;
+
+        let elmDataSource = window.page.getByRole('generic', { name: '資料來源', exact: true });
+        let elements = await elmDataSource.all()
+
+        elements.forEach((e) => {
+            let sectionStyle = e.parentElement.parentElement.style;
+            if (!sectionStyle) return;
+
+            if (sectionStyle.display === 'none') {
+                sectionStyle.display = 'block';
+            } else {
+                sectionStyle.display = 'none';
+            }
+        });
+
+        window.page.WAIT_TIMEOUT = 5000;
+    }
+
+    async function toggle追問區() {
+        let sectionStyle = document.querySelector('main header')?.nextElementSibling?.children[1]?.style;
+        if (!sectionStyle) return;
+
+        if (sectionStyle.display === 'none') {
+            sectionStyle.display = 'block';
+        } else {
+            sectionStyle.display = 'none';
+        }
+    }
+
+    async function toggle相關提問() {
+        window.page.WAIT_TIMEOUT = 0;
+
+        let btnRewrite = window.page.getByRole('button', { name: '重寫', exact: true });
+        let elements = await btnRewrite.all()
+
+        elements.forEach((e) => {
+            let sectionStyle = e.parentElement.parentElement.nextElementSibling.style;
+            if (!sectionStyle) return;
+
+            if (sectionStyle.display === 'none') {
+                sectionStyle.display = 'block';
+            } else {
+                sectionStyle.display = 'none';
+            }
+
+            sectionStyle = e.parentElement.parentElement.style;
+            if (!sectionStyle) return;
+
+            if (sectionStyle.display === 'none') {
+                sectionStyle.display = 'block';
+            } else {
+                sectionStyle.display = 'none';
+            }
+        });
+
+        window.page.WAIT_TIMEOUT = 5000;
     }
 
 })();
