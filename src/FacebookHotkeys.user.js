@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Facebook: 好用的鍵盤快速鍵集合
-// @version      0.5.0
+// @version      0.6.0
 // @description  按下 Ctrl+B 快速切換側邊欄、Ctrl+I 檢舉留言、Ctrl+Delete 刪除留言、Alt+B 快速封鎖使用者
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -26,14 +26,16 @@
     window.addEventListener('load', toggleSidebar);
 
     document.addEventListener("keydown", async (event) => {
-        // 按下 Ctrl+B 快速切換側邊欄
-        if (event.ctrlKey && !event.altKey && event.key === "b") {
+
+        if (!isInInputMode(event) && !event.ctrlKey && !event.altKey && event.key === "f") {
             // 只有粉絲團的 Sidebar 沒有找到才去隱藏其他的側邊欄
             // 因為只有粉絲團的 Sidebar 有切換顯示的按鈕
             toggleSidebar() || await toggleSidebarByNavigation();
+            event.preventDefault();
+            return;
         }
 
-        // 按下 Ctrl+Delete 會封鎖目前使用者
+        // 按下 Ctrl+Delete 會刪除目前貼文
         if (event.ctrlKey && !event.altKey && event.key === "Delete") {
             window.page.WAIT_TIMEOUT = 0;
             if (await window.page.getByRole('menuitem', { name: '刪除' }).isVisible()) {
@@ -45,7 +47,7 @@
             }
         }
 
-        // 按下 Ctrl+I 會封鎖目前使用者
+        // 按下 Ctrl+I 會檢舉留言
         if (event.ctrlKey && !event.altKey && event.key === "i") {
             window.page.WAIT_TIMEOUT = 0;
             if (await window.page.getByText('檢舉留言').isVisible()) {
@@ -100,6 +102,17 @@
             }
         }
     });
+
+    function isInInputMode(event) {
+        var element = event.target;
+        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+            return true;
+        }
+        if (element.isContentEditable) {
+            return true;
+        }
+        return false;
+    }
 
     function toggleSidebar() {
         var dom = document.querySelector('div[aria-label="隱藏功能表"],div[aria-label="顯示功能表"]')
