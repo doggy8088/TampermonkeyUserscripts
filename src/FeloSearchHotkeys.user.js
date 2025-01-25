@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.9.2
+// @version      0.10.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -83,9 +83,7 @@
         }
 
         // 按下 f 就隱藏所有不必要的元素
-        if (!event.ctrlKey && !event.altKey && event.key === 'f') {
-            if (isInInputMode(event)) return;
-
+        if (!isInInputMode(event) && !event.ctrlKey && !event.altKey && event.key === 'f') {
             // Toggle 頁首
             document.querySelector('header')?.toggle();
             // Toggle 側邊欄
@@ -133,13 +131,8 @@
             return;
         }
 
-        // 按下 Alt+c 就先找出所有包含 [tabindex] 屬性的元素，比對元素內容，如果為「建立主題」就點擊它
-        if (!event.ctrlKey && event.key === 'c') {
-            // 如果是輸入欄位，就不要觸發。但是按下 alt+c 就可以觸發這個功能。
-            if ((event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') && !event.altKey) {
-                return;
-            }
-
+        // 按下 c 就點擊「建立主題」按鈕
+        if (!isInInputMode(event) && !event.ctrlKey && !event.altKey && event.key === 'c') {
             await clickButtonByText(['建立主題', '建立主题', 'トピックを作成', 'Create topic']);
             event.preventDefault();
             return;
