@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.9.1
+// @version      0.9.2
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -76,7 +76,7 @@
                 return;
             }
 
-            if (!clickButtonByText(['歷史記錄', '历史记录', '履歴記録', 'History'])) {
+            if (!await clickButtonByText(['歷史記錄', '历史记录', '履歴記録', 'History'])) {
                 location.href = '/history';
             }
             event.preventDefault();
@@ -111,13 +111,14 @@
         }
 
         // 按下 Alt+t 就先找出所有 button 元素，比對元素內容，如果為「主題集」就點擊它
-        if (!event.ctrlKey && !event.altKey && event.key === 't') {
-            if (isInInputMode(event)) return;
-
-            if (!clickButtonByText(['主題集', '主题集', 'トピック集', 'Topic Collections'])) {
+        if (!isInInputMode(event) && !event.ctrlKey && !event.altKey && event.key === 't') {
+            console.log('Click on 主題集');
+            if (!await clickButtonByText(['主題集', '主题集', 'トピック集', 'Topic Collections'])) {
+                console.log('Unable to click on 主題集, Redirecting to /topic');
                 location.href = '/topic';
             }
             event.preventDefault();
+            return;
         }
 
         // 按下 Alt+s 就先找出所有 button 元素，比對元素內容，如果為「分享」就點擊它
@@ -127,8 +128,9 @@
                 return;
             }
 
-            clickButtonByText(['分享', '分享', '共有する', 'Share']);
+            await clickButtonByText(['分享', '分享', '共有する', 'Share']);
             event.preventDefault();
+            return;
         }
 
         // 按下 Alt+c 就先找出所有包含 [tabindex] 屬性的元素，比對元素內容，如果為「建立主題」就點擊它
@@ -138,8 +140,9 @@
                 return;
             }
 
-            clickButtonByText(['建立主題', '建立主题', 'トピックを作成', 'Create topic']);
+            await clickButtonByText(['建立主題', '建立主题', 'トピックを作成', 'Create topic']);
             event.preventDefault();
+            return;
         }
 
         // 按下 Ctrl+Delete 快速刪除 Felo Search 聊天記錄
@@ -154,6 +157,7 @@
             await window.page.getByRole('button', { name: ['確認', '确认', '確認', 'Confirm'] }).click()
 
             event.preventDefault();
+            return;
         }
 
         // 按下 Ctrl+B 快速切換側邊欄
@@ -162,6 +166,7 @@
             const svg = document.querySelector('section.cursor-pointer svg');
             svg?.parentElement.click();
             event.preventDefault();
+            return;
         }
 
         // 按下 Escape 就點擊 document.querySelector('img').click()
@@ -187,6 +192,7 @@
             if (!backdropBlur) {
                 goHome(); // 回首頁
                 event.preventDefault();
+                return;
             } else {
                 backdropBlur?.parentElement?.querySelector('button')?.click();
             }
@@ -265,19 +271,34 @@
 
         let h1 = document.querySelectorAll('h1');
         let elements = Array.from(h1);
+        if (elements.length == 0) return;
 
         elements.forEach((e) => {
-            let blockHeader   = e?.closest('div.mb-6');
+            let parentNode = e?.closest('div.mb-6')?.parentElement.children;
+            if (!parentNode) return;
+
+            let contentElements = Array.from(parentNode);
+
+            let blockHeader = contentElements[0];
             // console.log('blockHeader', blockHeader);
-            let blockMetadata = blockHeader?.nextElementSibling;
+            let blockMetadata = contentElements[1];
             // console.log('blockMetadata', blockMetadata);
-            let blockContent  = blockMetadata?.nextElementSibling;
+
+            // 不一定有心智圖
+            let blockMindMap = contentElements[contentElements.length - 4];
+            // console.log('blockMindMap', blockMindMap);
+            if (blockMindMap !== blockMetadata) {
+                blockMindMap?.toggle();
+            }
+
+            let blockContent = contentElements[contentElements.length - 3];
             // console.log('blockContent', blockContent);
-            let blockToolbar  = blockContent?.nextElementSibling;
+            let blockToolbar = contentElements[contentElements.length - 2];
             // console.log('blockToolbar', blockToolbar);
             if (!blockHeader || !blockMetadata || !blockContent || !blockToolbar) return;
-            let blockRelated  = blockToolbar?.nextElementSibling;
+            let blockRelated = contentElements[contentElements.length - 1];
             // console.log('blockRelated', blockRelated);
+
 
             blockMetadata.toggle();
             blockToolbar.toggle();
