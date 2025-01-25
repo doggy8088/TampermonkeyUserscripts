@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.9.0
+// @version      0.9.1
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -76,33 +76,47 @@
                 return;
             }
 
-            clickButtonByText(['歷史記錄', '历史记录', '履歴記録', 'History']);
+            if (!clickButtonByText(['歷史記錄', '历史记录', '履歴記録', 'History'])) {
+                location.href = '/history';
+            }
             event.preventDefault();
         }
 
         // 按下 f 就隱藏所有不必要的元素
         if (!event.ctrlKey && !event.altKey && event.key === 'f') {
-            if ((event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA')) {
-                return;
-            }
+            if (isInInputMode(event)) return;
 
-            await toggle追問區();
-            await toggle標題下的Metadata();
-            // await toggle回答完成();
-            await toggle資料來源();
-            await toggle相關提問();
+            // Toggle 頁首
+            document.querySelector('header')?.toggle();
+            // Toggle 側邊欄
+            document.querySelector('aside')?.toggle();
+
+            // Toggle 文章註腳
+            Array.from(document.querySelectorAll('span.footnote-ref')).forEach((e) => {
+                e.toggle();
+            });
+
+            let main = document.querySelector('main');
+            if (!main) return;
+
+            // Toggle 追問區
+            Array.from(main.children).last()?.children?.[1]?.toggle();
+
+            // Toggle 資料來源
+            main.children[1]?.children[0]?.children[0]?.children[1]?.toggle();
+
+            await toggle主要內容區();
 
             event.preventDefault();
         }
 
         // 按下 Alt+t 就先找出所有 button 元素，比對元素內容，如果為「主題集」就點擊它
-        if (!event.ctrlKey && event.key === 't') {
-            // 如果是輸入欄位，就不要觸發。但是按下 alt+t 就可以觸發這個功能。
-            if ((event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') && !event.altKey) {
-                return;
-            }
+        if (!event.ctrlKey && !event.altKey && event.key === 't') {
+            if (isInInputMode(event)) return;
 
-            clickButtonByText(['主題集', '主题集', 'トピック集', 'Topic Collections']);
+            if (!clickButtonByText(['主題集', '主题集', 'トピック集', 'Topic Collections'])) {
+                location.href = '/topic';
+            }
             event.preventDefault();
         }
 
@@ -179,6 +193,17 @@
         }
     });
 
+    function isInInputMode(event) {
+        var element = event.target;
+        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+            return true;
+        }
+        if (element.isContentEditable) {
+            return true;
+        }
+        return false;
+    }
+
     function goHome() {
         // 找到第一個 img 元素並點擊 (Felo Logo)
         document.querySelector('img')?.click();
@@ -198,105 +223,66 @@
         let btnLocator = window.page.getByRole('button', { name: buttonTexts });
         if (await btnLocator.isVisible()) {
             await btnLocator.click();
+            return true;
         }
 
+        // 某些按鈕並不是 button 的型態，所以只能比對文字去找
         btnLocator = window.page.getByText(buttonTexts, { exact: false });
         if (await btnLocator.isVisible()) {
             await btnLocator.click();
+            return true;
         }
 
         window.page.WAIT_TIMEOUT = 5000;
+
+        return false;
     }
 
+    window.HTMLElement.prototype.show = function () {
+        this.style.display = 'block';
+    }
 
-    async function toggle標題下的Metadata() {
+    window.HTMLElement.prototype.hide = function () {
+        this.style.display = 'none';
+    }
+
+    window.HTMLElement.prototype.toggle = function () {
+        // 判斷 this.existingStyleDisplay 屬性是否存在，如果不存在就設定為 this.style.display
+        if (!this.hasOwnProperty('existingStyleDisplay')) {
+            this.existingStyleDisplay = this.style.display;
+        }
+
+        // 設定 this.style.display 要跟 this.existingStyleDisplay 與 none 之間做切換
+        this.style.display = this.style.display === 'none' ? this.existingStyleDisplay : 'none';
+    }
+
+    window.Array.prototype.last = function () {
+        return this[this.length - 1];
+    }
+
+    async function toggle主要內容區() {
         window.page.WAIT_TIMEOUT = 0;
 
         let h1 = document.querySelectorAll('h1');
         let elements = Array.from(h1);
 
         elements.forEach((e) => {
-            // 標題下的Metadata
-            let sectionStyle = e.parentElement.nextElementSibling.style;
-            if (!sectionStyle) return;
+            let blockHeader   = e?.closest('div.mb-6');
+            // console.log('blockHeader', blockHeader);
+            let blockMetadata = blockHeader?.nextElementSibling;
+            // console.log('blockMetadata', blockMetadata);
+            let blockContent  = blockMetadata?.nextElementSibling;
+            // console.log('blockContent', blockContent);
+            let blockToolbar  = blockContent?.nextElementSibling;
+            // console.log('blockToolbar', blockToolbar);
+            if (!blockHeader || !blockMetadata || !blockContent || !blockToolbar) return;
+            let blockRelated  = blockToolbar?.nextElementSibling;
+            // console.log('blockRelated', blockRelated);
 
-            if (sectionStyle.display === 'none') {
-                sectionStyle.display = 'block';
-            } else {
-                sectionStyle.display = 'none';
-            }
+            blockMetadata.toggle();
+            blockToolbar.toggle();
 
-            // 回答完成
-            sectionStyle = e.parentElement.parentElement.nextElementSibling.style;
-            if (!sectionStyle) return;
-
-            if (sectionStyle.display === 'none') {
-                sectionStyle.display = 'block';
-            } else {
-                sectionStyle.display = 'none';
-            }
-        });
-
-        window.page.WAIT_TIMEOUT = 5000;
-    }
-
-    async function toggle資料來源() {
-        window.page.WAIT_TIMEOUT = 0;
-
-        // TODO: '資料來源' 這個文字可能會因為語系不同而有所不同
-        let elmDataSource = window.page.getByRole('generic', { name: '資料來源', exact: true });
-        let elements = await elmDataSource.all()
-
-        elements.forEach((e) => {
-            let sectionStyle = e.parentElement.parentElement.style;
-            if (!sectionStyle) return;
-
-            if (sectionStyle.display === 'none') {
-                sectionStyle.display = 'block';
-            } else {
-                sectionStyle.display = 'none';
-            }
-        });
-
-        window.page.WAIT_TIMEOUT = 5000;
-    }
-
-    async function toggle追問區() {
-        let sectionStyle = document.querySelector('main header')?.nextElementSibling?.children[1]?.style;
-        if (!sectionStyle) return;
-
-        if (sectionStyle.display === 'none') {
-            sectionStyle.display = 'block';
-        } else {
-            sectionStyle.display = 'none';
-        }
-    }
-
-    async function toggle相關提問() {
-        window.page.WAIT_TIMEOUT = 0;
-
-        // TODO: '重寫' 這個文字可能會因為語系不同而有所不同
-        let btnRewrite = window.page.getByRole('button', { name: '重寫', exact: true });
-        let elements = await btnRewrite.all()
-
-        elements.forEach((e) => {
-            let sectionStyle = e.parentElement.parentElement.nextElementSibling.style;
-            if (!sectionStyle) return;
-
-            if (sectionStyle.display === 'none') {
-                sectionStyle.display = 'block';
-            } else {
-                sectionStyle.display = 'none';
-            }
-
-            sectionStyle = e.parentElement.parentElement.style;
-            if (!sectionStyle) return;
-
-            if (sectionStyle.display === 'none') {
-                sectionStyle.display = 'block';
-            } else {
-                sectionStyle.display = 'none';
-            }
+            blockRelated?.toggle();
         });
 
         window.page.WAIT_TIMEOUT = 5000;
