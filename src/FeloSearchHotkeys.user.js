@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.11.0
+// @version      0.11.1
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -18,12 +18,16 @@
 (async function () {
     'use strict';
 
+    function isCtrlOrMetaKeyPressed(event) {
+        return event.ctrlKey || event.metaKey;
+    }
+
     document.addEventListener('keydown', async (event) => {
 
         // 從網址列取得 pathinfo
         const currentPath = window.location.pathname;
 
-        if (!event.ctrlKey && event.key === 'j') {
+        if (!isCtrlOrMetaKeyPressed(event) && event.key === 'j') {
             // 如果是輸入欄位，就不要觸發。但是按下 alt+j 就可以觸發這個功能。
             if ((event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') && !event.altKey) {
                 return;
@@ -49,7 +53,7 @@
             event.preventDefault();
         }
 
-        if (!event.ctrlKey && event.key === 'k') {
+        if (!isCtrlOrMetaKeyPressed(event) && event.key === 'k') {
             // 如果是輸入欄位，就不要觸發。但是按下 alt+k 就可以觸發這個功能。
             if ((event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') && !event.altKey) {
                 return;
@@ -70,7 +74,7 @@
         }
 
         // 按下 Alt+/ 就先找出所有 button 元素，比對元素內容，如果為「歷史紀錄」就點擊它
-        if (!event.ctrlKey && event.key === '/') {
+        if (!isCtrlOrMetaKeyPressed(event) && event.key === '/') {
             // 如果是輸入欄位，就不要觸發。但是按下 alt+/ 就可以觸發這個功能。
             if ((event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') && !event.altKey) {
                 return;
@@ -83,7 +87,7 @@
         }
 
         // 按下 f 就隱藏所有不必要的元素
-        if (!isInInputMode(event) && !event.ctrlKey && !event.altKey && event.key === 'f') {
+        if (!isInInputMode(event) && !isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 'f') {
             // Toggle 頁首
             document.querySelector('header')?.toggle();
             // Toggle 側邊欄
@@ -109,7 +113,7 @@
         }
 
         // 按下 Alt+t 就先找出所有 button 元素，比對元素內容，如果為「主題集」就點擊它
-        if (!isInInputMode(event) && !event.ctrlKey && !event.altKey && event.key === 't') {
+        if (!isInInputMode(event) && !isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 't') {
             console.log('Click on 主題集');
             if (!await clickButtonByText(['主題集', '主题集', 'トピック集', 'Topic Collections'])) {
                 console.log('Unable to click on 主題集, Redirecting to /topic');
@@ -120,7 +124,7 @@
         }
 
         // 按下 Alt+s 就先找出所有 button 元素，比對元素內容，如果為「分享」就點擊它
-        if (!event.ctrlKey && event.key === 's') {
+        if (!isCtrlOrMetaKeyPressed(event) && event.key === 's') {
             // 如果是輸入欄位，就不要觸發。但是按下 alt+s 就可以觸發這個功能。
             if ((event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') && !event.altKey) {
                 return;
@@ -132,14 +136,14 @@
         }
 
         // 按下 c 就點擊「建立主題」按鈕
-        if (!isInInputMode(event) && !event.ctrlKey && !event.altKey && event.key === 'c') {
+        if (!isInInputMode(event) && !isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 'c') {
             await clickButtonByText(['建立主題', '建立主题', 'トピックを作成', 'Create topic']);
             event.preventDefault();
             return;
         }
 
-        // 按下 Ctrl+Delete 快速刪除 Felo Search 聊天記錄
-        if (event.ctrlKey && event.key === 'Delete') {
+        // 按下 Ctrl+Delete 或 Command+Delete 快速刪除 Felo Search 聊天記錄
+        if (isCtrlOrMetaKeyPressed(event) && event.key === 'Delete') {
             // 如果是輸入欄位，就不要觸發
             if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
                 return;
@@ -153,8 +157,8 @@
             return;
         }
 
-        // 按下 Ctrl+B 快速切換側邊欄
-        if (event.ctrlKey && event.key === 'b') {
+        // 按下 Ctrl+B 或 Command+B 快速切換側邊欄
+        if (isCtrlOrMetaKeyPressed(event) && event.key === 'b') {
             // 找到 section 的 class 為「cursor-pointer」的元素
             const svg = document.querySelector('section.cursor-pointer svg');
             svg?.parentElement.click();
@@ -163,7 +167,7 @@
         }
 
         // 按下 Escape 就點擊 document.querySelector('img').click()
-        if (!event.ctrlKey && event.key === 'Escape') {
+        if (!isCtrlOrMetaKeyPressed(event) && event.key === 'Escape') {
             // 如果有 [role='dialog'] 就不要觸發
             if (document.querySelector('[role="dialog"]')) {
                 return;
