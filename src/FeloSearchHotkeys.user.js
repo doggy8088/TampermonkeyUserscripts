@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.10.0
+// @version      0.11.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -274,29 +274,36 @@
 
             let blockHeader = contentElements[0];
             // console.log('blockHeader', blockHeader);
-            let blockMetadata = contentElements[1];
+
+            let blockAnswerDone = contentElements[1];
+            blockAnswerDone.toggle();
             // console.log('blockMetadata', blockMetadata);
 
-            // 不一定有心智圖
-            let blockMindMap = contentElements[contentElements.length - 4];
-            // console.log('blockMindMap', blockMindMap);
-            if (blockMindMap !== blockMetadata) {
-                blockMindMap?.toggle();
-            }
-
-            let blockContent = contentElements[contentElements.length - 3];
-            // console.log('blockContent', blockContent);
-            let blockToolbar = contentElements[contentElements.length - 2];
-            // console.log('blockToolbar', blockToolbar);
-            if (!blockHeader || !blockMetadata || !blockContent || !blockToolbar) return;
             let blockRelated = contentElements[contentElements.length - 1];
+            // 不一定有 Related 區塊，如果有，那一定是 DIV 標籤
+            if (blockRelated.tagName !== 'DIV') {
+                blockRelated = undefined;
+            }
             // console.log('blockRelated', blockRelated);
 
+            let blockRelatedShift = blockRelated ? 0 : 1;
+            let blockToolbar = contentElements[contentElements.length - 2 + blockRelatedShift];
+            // console.log('blockToolbar', blockToolbar);
 
-            blockMetadata.toggle();
-            blockToolbar.toggle();
+            let blockContent = contentElements[contentElements.length - 3 + blockRelatedShift];
+            // console.log('blockContent', blockContent);
+
+            // 不一定有心智圖
+            let blockMindMap = contentElements[contentElements.length - 4 + blockRelatedShift];
+            // console.log('blockMindMap', blockMindMap);
+
+            if (!blockHeader || !blockAnswerDone || !blockContent || !blockToolbar) return;
 
             blockRelated?.toggle();
+            blockToolbar.toggle();
+            if (blockMindMap !== blockAnswerDone) {
+                blockMindMap?.toggle();
+            }
         });
 
         window.page.WAIT_TIMEOUT = 5000;
