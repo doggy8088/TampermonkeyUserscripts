@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.11.1
+// @version      0.11.2
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -98,14 +98,16 @@
                 e.toggle();
             });
 
+            // Toggle 資料來源
+            Array.from(document.querySelectorAll('div.thread-item')).forEach((e) => {
+                e?.children[1]?.toggle();
+            });
+
             let main = document.querySelector('main');
             if (!main) return;
 
             // Toggle 追問區
             Array.from(main.children).last()?.children?.[1]?.toggle();
-
-            // Toggle 資料來源
-            main.children[1]?.children[0]?.children[0]?.children[1]?.toggle();
 
             await toggle主要內容區();
 
