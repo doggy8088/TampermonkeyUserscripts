@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.5.0
+// @version      0.6.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -22,12 +22,7 @@
         const currentPath = window.location.pathname;
 
         // 按下 Ctrl+Delete 快速刪除 ChatGPT 聊天記錄
-        if (event.ctrlKey && event.key === "Delete") {
-            // 如果是輸入欄位，就不要觸發
-            if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA" || event.target.isContentEditable) {
-                return;
-            }
-
+        if (!isInInputMode(event) && isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 'Delete') {
             // 找到和目前 pathinfo 一樣的超連結
             const matchingLink = document.querySelector(`a[href="${currentPath}"]`);
 
@@ -91,28 +86,16 @@
         }
 
         // 按下 Ctrl+B 快速切換側邊欄
-        if (event.ctrlKey && event.key === "b") {
-            console.log("Ctrl + B detected. Clicking close sidebar button...");
-
-            // 找到具有 data-testid="close-sidebar-button" 的按鈕
-            const closeButton = document.querySelector('[data-testid="close-sidebar-button"]');
-
-            if (closeButton) {
-                closeButton.click();
-                console.log("Close sidebar button clicked.");
-            } else {
-                console.error("找不到關閉側邊欄的按鈕");
-            }
+        if (isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 'b') {
+            document.querySelector('[data-testid="close-sidebar-button"]')?.click();
         }
 
         // 按下 Alt + S 快速切換搜尋功能
-        if (event.altKey && event.key.toLowerCase() === 's') {
-            // 找到切換搜尋功能的按鈕
+        if (!isCtrlOrMetaKeyPressed(event) && event.altKey && event.key === 's') {
             const searchButton =
-                document.querySelector('button[aria-label="Search the web"]')
-                || document.querySelector('button[aria-label="搜尋網頁"]')
-                || document.querySelector('button[aria-label="ウェブを検索"]')
-
+                document.querySelector('button[aria-label="Search"]')
+                || document.querySelector('button[aria-label="搜尋"]')
+                || document.querySelector('button[aria-label="検索"]')
             searchButton?.click();
         }
 
@@ -146,5 +129,20 @@
             }, 300);
         }
     });
+
+    function isInInputMode(event) {
+        var element = event.target;
+        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || event.target.isContentEditable) {
+            return true;
+        }
+        if (element.isContentEditable) {
+            return true;
+        }
+        return false;
+    }
+
+    function isCtrlOrMetaKeyPressed(event) {
+        return event.ctrlKey || event.metaKey;
+    }
 
 })();
