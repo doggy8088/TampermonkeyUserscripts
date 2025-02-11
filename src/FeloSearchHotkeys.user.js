@@ -18,10 +18,6 @@
 (async function () {
     'use strict';
 
-    function isCtrlOrMetaKeyPressed(event) {
-        return event.ctrlKey || event.metaKey;
-    }
-
     document.addEventListener('keydown', async (event) => {
 
         if (!isInInputMode(event) && !isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 'j') {
@@ -188,6 +184,10 @@
             return true;
         }
         return false;
+    }
+
+    function isCtrlOrMetaKeyPressed(event) {
+        return event.ctrlKey || event.metaKey;
     }
 
     function goHome() {
