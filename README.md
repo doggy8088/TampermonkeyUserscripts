@@ -60,6 +60,18 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ReadingMode.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>ReadingMode: 讓網頁更容易閱讀與翻譯的工具</td>
+      <td>
+        目前提供以下快速鍵：<br>
+        <ol>
+          <li>按下 <code>f</code> 可讓網頁僅顯示 main 元素的內容，再按一次 f 或按下 Esc 恢復原狀</li>
+        </ol>
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSLearnHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Microsoft Learn: 好用的鍵盤快速鍵集合</td>
