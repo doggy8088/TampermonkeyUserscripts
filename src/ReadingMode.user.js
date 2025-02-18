@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ReadingMode: 讓網頁更容易閱讀與翻譯的工具
-// @version      0.1.0
+// @version      0.2.0
 // @description  按下 f 鍵可讓網頁僅顯示 main 元素的內容，再按一次 f 或按下 Esc 恢復原狀
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -21,7 +21,7 @@
 
 (function () {
     let isMainOnly = false;
-    let originalContent = null;
+    let container = null;
 
     document.addEventListener('keydown', e => {
         if (isInInputMode(e.target) || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
@@ -29,20 +29,34 @@
         if (e.key === 'f' || e.key === 'F' || (isMainOnly && e.key === 'Escape')) {
             isMainOnly = !isMainOnly;
             if (isMainOnly) {
-                // 第一次按下快速鍵時才取得內容
-                if (!originalContent) {
-                    originalContent = document.body.innerHTML;
+                // 第一次按下快速鍵時才建立暫存容器
+                if (!container) {
+                    container = document.createElement('div');
+                    container.style.display = 'none';
+                    document.body.parentNode.appendChild(container);
                 }
                 const main = document.querySelector('main');
                 if (main) {
-                    document.body.innerHTML = '';
-                    document.body.appendChild(main);
+                    // 保存所有子元素到暫存容器
+                    while (document.body.firstChild) {
+                        container.appendChild(document.body.firstChild);
+                    }
+                    // 只顯示 main 元素
+                    const mainClone = main.cloneNode(true);
+                    document.body.appendChild(mainClone);
                 }
             } else {
-                // TODO: 還原原始內容可能會導致頁面中元素的事件遺失
-                document.body.innerHTML = originalContent;
-                // 還原後清空 originalContent
-                originalContent = null;
+                if (container) {
+                    // 清空 body
+                    document.body.replaceChildren();
+                    // 還原所有子元素
+                    while (container.firstChild) {
+                        document.body.appendChild(container.firstChild);
+                    }
+                    // 移除暫存容器
+                    container.remove();
+                    container = null;
+                }
             }
         }
     });
