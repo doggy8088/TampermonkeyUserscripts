@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ReadingMode: 讓網頁更容易閱讀與翻譯的工具
-// @version      0.2.0
+// @version      0.2.1
 // @description  按下 f 鍵可讓網頁僅顯示 main 元素的內容，再按一次 f 或按下 Esc 恢復原狀
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -16,6 +16,7 @@
 // @exclude      https://learn.microsoft.com/*
 // @exclude      https://facebook.com/*
 // @exclude      https://www.facebook.com/*
+// @exclude      https://www.youtube.com/*
 // @exclude      https:///*
 // ==/UserScript==
 
