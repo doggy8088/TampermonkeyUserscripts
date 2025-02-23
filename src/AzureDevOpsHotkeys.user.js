@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 優化快速鍵操作
-// @version      1.0.0
+// @version      1.0.1
 // @description  讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -10,6 +10,7 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsHotkeys.user.js
 // @match        *://*.visualstudio.com/*
 // @match        *://dev.azure.com/*
+// @exclude      https://marketplace.visualstudio.com/*
 // @author       Will Huang
 // @run-at       document-idle
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=dev.azure.com
@@ -105,7 +106,7 @@
 
                         case 'Escape':
                             var projectList = document.querySelector('.project-list');
-                            var projectRows = projectList.querySelectorAll('tr.project-row');
+                            var projectRows = projectList?.querySelectorAll('tr.project-row');
                             if (projectRows) {
                                 var projectRowsArray = [...projectRows];
                                 console.log(`目前共有 ${projectRowsArray.length} 個專案`);
