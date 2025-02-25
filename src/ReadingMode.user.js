@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ReadingMode: 讓網頁更容易閱讀與翻譯的工具
-// @version      0.2.3
+// @version      0.3.0
 // @description  按下 f 鍵可讓網頁僅顯示 main 元素的內容，再按一次 f 或按下 Esc 恢復原狀
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -24,6 +24,7 @@
 (function () {
     let isReading = false;
     let container = null;
+    let bodyStyle = null;
 
     document.addEventListener('keydown', e => {
         if (isInInputMode(e.target) || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
@@ -51,12 +52,34 @@
 
                 // console.log(main)
                 if (main) {
-                    // 保存所有子元素到暫存容器
+                    // 將 document.body 底下的所有元素「搬移」到暫存容器中
                     while (document.body.firstChild) {
                         container.appendChild(document.body.firstChild);
                     }
                     // 只顯示 main 元素
                     const mainClone = main.cloneNode(true);
+
+                    // 設定 mainClone 的最大寬度為全版面，但是保留一些邊距
+                    mainClone.style.maxWidth = '100%';
+                    mainClone.style.margin = '0 auto';
+
+                    // 底下所有的元素都不能超過 100% 寬度
+                    mainClone.querySelectorAll('*').forEach(el => {
+                        el.style.maxWidth = '100%';
+                    });
+
+
+                    // backup body style
+                    bodyStyle = {
+                        display: document.body.style.display,
+                        justifyContent: document.body.style.justifyContent,
+                    };
+
+                    // 設定 main 元素居中
+                    // set document.body to 'display: flex; justify-content: center;'
+                    // document.body.style.display = 'flex';
+                    document.body.style.justifyContent = 'center';
+
                     document.body.appendChild(mainClone);
 
                     isReading = !isReading;
@@ -65,6 +88,11 @@
                 if (container) {
                     // 清空 body
                     document.body.replaceChildren();
+
+                    // restore body style
+                    document.body.style.display = bodyStyle.display;
+                    document.body.style.justifyContent = bodyStyle.justifyContent;
+
                     // 還原所有子元素
                     while (container.firstChild) {
                         document.body.appendChild(container.firstChild);
