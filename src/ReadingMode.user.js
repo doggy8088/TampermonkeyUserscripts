@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ReadingMode: 讓網頁更容易閱讀與翻譯的工具
-// @version      0.2.2
+// @version      0.2.3
 // @description  按下 f 鍵可讓網頁僅顯示 main 元素的內容，再按一次 f 或按下 Esc 恢復原狀
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -10,6 +10,7 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ReadingMode.user.js
 // @author       Will Huang
 // @match        https://*/*
+// @exclude      https://blog.miniasp.com/*
 // @exclude      https://felo.ai/*
 // @exclude      https://docs.github.com/*
 // @exclude      https://platform.openai.com/*
