@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.6.0
+// @version      0.7.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -22,7 +22,12 @@
         const currentPath = window.location.pathname;
 
         // 按下 Ctrl+Delete 快速刪除 ChatGPT 聊天記錄
-        if (!isInInputMode(event) && isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 'Delete') {
+        if (isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 'Delete') {
+
+            if (isInInputMode(event) && !!event.target.textContent) {
+                return; // 如果在輸入模式，且有文字，就不要刪除本篇聊天記錄
+            }
+
             // 找到和目前 pathinfo 一樣的超連結
             const matchingLink = document.querySelector(`a[href="${currentPath}"]`);
 
