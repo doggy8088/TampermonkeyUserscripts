@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.12.0
+// @version      0.13.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -175,12 +175,25 @@
         }
     });
 
-    function isInInputMode(event) {
-        var element = event.target;
+    /**
+     * 檢查給定的元素是否處於輸入模式。
+     * 如果元素是輸入欄位、文字區域、可編輯內容的元素，或是屬於 shadow DOM 的一部分，
+     * 則認為該元素處於輸入模式。
+     *
+     * @param {HTMLElement} element - 要檢查的元素。
+     * @returns {boolean} - 如果元素處於輸入模式則返回 true，否則返回 false。
+     */
+    function isInInputMode(element) {
+        // 如果元素是輸入欄位或文字區域，則處於輸入模式
         if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
             return true;
         }
+        // 如果元素是可編輯內容，則處於輸入模式
         if (element.isContentEditable) {
+            return true;
+        }
+        // 如果元素屬於 shadow DOM 的一部分，則視為處於輸入模式 (也意味著不打算處理事件)
+        if (element.shadowRoot instanceof ShadowRoot || element.getRootNode() instanceof ShadowRoot) {
             return true;
         }
         return false;
