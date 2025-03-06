@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.13.0
+// @version      0.13.1
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -193,7 +193,7 @@
             return true;
         }
         // 如果元素屬於 shadow DOM 的一部分，則視為處於輸入模式 (也意味著不打算處理事件)
-        if (element.shadowRoot instanceof ShadowRoot || element.getRootNode() instanceof ShadowRoot) {
+        if (element.shadowRoot instanceof ShadowRoot || (element.getRootNode && element.getRootNode() instanceof ShadowRoot)) {
             return true;
         }
         return false;

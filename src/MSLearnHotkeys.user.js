@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Microsoft Learn: 好用的鍵盤快速鍵集合
-// @version      0.2.0
+// @version      0.2.1
 // @description  按下 f 可以顯示全螢幕顯示文章
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -107,7 +107,7 @@
             return true;
         }
         // 如果元素屬於 shadow DOM 的一部分，則視為處於輸入模式 (也意味著不打算處理事件)
-        if (element.shadowRoot instanceof ShadowRoot || element.getRootNode() instanceof ShadowRoot) {
+        if (element.shadowRoot instanceof ShadowRoot || (element.getRootNode && element.getRootNode() instanceof ShadowRoot)) {
             return true;
         }
         return false;

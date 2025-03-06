@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ReadingMode: 讓網頁更容易閱讀與翻譯的工具
-// @version      0.4.0
+// @version      0.4.1
 // @description  按下 f 鍵可讓網頁僅顯示 main 元素的內容，再按一次 f 或按下 Esc 恢復原狀
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -125,7 +125,7 @@
             return true;
         }
         // 如果元素屬於 shadow DOM 的一部分，則視為處於輸入模式 (也意味著不打算處理事件)
-        if (element.shadowRoot instanceof ShadowRoot || element.getRootNode() instanceof ShadowRoot) {
+        if (element.shadowRoot instanceof ShadowRoot || (element.getRootNode && element.getRootNode() instanceof ShadowRoot)) {
             return true;
         }
         return false;
