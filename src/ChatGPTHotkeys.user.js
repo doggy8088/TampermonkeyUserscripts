@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.8.0
+// @version      0.8.1
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -16,7 +16,7 @@
 (function () {
     'use strict';
 
-    document.addEventListener("keydown", (event) => {
+    document.addEventListener("keydown", async (event) => {
 
         // 從網址列取得 pathinfo
         const currentPath = window.location.pathname;
@@ -33,6 +33,17 @@
 
             // 找到超連結的下一個鄰近的 div，並在裡面找到一個 button
             const parentDiv = matchingLink?.closest("div"); // 取得包住 <a> 的 div
+
+            // 模擬 MouseOver 事件，讓超連結顯示出 ... 選單 Icon
+            const mouseOverEvent = new MouseEvent("mouseover", {
+                view: unsafeWindow,
+                bubbles: true,
+                cancelable: true
+            });
+            parentDiv?.dispatchEvent(mouseOverEvent);
+
+            await delay(50);
+
             const button = parentDiv?.querySelector("button");
 
             if (!button) return; // 找不到 button 就不繼續了
@@ -153,7 +164,7 @@
             return true;
         }
         // 如果元素屬於 shadow DOM 的一部分，則視為處於輸入模式 (也意味著不打算處理事件)
-        if (element.shadowRoot instanceof ShadowRoot || element.getRootNode() instanceof ShadowRoot) {
+        if (element.shadowRoot instanceof ShadowRoot || (element.getRootNode && element.getRootNode() instanceof ShadowRoot)) {
             return true;
         }
         return false;
@@ -161,6 +172,11 @@
 
     function isCtrlOrMetaKeyPressed(event) {
         return event.ctrlKey || event.metaKey;
+    }
+
+    // 延遲函式
+    async function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
 })();
