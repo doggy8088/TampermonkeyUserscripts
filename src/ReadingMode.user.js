@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ReadingMode: 讓網頁更容易閱讀與翻譯的工具
-// @version      0.4.1
+// @version      0.5.0
 // @description  按下 f 鍵可讓網頁僅顯示 main 元素的內容，再按一次 f 或按下 Esc 恢復原狀
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -39,6 +39,8 @@
                     document.body.parentNode.appendChild(container);
                 }
                 let main = document.querySelector('main');
+                let nav = document.querySelector('nav');
+                let footer = document.querySelector('footer');
 
                 // 如果沒有 main 元素，就找 article 元素 (必須只有一個)
                 if (!main && document.querySelectorAll('article').length === 1) {
@@ -50,12 +52,21 @@
                     main = document.querySelector('div.main-content');
                 }
 
+                // backup body style
+                bodyStyle = {
+                    display: document.body.style.display,
+                    justifyContent: document.body.style.justifyContent,
+                };
+
+                // 將 document.body 底下的所有元素「搬移」到暫存容器中
+                while (document.body.firstChild) {
+                    container.appendChild(document.body.firstChild);
+                }
+
+                isReading = !isReading;
+
                 // console.log(main)
                 if (main) {
-                    // 將 document.body 底下的所有元素「搬移」到暫存容器中
-                    while (document.body.firstChild) {
-                        container.appendChild(document.body.firstChild);
-                    }
                     // 只顯示 main 元素
                     const mainClone = main.cloneNode(true);
 
@@ -68,21 +79,22 @@
                         el.style.maxWidth = '100%';
                     });
 
-
-                    // backup body style
-                    bodyStyle = {
-                        display: document.body.style.display,
-                        justifyContent: document.body.style.justifyContent,
-                    };
-
                     // 設定 main 元素居中
                     // set document.body to 'display: flex; justify-content: center;'
                     // document.body.style.display = 'flex';
                     document.body.style.justifyContent = 'center';
 
                     document.body.appendChild(mainClone);
-
-                    isReading = !isReading;
+                } else {
+                    // clone all children of the container back to body except nav and footer element
+                    const children = [...container.children]; // 轉換為陣列以避免活動集合問題
+                    for (let i = 0; i < children.length; i++) {
+                        const child = children[i];
+                        if (child !== nav && child !== footer) {
+                            const childClone = child.cloneNode(true);
+                            document.body.appendChild(childClone);
+                        }
+                    }
                 }
             } else {
                 if (container) {
@@ -97,6 +109,7 @@
                     while (container.firstChild) {
                         document.body.appendChild(container.firstChild);
                     }
+
                     // 移除暫存容器
                     container.remove();
                     container = null;
