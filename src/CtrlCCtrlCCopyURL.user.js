@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         按下多次 Ctrl-C 就會自動複製網址
-// @version      0.9.0
+// @version      0.10.0
 // @description  按下多次 Ctrl-C 就會自動複製網址，為了方便自行實作複製網址的邏輯。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -33,6 +33,48 @@
         // 只要在 1 秒內連續按兩次 Ctrl-C，就會自動複製網址
         if (numOfClicks == 2) {
             let url = window.location.href;
+
+            // https://dev.azure.com/willh/_git/chocolatey-codegpt
+            if ((location.host === 'dev.azure.com' && location.pathname.match(/^\/[^\/]+\/_git\//)) ||
+                (location.host.endsWith('.visualstudio.com') && location.pathname.match(/^\/[^\/]+\/_git\//))) {
+                // 建立一個 Promise 來處理 Azure DevOps 的複製 URL 邏輯
+                const getAzureDevOpsUrl = async () => {
+                    return new Promise(async (resolve) => {
+                        let resultUrl = url; // 預設使用原始 url
+
+                        // 點擊版控選單按鈕
+                        document.querySelector('a.repos-file-explorer-header-repo-link')?.parentElement?.nextElementSibling?.firstElementChild?.click();
+                        await delay(500);
+
+                        // 尋找並點擊 Clone 選項
+                        const submenu = document.getElementById('__bolt-header-submenu-callout');
+                        if (submenu) {
+                            const rows = submenu.querySelectorAll('tr');
+                            for (const tr of rows) {
+                                if (tr.textContent.trim() === 'Clone') {
+                                    tr.click();
+                                    await delay(700); // 等待複製對話框出現
+
+                                    // 尋找包含 https:// 的輸入欄位
+                                    const inputs = document.querySelectorAll('input');
+                                    for (const input of inputs) {
+                                        if (input.value && input.value.startsWith('https://')) {
+                                            resultUrl = input.value;
+                                            document.querySelector('button[aria-label="Close"]')?.click()
+                                            break;
+                                        }
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+
+                        resolve(resultUrl);
+                    });
+                };
+                // 取得 Azure DevOps 儲存庫的 URL
+                url = await getAzureDevOpsUrl();
+            }
 
             if (location.host === 'learn.microsoft.com') {
                 url = sanitizeMicrosoftLearn(url);
@@ -132,6 +174,11 @@
         }
 
         return url;
+    }
+
+    // 延遲函式
+    async function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
     }
 
 })();
