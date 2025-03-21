@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         為什麼你們就是不能加個空格呢？
-// @version      0.1.0
+// @version      0.2.0
 // @description  如果你跟我一樣，每次看到網頁上的中文字和英文、數字、符號擠在一塊，就會坐立難安，忍不住想在它們之間加個空格。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -9,6 +9,7 @@
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AddSpaceBetweenChineseAndEnglish.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AddSpaceBetweenChineseAndEnglish.user.js
 // @author       Will Huang
+// @run-at       context-menu
 // @match        *://*/*
 // ==/UserScript==
 
