@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         按下多次 Ctrl-C 就會自動複製網址
-// @version      0.11.0
+// @version      0.12.0
 // @description  按下多次 Ctrl-C 就會自動複製網址，為了方便自行實作複製網址的邏輯。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -36,7 +36,8 @@
 
             // https://dev.azure.com/willh/_git/chocolatey-codegpt
             if ((location.host === 'dev.azure.com' && location.pathname.match(/^\/[^\/]+\/_git/)) ||
-                (location.host.endsWith('.visualstudio.com') && location.pathname.match(/^\/_git\/[^\/]+/))) {
+                (location.host.endsWith('.visualstudio.com') && location.pathname.match(/^\/_git\/[^\/]+/)) ||
+                (location.host.endsWith('.visualstudio.com') && location.pathname.match(/^\/[^\/]+\/_git/))) {
                 // 建立一個 Promise 來處理 Azure DevOps 的複製 URL 邏輯
                 const getAzureDevOpsUrl = async () => {
                     return new Promise(async (resolve) => {
