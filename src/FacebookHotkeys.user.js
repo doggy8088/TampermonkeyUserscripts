@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Facebook: 好用的鍵盤快速鍵集合
-// @version      0.7.1
+// @version      0.8.0
 // @description  按下 Ctrl+B 快速切換側邊欄、Ctrl+I 檢舉留言、Ctrl+Delete 刪除留言、Alt+B 快速封鎖使用者
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -146,5 +146,27 @@
     async function delay(ms) {
         return new Promise(resolve => setTimeout(resolve, ms));
     }
+
+    let checkForWatch = setInterval(() => {
+        // 判斷當前網址路徑是否為 /watch/?v= 開頭
+        if (window.location.pathname.startsWith('/watch/')) {
+            // 找出網頁中所有的 div，並篩選符合條件的元素
+            const divs = document.querySelectorAll('div'); // 選取所有的 div 元素
+            const filteredDivs = Array.from(divs).filter(div =>
+                div.getAttribute('tabindex') === '0' &&
+                div.getAttribute('aria-pressed') === 'false' &&
+                div.textContent.trim() === '留言'
+            );
+
+            // 如果有符合條件的元素，對第一個執行 .click()
+            if (filteredDivs.length > 0) {
+                filteredDivs[0].click();
+                console.log('已對第一個符合條件的元素執行 .click()');
+                clearInterval(checkForWatch); // 停止檢查
+            } else {
+                console.log('沒有符合條件的元素');
+            }
+        }
+    }, 600);
 
 })();
