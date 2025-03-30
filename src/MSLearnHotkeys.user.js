@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Microsoft Learn: 好用的鍵盤快速鍵集合
-// @version      0.2.1
+// @version      0.2.2
 // @description  按下 f 可以顯示全螢幕顯示文章
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -28,7 +28,7 @@
         const currentPath = window.location.pathname;
 
         // 按下 f 就隱藏所有不必要的元素
-        if (!isInInputMode(event) && !isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 'f') {
+        if (!isInInputMode(event.target) && !isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 'f') {
 
             document.querySelector('#ms--site-header')?.toggle();
             document.querySelector('#article-header')?.toggle();
