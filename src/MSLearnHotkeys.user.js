@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Microsoft Learn: 好用的鍵盤快速鍵集合
-// @version      0.2.2
+// @version      0.3.0
 // @description  按下 f 可以顯示全螢幕顯示文章
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -44,13 +44,14 @@
             }
 
             let contributors = document.querySelector('.contributors-holder');
-            contributors?.toggle();
-
-            if (Array.from(contributors.parentElement.children).last() == contributors) {
-                // 因為 "contributors" 停留在最後一個元素，就會有多餘的 "•" 顯示，所以要移動到「不是最後一個」位置即可
-                contributors?.previousElementSibling?.insertAdjacentElement('beforebegin', contributors);
-            } else {
-                contributors?.nextElementSibling?.insertAdjacentElement('afterend', contributors);
+            if (!!contributors) {
+                contributors?.toggle();
+                if (Array.from(contributors.parentElement.children).last() == contributors) {
+                    // 因為 "contributors" 停留在最後一個元素，就會有多餘的 "•" 顯示，所以要移動到「不是最後一個」位置即可
+                    contributors?.previousElementSibling?.insertAdjacentElement('beforebegin', contributors);
+                } else {
+                    contributors?.nextElementSibling?.insertAdjacentElement('afterend', contributors);
+                }
             }
 
             // 調整 peudo element 的 CSS 只能這樣寫，也可以拿來修改目前網頁上任意 CSS 樣式規則
@@ -79,6 +80,7 @@
             document.querySelector('#user-feedback')?.toggle();
             document.querySelector('#site-user-feedback-footer')?.toggle();
             document.querySelector('#footer')?.toggle();
+            document.querySelector('section[data-open-source-feedback-section]')?.toggle();
 
             // force repaint
             window.dispatchEvent(new Event('resize'));
