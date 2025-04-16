@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 總結選取文字的內容
-// @version      1.7.1
+// @version      1.8.0
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行總結
 // @license      MIT
 // @homepage     https://blog.miniasp.com/

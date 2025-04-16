@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         將網頁內容轉成 Markdown 格式並寫入剪貼簿
-// @version      1.7.2
+// @version      1.8.0
 // @description  在網頁選取文字範圍後，使用者按下滑鼠右鍵，就可以將選取範圍的 HTML 轉成 Markdown 格式並寫入剪貼簿
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -21,14 +21,7 @@
   var __getOwnPropNames = Object.getOwnPropertyNames;
   var __getProtoOf = Object.getPrototypeOf;
   var __hasOwnProp = Object.prototype.hasOwnProperty;
-  var __require = /* @__PURE__ */ ((x) => typeof require !== "undefined" ? require : typeof Proxy !== "undefined" ? new Proxy(x, {
-    get: (a, b) => (typeof require !== "undefined" ? require : a)[b]
-  }) : x)(function(x) {
-    if (typeof require !== "undefined")
-      return require.apply(this, arguments);
-    throw Error('Dynamic require of "' + x + '" is not supported');
-  });
-  var __commonJS = (cb, mod) => function __require2() {
+  var __commonJS = (cb, mod) => function __require() {
     return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
   };
   var __copyProps = (to, from, except, desc) => {
@@ -56,7 +49,9 @@
           doc = options;
           options = arguments[2];
         } else if (!doc || !doc.documentElement) {
-          throw new Error("First argument to Readability constructor should be a document object.");
+          throw new Error(
+            "First argument to Readability constructor should be a document object."
+          );
         }
         options = options || {};
         this._doc = doc;
@@ -66,17 +61,21 @@
         this._articleDir = null;
         this._articleSiteName = null;
         this._attempts = [];
+        this._metadata = {};
         this._debug = !!options.debug;
         this._maxElemsToParse = options.maxElemsToParse || this.DEFAULT_MAX_ELEMS_TO_PARSE;
         this._nbTopCandidates = options.nbTopCandidates || this.DEFAULT_N_TOP_CANDIDATES;
         this._charThreshold = options.charThreshold || this.DEFAULT_CHAR_THRESHOLD;
-        this._classesToPreserve = this.CLASSES_TO_PRESERVE.concat(options.classesToPreserve || []);
+        this._classesToPreserve = this.CLASSES_TO_PRESERVE.concat(
+          options.classesToPreserve || []
+        );
         this._keepClasses = !!options.keepClasses;
         this._serializer = options.serializer || function(el) {
           return el.innerHTML;
         };
         this._disableJSONLD = !!options.disableJSONLD;
         this._allowedVideoRegex = options.allowedVideoRegex || this.REGEXPS.videos;
+        this._linkDensityModifier = options.linkDensityModifier || 0;
         this._flags = this.FLAG_STRIP_UNLIKELYS | this.FLAG_WEIGHT_CLASSES | this.FLAG_CLEAN_CONDITIONALLY;
         if (this._debug) {
           let logNode = function(node) {
@@ -97,7 +96,7 @@
                 return arg;
               });
               args.unshift("Reader: (Readability)");
-              console.log.apply(console, args);
+              console.log(...args);
             } else if (typeof dump !== "undefined") {
               var msg = Array.prototype.map.call(arguments, function(x) {
                 return x && x.nodeName ? logNode(x) : x;
@@ -134,7 +133,7 @@
           unlikelyCandidates: /-ad-|ai2html|banner|breadcrumbs|combx|comment|community|cover-wrap|disqus|extra|footer|gdpr|header|legends|menu|related|remark|replies|rss|shoutbox|sidebar|skyscraper|social|sponsor|supplemental|ad-break|agegate|pagination|pager|popup|yom-remote/i,
           okMaybeItsACandidate: /and|article|body|column|content|main|shadow/i,
           positive: /article|body|content|entry|hentry|h-entry|main|page|pagination|post|text|blog|story/i,
-          negative: /-ad-|hidden|^hid$| hid$| hid |^hid |banner|combx|comment|com-|contact|foot|footer|footnote|gdpr|masthead|media|meta|outbrain|promo|related|scroll|share|shoutbox|sidebar|skyscraper|sponsor|shopping|tags|tool|widget/i,
+          negative: /-ad-|hidden|^hid$| hid$| hid |^hid |banner|combx|comment|com-|contact|footer|gdpr|masthead|media|meta|outbrain|promo|related|scroll|share|shoutbox|sidebar|skyscraper|sponsor|shopping|tags|widget/i,
           extraneous: /print|archive|comment|discuss|e[\-]?mail|share|reply|all|login|sign|single|utility/i,
           byline: /byline|author|dateline|writtenby|p-author/i,
           replaceFonts: /<(\/?)font[^>]*>/gi,
@@ -153,12 +152,46 @@
           // see: https://en.wikipedia.org/wiki/Comma#Comma_variants
           commas: /\u002C|\u060C|\uFE50|\uFE10|\uFE11|\u2E41|\u2E34|\u2E32|\uFF0C/g,
           // See: https://schema.org/Article
-          jsonLdArticleTypes: /^Article|AdvertiserContentArticle|NewsArticle|AnalysisNewsArticle|AskPublicNewsArticle|BackgroundNewsArticle|OpinionNewsArticle|ReportageNewsArticle|ReviewNewsArticle|Report|SatiricalArticle|ScholarlyArticle|MedicalScholarlyArticle|SocialMediaPosting|BlogPosting|LiveBlogPosting|DiscussionForumPosting|TechArticle|APIReference$/
+          jsonLdArticleTypes: /^Article|AdvertiserContentArticle|NewsArticle|AnalysisNewsArticle|AskPublicNewsArticle|BackgroundNewsArticle|OpinionNewsArticle|ReportageNewsArticle|ReviewNewsArticle|Report|SatiricalArticle|ScholarlyArticle|MedicalScholarlyArticle|SocialMediaPosting|BlogPosting|LiveBlogPosting|DiscussionForumPosting|TechArticle|APIReference$/,
+          // used to see if a node's content matches words commonly used for ad blocks or loading indicators
+          adWords: /^(ad(vertising|vertisement)?|pub(licité)?|werb(ung)?|广告|Реклама|Anuncio)$/iu,
+          loadingWords: /^((loading|正在加载|Загрузка|chargement|cargando)(…|\.\.\.)?)$/iu
         },
-        UNLIKELY_ROLES: ["menu", "menubar", "complementary", "navigation", "alert", "alertdialog", "dialog"],
-        DIV_TO_P_ELEMS: /* @__PURE__ */ new Set(["BLOCKQUOTE", "DL", "DIV", "IMG", "OL", "P", "PRE", "TABLE", "UL"]),
-        ALTER_TO_DIV_EXCEPTIONS: ["DIV", "ARTICLE", "SECTION", "P"],
-        PRESENTATIONAL_ATTRIBUTES: ["align", "background", "bgcolor", "border", "cellpadding", "cellspacing", "frame", "hspace", "rules", "style", "valign", "vspace"],
+        UNLIKELY_ROLES: [
+          "menu",
+          "menubar",
+          "complementary",
+          "navigation",
+          "alert",
+          "alertdialog",
+          "dialog"
+        ],
+        DIV_TO_P_ELEMS: /* @__PURE__ */ new Set([
+          "BLOCKQUOTE",
+          "DL",
+          "DIV",
+          "IMG",
+          "OL",
+          "P",
+          "PRE",
+          "TABLE",
+          "UL"
+        ]),
+        ALTER_TO_DIV_EXCEPTIONS: ["DIV", "ARTICLE", "SECTION", "P", "OL", "UL"],
+        PRESENTATIONAL_ATTRIBUTES: [
+          "align",
+          "background",
+          "bgcolor",
+          "border",
+          "cellpadding",
+          "cellspacing",
+          "frame",
+          "hspace",
+          "rules",
+          "style",
+          "valign",
+          "vspace"
+        ],
         DEPRECATED_SIZE_ATTRIBUTE_ELEMS: ["TABLE", "TH", "TD", "HR", "PRE"],
         // The commented out elements qualify as phrasing content but tend to be
         // removed by readability when put into paragraphs, so we ignore them here.
@@ -208,19 +241,19 @@
         CLASSES_TO_PRESERVE: ["page"],
         // These are the list of HTML entities that need to be escaped.
         HTML_ESCAPE_MAP: {
-          "lt": "<",
-          "gt": ">",
-          "amp": "&",
-          "quot": '"',
-          "apos": "'"
+          lt: "<",
+          gt: ">",
+          amp: "&",
+          quot: '"',
+          apos: "'"
         },
         /**
          * Run any post-process modifications to article content as necessary.
          *
          * @param Element
          * @return void
-        **/
-        _postProcessContent: function(articleContent) {
+         **/
+        _postProcessContent(articleContent) {
           this._fixRelativeUris(articleContent);
           this._simplifyNestedElements(articleContent);
           if (!this._keepClasses) {
@@ -237,7 +270,7 @@
          * @param Function filterFn the function to use as a filter
          * @return void
          */
-        _removeNodes: function(nodeList, filterFn) {
+        _removeNodes(nodeList, filterFn) {
           if (this._docJSDOMParser && nodeList._isLiveNodeList) {
             throw new Error("Do not pass live node lists to _removeNodes");
           }
@@ -258,7 +291,7 @@
          * @param String newTagName the new tag name to use
          * @return void
          */
-        _replaceNodeTags: function(nodeList, newTagName) {
+        _replaceNodeTags(nodeList, newTagName) {
           if (this._docJSDOMParser && nodeList._isLiveNodeList) {
             throw new Error("Do not pass live node lists to _replaceNodeTags");
           }
@@ -277,7 +310,7 @@
          * @param  Function fn       The iterate function.
          * @return void
          */
-        _forEachNode: function(nodeList, fn) {
+        _forEachNode(nodeList, fn) {
           Array.prototype.forEach.call(nodeList, fn, this);
         },
         /**
@@ -291,7 +324,7 @@
          * @param  Function fn       The test function.
          * @return void
          */
-        _findNode: function(nodeList, fn) {
+        _findNode(nodeList, fn) {
           return Array.prototype.find.call(nodeList, fn, this);
         },
         /**
@@ -305,7 +338,7 @@
          * @param  Function fn       The iterate function.
          * @return Boolean
          */
-        _someNode: function(nodeList, fn) {
+        _someNode(nodeList, fn) {
           return Array.prototype.some.call(nodeList, fn, this);
         },
         /**
@@ -319,31 +352,20 @@
          * @param  Function fn       The iterate function.
          * @return Boolean
          */
-        _everyNode: function(nodeList, fn) {
+        _everyNode(nodeList, fn) {
           return Array.prototype.every.call(nodeList, fn, this);
         },
-        /**
-         * Concat all nodelists passed as arguments.
-         *
-         * @return ...NodeList
-         * @return Array
-         */
-        _concatNodeLists: function() {
-          var slice = Array.prototype.slice;
-          var args = slice.call(arguments);
-          var nodeLists = args.map(function(list) {
-            return slice.call(list);
-          });
-          return Array.prototype.concat.apply([], nodeLists);
-        },
-        _getAllNodesWithTag: function(node, tagNames) {
+        _getAllNodesWithTag(node, tagNames) {
           if (node.querySelectorAll) {
             return node.querySelectorAll(tagNames.join(","));
           }
-          return [].concat.apply([], tagNames.map(function(tag) {
-            var collection = node.getElementsByTagName(tag);
-            return Array.isArray(collection) ? collection : Array.from(collection);
-          }));
+          return [].concat.apply(
+            [],
+            tagNames.map(function(tag) {
+              var collection = node.getElementsByTagName(tag);
+              return Array.isArray(collection) ? collection : Array.from(collection);
+            })
+          );
         },
         /**
          * Removes the class="" attribute from every element in the given
@@ -353,11 +375,9 @@
          * @param Element
          * @return void
          */
-        _cleanClasses: function(node) {
+        _cleanClasses(node) {
           var classesToPreserve = this._classesToPreserve;
-          var className = (node.getAttribute("class") || "").split(/\s+/).filter(function(cls) {
-            return classesToPreserve.indexOf(cls) != -1;
-          }).join(" ");
+          var className = (node.getAttribute("class") || "").split(/\s+/).filter((cls) => classesToPreserve.includes(cls)).join(" ");
           if (className) {
             node.setAttribute("class", className);
           } else {
@@ -368,13 +388,27 @@
           }
         },
         /**
+         * Tests whether a string is a URL or not.
+         *
+         * @param {string} str The string to test
+         * @return {boolean} true if str is a URL, false if not
+         */
+        _isUrl(str) {
+          try {
+            new URL(str);
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        /**
          * Converts each <a> and <img> uri in the given element to an absolute URI,
          * ignoring #ref URIs.
          *
          * @param Element
          * @return void
          */
-        _fixRelativeUris: function(articleContent) {
+        _fixRelativeUris(articleContent) {
           var baseURI = this._doc.baseURI;
           var documentURI = this._doc.documentURI;
           function toAbsoluteURI(uri) {
@@ -426,14 +460,17 @@
               media.setAttribute("poster", toAbsoluteURI(poster));
             }
             if (srcset) {
-              var newSrcset = srcset.replace(this.REGEXPS.srcsetUrl, function(_, p1, p2, p3) {
-                return toAbsoluteURI(p1) + (p2 || "") + p3;
-              });
+              var newSrcset = srcset.replace(
+                this.REGEXPS.srcsetUrl,
+                function(_, p1, p2, p3) {
+                  return toAbsoluteURI(p1) + (p2 || "") + p3;
+                }
+              );
               media.setAttribute("srcset", newSrcset);
             }
           });
         },
-        _simplifyNestedElements: function(articleContent) {
+        _simplifyNestedElements(articleContent) {
           var node = articleContent;
           while (node) {
             if (node.parentNode && ["DIV", "SECTION"].includes(node.tagName) && !(node.id && node.id.startsWith("readability"))) {
@@ -443,7 +480,7 @@
               } else if (this._hasSingleTagInsideElement(node, "DIV") || this._hasSingleTagInsideElement(node, "SECTION")) {
                 var child = node.children[0];
                 for (var i = 0; i < node.attributes.length; i++) {
-                  child.setAttribute(node.attributes[i].name, node.attributes[i].value);
+                  child.setAttributeNode(node.attributes[i].cloneNode());
                 }
                 node.parentNode.replaceChild(child, node);
                 node = child;
@@ -458,14 +495,17 @@
          *
          * @return string
          **/
-        _getArticleTitle: function() {
+        _getArticleTitle() {
           var doc = this._doc;
           var curTitle = "";
           var origTitle = "";
           try {
             curTitle = origTitle = doc.title.trim();
-            if (typeof curTitle !== "string")
-              curTitle = origTitle = this._getInnerText(doc.getElementsByTagName("title")[0]);
+            if (typeof curTitle !== "string") {
+              curTitle = origTitle = this._getInnerText(
+                doc.getElementsByTagName("title")[0]
+              );
+            }
           } catch (e) {
           }
           var titleHadHierarchicalSeparators = false;
@@ -474,14 +514,13 @@
           }
           if (/ [\|\-\\\/>»] /.test(curTitle)) {
             titleHadHierarchicalSeparators = / [\\\/>»] /.test(curTitle);
-            curTitle = origTitle.replace(/(.*)[\|\-\\\/>»] .*/gi, "$1");
-            if (wordCount(curTitle) < 3)
-              curTitle = origTitle.replace(/[^\|\-\\\/>»]*[\|\-\\\/>»](.*)/gi, "$1");
-          } else if (curTitle.indexOf(": ") !== -1) {
-            var headings = this._concatNodeLists(
-              doc.getElementsByTagName("h1"),
-              doc.getElementsByTagName("h2")
-            );
+            let allSeparators = Array.from(origTitle.matchAll(/ [\|\-\\\/>»] /gi));
+            curTitle = origTitle.substring(0, allSeparators.pop().index);
+            if (wordCount(curTitle) < 3) {
+              curTitle = origTitle.replace(/^[^\|\-\\\/>»]*[\|\-\\\/>»]/gi, "");
+            }
+          } else if (curTitle.includes(": ")) {
+            var headings = this._getAllNodesWithTag(doc, ["h1", "h2"]);
             var trimmedTitle = curTitle.trim();
             var match = this._someNode(headings, function(heading) {
               return heading.textContent.trim() === trimmedTitle;
@@ -496,8 +535,9 @@
             }
           } else if (curTitle.length > 150 || curTitle.length < 15) {
             var hOnes = doc.getElementsByTagName("h1");
-            if (hOnes.length === 1)
+            if (hOnes.length === 1) {
               curTitle = this._getInnerText(hOnes[0]);
+            }
           }
           curTitle = curTitle.trim().replace(this.REGEXPS.normalize, " ");
           var curTitleWordCount = wordCount(curTitle);
@@ -512,7 +552,7 @@
          *
          * @return void
          **/
-        _prepDocument: function() {
+        _prepDocument() {
           var doc = this._doc;
           this._removeNodes(this._getAllNodesWithTag(doc, ["style"]));
           if (doc.body) {
@@ -525,12 +565,12 @@
          * whitespace in between. If the given node is an element, the same node is
          * returned.
          */
-        _nextNode: function(node) {
-          var next = node;
-          while (next && next.nodeType != this.ELEMENT_NODE && this.REGEXPS.whitespace.test(next.textContent)) {
-            next = next.nextSibling;
+        _nextNode(node) {
+          var next2 = node;
+          while (next2 && next2.nodeType != this.ELEMENT_NODE && this.REGEXPS.whitespace.test(next2.textContent)) {
+            next2 = next2.nextSibling;
           }
-          return next;
+          return next2;
         },
         /**
          * Replaces 2 or more successive <br> elements with a single <p>.
@@ -539,41 +579,44 @@
          * will become:
          *   <div>foo<br>bar<p>abc</p></div>
          */
-        _replaceBrs: function(elem) {
+        _replaceBrs(elem) {
           this._forEachNode(this._getAllNodesWithTag(elem, ["br"]), function(br) {
-            var next = br.nextSibling;
+            var next2 = br.nextSibling;
             var replaced = false;
-            while ((next = this._nextNode(next)) && next.tagName == "BR") {
+            while ((next2 = this._nextNode(next2)) && next2.tagName == "BR") {
               replaced = true;
-              var brSibling = next.nextSibling;
-              next.parentNode.removeChild(next);
-              next = brSibling;
+              var brSibling = next2.nextSibling;
+              next2.remove();
+              next2 = brSibling;
             }
             if (replaced) {
               var p = this._doc.createElement("p");
               br.parentNode.replaceChild(p, br);
-              next = p.nextSibling;
-              while (next) {
-                if (next.tagName == "BR") {
-                  var nextElem = this._nextNode(next.nextSibling);
-                  if (nextElem && nextElem.tagName == "BR")
+              next2 = p.nextSibling;
+              while (next2) {
+                if (next2.tagName == "BR") {
+                  var nextElem = this._nextNode(next2.nextSibling);
+                  if (nextElem && nextElem.tagName == "BR") {
                     break;
+                  }
                 }
-                if (!this._isPhrasingContent(next))
+                if (!this._isPhrasingContent(next2)) {
                   break;
-                var sibling = next.nextSibling;
-                p.appendChild(next);
-                next = sibling;
+                }
+                var sibling = next2.nextSibling;
+                p.appendChild(next2);
+                next2 = sibling;
               }
               while (p.lastChild && this._isWhitespace(p.lastChild)) {
-                p.removeChild(p.lastChild);
+                p.lastChild.remove();
               }
-              if (p.parentNode.tagName === "P")
+              if (p.parentNode.tagName === "P") {
                 this._setNodeTag(p.parentNode, "DIV");
+              }
             }
           });
         },
-        _setNodeTag: function(node, tag) {
+        _setNodeTag(node, tag) {
           this.log("_setNodeTag", node, tag);
           if (this._docJSDOMParser) {
             node.localName = tag.toLowerCase();
@@ -585,13 +628,11 @@
             replacement.appendChild(node.firstChild);
           }
           node.parentNode.replaceChild(replacement, node);
-          if (node.readability)
+          if (node.readability) {
             replacement.readability = node.readability;
+          }
           for (var i = 0; i < node.attributes.length; i++) {
-            try {
-              replacement.setAttribute(node.attributes[i].name, node.attributes[i].value);
-            } catch (ex) {
-            }
+            replacement.setAttributeNode(node.attributes[i].cloneNode());
           }
           return replacement;
         },
@@ -602,7 +643,7 @@
          * @param Element
          * @return void
          **/
-        _prepArticle: function(articleContent) {
+        _prepArticle(articleContent) {
           this._cleanStyles(articleContent);
           this._markDataTables(articleContent);
           this._fixLazyImages(articleContent);
@@ -628,31 +669,48 @@
           this._cleanConditionally(articleContent, "table");
           this._cleanConditionally(articleContent, "ul");
           this._cleanConditionally(articleContent, "div");
-          this._replaceNodeTags(this._getAllNodesWithTag(articleContent, ["h1"]), "h2");
-          this._removeNodes(this._getAllNodesWithTag(articleContent, ["p"]), function(paragraph) {
-            var imgCount = paragraph.getElementsByTagName("img").length;
-            var embedCount = paragraph.getElementsByTagName("embed").length;
-            var objectCount = paragraph.getElementsByTagName("object").length;
-            var iframeCount = paragraph.getElementsByTagName("iframe").length;
-            var totalCount = imgCount + embedCount + objectCount + iframeCount;
-            return totalCount === 0 && !this._getInnerText(paragraph, false);
-          });
-          this._forEachNode(this._getAllNodesWithTag(articleContent, ["br"]), function(br) {
-            var next = this._nextNode(br.nextSibling);
-            if (next && next.tagName == "P")
-              br.parentNode.removeChild(br);
-          });
-          this._forEachNode(this._getAllNodesWithTag(articleContent, ["table"]), function(table) {
-            var tbody = this._hasSingleTagInsideElement(table, "TBODY") ? table.firstElementChild : table;
-            if (this._hasSingleTagInsideElement(tbody, "TR")) {
-              var row = tbody.firstElementChild;
-              if (this._hasSingleTagInsideElement(row, "TD")) {
-                var cell = row.firstElementChild;
-                cell = this._setNodeTag(cell, this._everyNode(cell.childNodes, this._isPhrasingContent) ? "P" : "DIV");
-                table.parentNode.replaceChild(cell, table);
+          this._replaceNodeTags(
+            this._getAllNodesWithTag(articleContent, ["h1"]),
+            "h2"
+          );
+          this._removeNodes(
+            this._getAllNodesWithTag(articleContent, ["p"]),
+            function(paragraph) {
+              var contentElementCount = this._getAllNodesWithTag(paragraph, [
+                "img",
+                "embed",
+                "object",
+                "iframe"
+              ]).length;
+              return contentElementCount === 0 && !this._getInnerText(paragraph, false);
+            }
+          );
+          this._forEachNode(
+            this._getAllNodesWithTag(articleContent, ["br"]),
+            function(br) {
+              var next2 = this._nextNode(br.nextSibling);
+              if (next2 && next2.tagName == "P") {
+                br.remove();
               }
             }
-          });
+          );
+          this._forEachNode(
+            this._getAllNodesWithTag(articleContent, ["table"]),
+            function(table) {
+              var tbody = this._hasSingleTagInsideElement(table, "TBODY") ? table.firstElementChild : table;
+              if (this._hasSingleTagInsideElement(tbody, "TR")) {
+                var row = tbody.firstElementChild;
+                if (this._hasSingleTagInsideElement(row, "TD")) {
+                  var cell = row.firstElementChild;
+                  cell = this._setNodeTag(
+                    cell,
+                    this._everyNode(cell.childNodes, this._isPhrasingContent) ? "P" : "DIV"
+                  );
+                  table.parentNode.replaceChild(cell, table);
+                }
+              }
+            }
+          );
         },
         /**
          * Initialize a node with the readability object. Also checks the
@@ -660,9 +718,9 @@
          *
          * @param Element
          * @return void
-        **/
-        _initializeNode: function(node) {
-          node.readability = { "contentScore": 0 };
+         **/
+        _initializeNode(node) {
+          node.readability = { contentScore: 0 };
           switch (node.tagName) {
             case "DIV":
               node.readability.contentScore += 5;
@@ -694,9 +752,9 @@
           }
           node.readability.contentScore += this._getClassWeight(node);
         },
-        _removeAndGetNext: function(node) {
+        _removeAndGetNext(node) {
           var nextNode = this._getNextNode(node, true);
-          node.parentNode.removeChild(node);
+          node.remove();
           return nextNode;
         },
         /**
@@ -705,8 +763,12 @@
          * (and its kids) are going away, and we want the next node over.
          *
          * Calling this in a loop will traverse the DOM depth-first.
+         *
+         * @param {Element} node
+         * @param {boolean} ignoreSelfAndKids
+         * @return {Element}
          */
-        _getNextNode: function(node, ignoreSelfAndKids) {
+        _getNextNode(node, ignoreSelfAndKids) {
           if (!ignoreSelfAndKids && node.firstElementChild) {
             return node.firstElementChild;
           }
@@ -722,7 +784,7 @@
         // 1 = same text, 0 = completely different text
         // works the way that it splits both texts into words and then finds words that are unique in second text
         // the result is given by the lower length of unique parts
-        _textSimilarity: function(textA, textB) {
+        _textSimilarity(textA, textB) {
           var tokensA = textA.toLowerCase().split(this.REGEXPS.tokenize).filter(Boolean);
           var tokensB = textB.toLowerCase().split(this.REGEXPS.tokenize).filter(Boolean);
           if (!tokensA.length || !tokensB.length) {
@@ -732,27 +794,27 @@
           var distanceB = uniqTokensB.join(" ").length / tokensB.join(" ").length;
           return 1 - distanceB;
         },
-        _checkByline: function(node, matchString) {
-          if (this._articleByline) {
-            return false;
-          }
-          if (node.getAttribute !== void 0) {
-            var rel = node.getAttribute("rel");
-            var itemprop = node.getAttribute("itemprop");
-          }
-          if ((rel === "author" || itemprop && itemprop.indexOf("author") !== -1 || this.REGEXPS.byline.test(matchString)) && this._isValidByline(node.textContent)) {
-            this._articleByline = node.textContent.trim();
-            return true;
-          }
-          return false;
+        /**
+         * Checks whether an element node contains a valid byline
+         *
+         * @param node {Element}
+         * @param matchString {string}
+         * @return boolean
+         */
+        _isValidByline(node, matchString) {
+          var rel = node.getAttribute("rel");
+          var itemprop = node.getAttribute("itemprop");
+          var bylineLength = node.textContent.trim().length;
+          return (rel === "author" || itemprop && itemprop.includes("author") || this.REGEXPS.byline.test(matchString)) && !!bylineLength && bylineLength < 100;
         },
-        _getNodeAncestors: function(node, maxDepth) {
+        _getNodeAncestors(node, maxDepth) {
           maxDepth = maxDepth || 0;
           var i = 0, ancestors = [];
           while (node.parentNode) {
             ancestors.push(node.parentNode);
-            if (maxDepth && ++i === maxDepth)
+            if (maxDepth && ++i === maxDepth) {
               break;
+            }
             node = node.parentNode;
           }
           return ancestors;
@@ -763,8 +825,9 @@
          *
          * @param page a document to run upon. Needs to be a full document, complete with body.
          * @return Element
-        **/
-        _grabArticle: function(page) {
+         **/
+        /* eslint-disable-next-line complexity */
+        _grabArticle(page) {
           this.log("**** grabArticle ****");
           var doc = this._doc;
           var isPaging = page !== null;
@@ -776,7 +839,9 @@
           var pageCacheHtml = page.innerHTML;
           while (true) {
             this.log("Starting grabArticle loop");
-            var stripUnlikelyCandidates = this._flagIsActive(this.FLAG_STRIP_UNLIKELYS);
+            var stripUnlikelyCandidates = this._flagIsActive(
+              this.FLAG_STRIP_UNLIKELYS
+            );
             var elementsToScore = [];
             var node = this._doc.documentElement;
             let shouldRemoveTitleHeader = true;
@@ -794,12 +859,29 @@
                 node = this._removeAndGetNext(node);
                 continue;
               }
-              if (this._checkByline(node, matchString)) {
+              if (!this._articleByline && !this._metadata.byline && this._isValidByline(node, matchString)) {
+                var endOfSearchMarkerNode = this._getNextNode(node, true);
+                var next2 = this._getNextNode(node);
+                var itemPropNameNode = null;
+                while (next2 && next2 != endOfSearchMarkerNode) {
+                  var itemprop = next2.getAttribute("itemprop");
+                  if (itemprop && itemprop.includes("name")) {
+                    itemPropNameNode = next2;
+                    break;
+                  } else {
+                    next2 = this._getNextNode(next2);
+                  }
+                }
+                this._articleByline = (itemPropNameNode ?? node).textContent.trim();
                 node = this._removeAndGetNext(node);
                 continue;
               }
               if (shouldRemoveTitleHeader && this._headerDuplicatesTitle(node)) {
-                this.log("Removing header: ", node.textContent.trim(), this._articleTitle.trim());
+                this.log(
+                  "Removing header: ",
+                  node.textContent.trim(),
+                  this._articleTitle.trim()
+                );
                 shouldRemoveTitleHeader = false;
                 node = this._removeAndGetNext(node);
                 continue;
@@ -811,7 +893,9 @@
                   continue;
                 }
                 if (this.UNLIKELY_ROLES.includes(node.getAttribute("role"))) {
-                  this.log("Removing content with role " + node.getAttribute("role") + " - " + matchString);
+                  this.log(
+                    "Removing content with role " + node.getAttribute("role") + " - " + matchString
+                  );
                   node = this._removeAndGetNext(node);
                   continue;
                 }
@@ -820,7 +904,7 @@
                 node = this._removeAndGetNext(node);
                 continue;
               }
-              if (this.DEFAULT_TAGS_TO_SCORE.indexOf(node.tagName) !== -1) {
+              if (this.DEFAULT_TAGS_TO_SCORE.includes(node.tagName)) {
                 elementsToScore.push(node);
               }
               if (node.tagName === "DIV") {
@@ -838,7 +922,7 @@
                     }
                   } else if (p !== null) {
                     while (p.lastChild && this._isWhitespace(p.lastChild)) {
-                      p.removeChild(p.lastChild);
+                      p.lastChild.remove();
                     }
                     p = null;
                   }
@@ -858,31 +942,36 @@
             }
             var candidates = [];
             this._forEachNode(elementsToScore, function(elementToScore) {
-              if (!elementToScore.parentNode || typeof elementToScore.parentNode.tagName === "undefined")
+              if (!elementToScore.parentNode || typeof elementToScore.parentNode.tagName === "undefined") {
                 return;
+              }
               var innerText = this._getInnerText(elementToScore);
-              if (innerText.length < 25)
+              if (innerText.length < 25) {
                 return;
+              }
               var ancestors2 = this._getNodeAncestors(elementToScore, 5);
-              if (ancestors2.length === 0)
+              if (ancestors2.length === 0) {
                 return;
+              }
               var contentScore = 0;
               contentScore += 1;
               contentScore += innerText.split(this.REGEXPS.commas).length;
               contentScore += Math.min(Math.floor(innerText.length / 100), 3);
               this._forEachNode(ancestors2, function(ancestor, level) {
-                if (!ancestor.tagName || !ancestor.parentNode || typeof ancestor.parentNode.tagName === "undefined")
+                if (!ancestor.tagName || !ancestor.parentNode || typeof ancestor.parentNode.tagName === "undefined") {
                   return;
+                }
                 if (typeof ancestor.readability === "undefined") {
                   this._initializeNode(ancestor);
                   candidates.push(ancestor);
                 }
-                if (level === 0)
+                if (level === 0) {
                   var scoreDivider = 1;
-                else if (level === 1)
+                } else if (level === 1) {
                   scoreDivider = 2;
-                else
+                } else {
                   scoreDivider = level * 3;
+                }
                 ancestor.readability.contentScore += contentScore / scoreDivider;
               });
             });
@@ -896,8 +985,9 @@
                 var aTopCandidate = topCandidates[t];
                 if (!aTopCandidate || candidateScore > aTopCandidate.readability.contentScore) {
                   topCandidates.splice(t, 0, candidate);
-                  if (topCandidates.length > this._nbTopCandidates)
+                  if (topCandidates.length > this._nbTopCandidates) {
                     topCandidates.pop();
+                  }
                   break;
                 }
               }
@@ -918,7 +1008,9 @@
               var alternativeCandidateAncestors = [];
               for (var i = 1; i < topCandidates.length; i++) {
                 if (topCandidates[i].readability.contentScore / topCandidate.readability.contentScore >= 0.75) {
-                  alternativeCandidateAncestors.push(this._getNodeAncestors(topCandidates[i]));
+                  alternativeCandidateAncestors.push(
+                    this._getNodeAncestors(topCandidates[i])
+                  );
                 }
               }
               var MINIMUM_TOPCANDIDATES = 3;
@@ -927,7 +1019,11 @@
                 while (parentOfTopCandidate.tagName !== "BODY") {
                   var listsContainingThisAncestor = 0;
                   for (var ancestorIndex = 0; ancestorIndex < alternativeCandidateAncestors.length && listsContainingThisAncestor < MINIMUM_TOPCANDIDATES; ancestorIndex++) {
-                    listsContainingThisAncestor += Number(alternativeCandidateAncestors[ancestorIndex].includes(parentOfTopCandidate));
+                    listsContainingThisAncestor += Number(
+                      alternativeCandidateAncestors[ancestorIndex].includes(
+                        parentOfTopCandidate
+                      )
+                    );
                   }
                   if (listsContainingThisAncestor >= MINIMUM_TOPCANDIDATES) {
                     topCandidate = parentOfTopCandidate;
@@ -948,8 +1044,9 @@
                   continue;
                 }
                 var parentScore = parentOfTopCandidate.readability.contentScore;
-                if (parentScore < scoreThreshold)
+                if (parentScore < scoreThreshold) {
                   break;
+                }
                 if (parentScore > lastScore) {
                   topCandidate = parentOfTopCandidate;
                   break;
@@ -967,22 +1064,34 @@
               }
             }
             var articleContent = doc.createElement("DIV");
-            if (isPaging)
+            if (isPaging) {
               articleContent.id = "readability-content";
-            var siblingScoreThreshold = Math.max(10, topCandidate.readability.contentScore * 0.2);
+            }
+            var siblingScoreThreshold = Math.max(
+              10,
+              topCandidate.readability.contentScore * 0.2
+            );
             parentOfTopCandidate = topCandidate.parentNode;
             var siblings = parentOfTopCandidate.children;
             for (var s = 0, sl = siblings.length; s < sl; s++) {
               var sibling = siblings[s];
               var append = false;
-              this.log("Looking at sibling node:", sibling, sibling.readability ? "with score " + sibling.readability.contentScore : "");
-              this.log("Sibling has score", sibling.readability ? sibling.readability.contentScore : "Unknown");
+              this.log(
+                "Looking at sibling node:",
+                sibling,
+                sibling.readability ? "with score " + sibling.readability.contentScore : ""
+              );
+              this.log(
+                "Sibling has score",
+                sibling.readability ? sibling.readability.contentScore : "Unknown"
+              );
               if (sibling === topCandidate) {
                 append = true;
               } else {
                 var contentBonus = 0;
-                if (sibling.className === topCandidate.className && topCandidate.className !== "")
+                if (sibling.className === topCandidate.className && topCandidate.className !== "") {
                   contentBonus += topCandidate.readability.contentScore * 0.2;
+                }
                 if (sibling.readability && sibling.readability.contentScore + contentBonus >= siblingScoreThreshold) {
                   append = true;
                 } else if (sibling.nodeName === "P") {
@@ -998,7 +1107,7 @@
               }
               if (append) {
                 this.log("Appending node:", sibling);
-                if (this.ALTER_TO_DIV_EXCEPTIONS.indexOf(sibling.nodeName) === -1) {
+                if (!this.ALTER_TO_DIV_EXCEPTIONS.includes(sibling.nodeName)) {
                   this.log("Altering sibling:", sibling, "to div.");
                   sibling = this._setNodeTag(sibling, "DIV");
                 }
@@ -1008,11 +1117,13 @@
                 sl -= 1;
               }
             }
-            if (this._debug)
+            if (this._debug) {
               this.log("Article content pre-prep: " + articleContent.innerHTML);
+            }
             this._prepArticle(articleContent);
-            if (this._debug)
+            if (this._debug) {
               this.log("Article content post-prep: " + articleContent.innerHTML);
+            }
             if (neededToCreateTopCandidate) {
               topCandidate.id = "readability-page-1";
               topCandidate.className = "page";
@@ -1025,24 +1136,25 @@
               }
               articleContent.appendChild(div);
             }
-            if (this._debug)
+            if (this._debug) {
               this.log("Article content after paging: " + articleContent.innerHTML);
+            }
             var parseSuccessful = true;
             var textLength = this._getInnerText(articleContent, true).length;
             if (textLength < this._charThreshold) {
               parseSuccessful = false;
               page.innerHTML = pageCacheHtml;
+              this._attempts.push({
+                articleContent,
+                textLength
+              });
               if (this._flagIsActive(this.FLAG_STRIP_UNLIKELYS)) {
                 this._removeFlag(this.FLAG_STRIP_UNLIKELYS);
-                this._attempts.push({ articleContent, textLength });
               } else if (this._flagIsActive(this.FLAG_WEIGHT_CLASSES)) {
                 this._removeFlag(this.FLAG_WEIGHT_CLASSES);
-                this._attempts.push({ articleContent, textLength });
               } else if (this._flagIsActive(this.FLAG_CLEAN_CONDITIONALLY)) {
                 this._removeFlag(this.FLAG_CLEAN_CONDITIONALLY);
-                this._attempts.push({ articleContent, textLength });
               } else {
-                this._attempts.push({ articleContent, textLength });
                 this._attempts.sort(function(a, b) {
                   return b.textLength - a.textLength;
                 });
@@ -1054,10 +1166,13 @@
               }
             }
             if (parseSuccessful) {
-              var ancestors = [parentOfTopCandidate, topCandidate].concat(this._getNodeAncestors(parentOfTopCandidate));
+              var ancestors = [parentOfTopCandidate, topCandidate].concat(
+                this._getNodeAncestors(parentOfTopCandidate)
+              );
               this._someNode(ancestors, function(ancestor) {
-                if (!ancestor.tagName)
+                if (!ancestor.tagName) {
                   return false;
+                }
                 var articleDir = ancestor.getAttribute("dir");
                 if (articleDir) {
                   this._articleDir = articleDir;
@@ -1070,36 +1185,24 @@
           }
         },
         /**
-         * Check whether the input string could be a byline.
-         * This verifies that the input is a string, and that the length
-         * is less than 100 chars.
-         *
-         * @param possibleByline {string} - a string to check whether its a byline.
-         * @return Boolean - whether the input string is a byline.
-         */
-        _isValidByline: function(byline) {
-          if (typeof byline == "string" || byline instanceof String) {
-            byline = byline.trim();
-            return byline.length > 0 && byline.length < 100;
-          }
-          return false;
-        },
-        /**
          * Converts some of the common HTML entities in string to their corresponding characters.
          *
          * @param str {string} - a string to unescape.
          * @return string without HTML entity.
          */
-        _unescapeHtmlEntities: function(str) {
+        _unescapeHtmlEntities(str) {
           if (!str) {
             return str;
           }
           var htmlEscapeMap = this.HTML_ESCAPE_MAP;
           return str.replace(/&(quot|amp|apos|lt|gt);/g, function(_, tag) {
             return htmlEscapeMap[tag];
-          }).replace(/&#(?:x([0-9a-z]{1,4})|([0-9]{1,4}));/gi, function(_, hex, numStr) {
+          }).replace(/&#(?:x([0-9a-f]+)|([0-9]+));/gi, function(_, hex, numStr) {
             var num = parseInt(hex || numStr, hex ? 16 : 10);
-            return String.fromCharCode(num);
+            if (num == 0 || num > 1114111 || num >= 55296 && num <= 57343) {
+              num = 65533;
+            }
+            return String.fromCodePoint(num);
           });
         },
         /**
@@ -1107,22 +1210,33 @@
          * For now, only Schema.org objects of type Article or its subtypes are supported.
          * @return Object with any metadata that could be extracted (possibly none)
          */
-        _getJSONLD: function(doc) {
+        _getJSONLD(doc) {
           var scripts = this._getAllNodesWithTag(doc, ["script"]);
           var metadata;
           this._forEachNode(scripts, function(jsonLdElement) {
             if (!metadata && jsonLdElement.getAttribute("type") === "application/ld+json") {
               try {
-                var content = jsonLdElement.textContent.replace(/^\s*<!\[CDATA\[|\]\]>\s*$/g, "");
+                var content = jsonLdElement.textContent.replace(
+                  /^\s*<!\[CDATA\[|\]\]>\s*$/g,
+                  ""
+                );
                 var parsed = JSON.parse(content);
-                if (!parsed["@context"] || !parsed["@context"].match(/^https?\:\/\/schema\.org$/)) {
+                if (Array.isArray(parsed)) {
+                  parsed = parsed.find((it) => {
+                    return it["@type"] && it["@type"].match(this.REGEXPS.jsonLdArticleTypes);
+                  });
+                  if (!parsed) {
+                    return;
+                  }
+                }
+                var schemaDotOrgRegex = /^https?\:\/\/schema\.org\/?$/;
+                var matches = typeof parsed["@context"] === "string" && parsed["@context"].match(schemaDotOrgRegex) || typeof parsed["@context"] === "object" && typeof parsed["@context"]["@vocab"] == "string" && parsed["@context"]["@vocab"].match(schemaDotOrgRegex);
+                if (!matches) {
                   return;
                 }
                 if (!parsed["@type"] && Array.isArray(parsed["@graph"])) {
-                  parsed = parsed["@graph"].find(function(it) {
-                    return (it["@type"] || "").match(
-                      this.REGEXPS.jsonLdArticleTypes
-                    );
+                  parsed = parsed["@graph"].find((it) => {
+                    return (it["@type"] || "").match(this.REGEXPS.jsonLdArticleTypes);
                   });
                 }
                 if (!parsed || !parsed["@type"] || !parsed["@type"].match(this.REGEXPS.jsonLdArticleTypes)) {
@@ -1163,7 +1277,6 @@
                 if (typeof parsed.datePublished === "string") {
                   metadata.datePublished = parsed.datePublished.trim();
                 }
-                return;
               } catch (err) {
                 this.log(err.message);
               }
@@ -1179,12 +1292,12 @@
          *
          * @return Object with optional "excerpt" and "byline" properties
          */
-        _getArticleMetadata: function(jsonld) {
+        _getArticleMetadata(jsonld) {
           var metadata = {};
           var values = {};
           var metaElements = this._doc.getElementsByTagName("meta");
           var propertyPattern = /\s*(article|dc|dcterm|og|twitter)\s*:\s*(author|creator|description|published_time|title|site_name)\s*/gi;
-          var namePattern = /^\s*(?:(dc|dcterm|og|twitter|weibo:(article|webpage))\s*[\.:]\s*)?(author|creator|description|title|site_name)\s*$/i;
+          var namePattern = /^\s*(?:(dc|dcterm|og|twitter|parsely|weibo:(article|webpage))\s*[-\.:]\s*)?(author|creator|pub-date|description|title|site_name)\s*$/i;
           this._forEachNode(metaElements, function(element) {
             var elementName = element.getAttribute("name");
             var elementProperty = element.getAttribute("property");
@@ -1209,14 +1322,15 @@
               }
             }
           });
-          metadata.title = jsonld.title || values["dc:title"] || values["dcterm:title"] || values["og:title"] || values["weibo:article:title"] || values["weibo:webpage:title"] || values["title"] || values["twitter:title"];
+          metadata.title = jsonld.title || values["dc:title"] || values["dcterm:title"] || values["og:title"] || values["weibo:article:title"] || values["weibo:webpage:title"] || values.title || values["twitter:title"] || values["parsely-title"];
           if (!metadata.title) {
             metadata.title = this._getArticleTitle();
           }
-          metadata.byline = jsonld.byline || values["dc:creator"] || values["dcterm:creator"] || values["author"];
-          metadata.excerpt = jsonld.excerpt || values["dc:description"] || values["dcterm:description"] || values["og:description"] || values["weibo:article:description"] || values["weibo:webpage:description"] || values["description"] || values["twitter:description"];
+          const articleAuthor = typeof values["article:author"] === "string" && !this._isUrl(values["article:author"]) ? values["article:author"] : void 0;
+          metadata.byline = jsonld.byline || values["dc:creator"] || values["dcterm:creator"] || values.author || values["parsely-author"] || articleAuthor;
+          metadata.excerpt = jsonld.excerpt || values["dc:description"] || values["dcterm:description"] || values["og:description"] || values["weibo:article:description"] || values["weibo:webpage:description"] || values.description || values["twitter:description"];
           metadata.siteName = jsonld.siteName || values["og:site_name"];
-          metadata.publishedTime = jsonld.datePublished || values["article:published_time"] || null;
+          metadata.publishedTime = jsonld.datePublished || values["article:published_time"] || values["parsely-pub-date"] || null;
           metadata.title = this._unescapeHtmlEntities(metadata.title);
           metadata.byline = this._unescapeHtmlEntities(metadata.byline);
           metadata.excerpt = this._unescapeHtmlEntities(metadata.excerpt);
@@ -1229,15 +1343,18 @@
          * whether as a direct child or as its descendants.
          *
          * @param Element
-        **/
-        _isSingleImage: function(node) {
-          if (node.tagName === "IMG") {
-            return true;
+         **/
+        _isSingleImage(node) {
+          while (node) {
+            if (node.tagName === "IMG") {
+              return true;
+            }
+            if (node.children.length !== 1 || node.textContent.trim() !== "") {
+              return false;
+            }
+            node = node.children[0];
           }
-          if (node.children.length !== 1 || node.textContent.trim() !== "") {
-            return false;
-          }
-          return this._isSingleImage(node.children[0]);
+          return false;
         },
         /**
          * Find all <noscript> that are located after <img> nodes, and which contain only one
@@ -1246,8 +1363,8 @@
          * some sites (e.g. Medium).
          *
          * @param Element
-        **/
-        _unwrapNoscriptImages: function(doc) {
+         **/
+        _unwrapNoscriptImages(doc) {
           var imgs = Array.from(doc.getElementsByTagName("img"));
           this._forEachNode(imgs, function(img) {
             for (var i = 0; i < img.attributes.length; i++) {
@@ -1263,15 +1380,15 @@
                 return;
               }
             }
-            img.parentNode.removeChild(img);
+            img.remove();
           });
           var noscripts = Array.from(doc.getElementsByTagName("noscript"));
           this._forEachNode(noscripts, function(noscript) {
-            var tmp = doc.createElement("div");
-            tmp.innerHTML = noscript.innerHTML;
-            if (!this._isSingleImage(tmp)) {
+            if (!this._isSingleImage(noscript)) {
               return;
             }
+            var tmp = doc.createElement("div");
+            tmp.innerHTML = noscript.innerHTML;
             var prevElement = noscript.previousElementSibling;
             if (prevElement && this._isSingleImage(prevElement)) {
               var prevImg = prevElement;
@@ -1303,8 +1420,8 @@
          * Removes script tags from the document.
          *
          * @param Element
-        **/
-        _removeScripts: function(doc) {
+         **/
+        _removeScripts(doc) {
           this._removeNodes(this._getAllNodesWithTag(doc, ["script", "noscript"]));
         },
         /**
@@ -1314,8 +1431,8 @@
          *
          * @param Element
          * @param string tag of child element
-        **/
-        _hasSingleTagInsideElement: function(element, tag) {
+         **/
+        _hasSingleTagInsideElement(element, tag) {
           if (element.children.length != 1 || element.children[0].tagName !== tag) {
             return false;
           }
@@ -1323,15 +1440,15 @@
             return node.nodeType === this.TEXT_NODE && this.REGEXPS.hasContent.test(node.textContent);
           });
         },
-        _isElementWithoutContent: function(node) {
-          return node.nodeType === this.ELEMENT_NODE && node.textContent.trim().length == 0 && (node.children.length == 0 || node.children.length == node.getElementsByTagName("br").length + node.getElementsByTagName("hr").length);
+        _isElementWithoutContent(node) {
+          return node.nodeType === this.ELEMENT_NODE && !node.textContent.trim().length && (!node.children.length || node.children.length == node.getElementsByTagName("br").length + node.getElementsByTagName("hr").length);
         },
         /**
          * Determine whether element has any children block level elements.
          *
          * @param Element
          */
-        _hasChildBlockElement: function(element) {
+        _hasChildBlockElement(element) {
           return this._someNode(element.childNodes, function(node) {
             return this.DIV_TO_P_ELEMS.has(node.tagName) || this._hasChildBlockElement(node);
           });
@@ -1339,11 +1456,11 @@
         /***
          * Determine if a node qualifies as phrasing content.
          * https://developer.mozilla.org/en-US/docs/Web/Guide/HTML/Content_categories#Phrasing_content
-        **/
-        _isPhrasingContent: function(node) {
-          return node.nodeType === this.TEXT_NODE || this.PHRASING_ELEMS.indexOf(node.tagName) !== -1 || (node.tagName === "A" || node.tagName === "DEL" || node.tagName === "INS") && this._everyNode(node.childNodes, this._isPhrasingContent);
+         **/
+        _isPhrasingContent(node) {
+          return node.nodeType === this.TEXT_NODE || this.PHRASING_ELEMS.includes(node.tagName) || (node.tagName === "A" || node.tagName === "DEL" || node.tagName === "INS") && this._everyNode(node.childNodes, this._isPhrasingContent);
         },
-        _isWhitespace: function(node) {
+        _isWhitespace(node) {
           return node.nodeType === this.TEXT_NODE && node.textContent.trim().length === 0 || node.nodeType === this.ELEMENT_NODE && node.tagName === "BR";
         },
         /**
@@ -1353,8 +1470,8 @@
          * @param Element
          * @param Boolean normalizeSpaces (default: true)
          * @return string
-        **/
-        _getInnerText: function(e, normalizeSpaces) {
+         **/
+        _getInnerText(e, normalizeSpaces) {
           normalizeSpaces = typeof normalizeSpaces === "undefined" ? true : normalizeSpaces;
           var textContent = e.textContent.trim();
           if (normalizeSpaces) {
@@ -1368,8 +1485,8 @@
          * @param Element
          * @param string - what to split on. Default is ","
          * @return number (integer)
-        **/
-        _getCharCount: function(e, s) {
+         **/
+        _getCharCount(e, s) {
           s = s || ",";
           return this._getInnerText(e).split(s).length - 1;
         },
@@ -1379,14 +1496,15 @@
          *
          * @param Element
          * @return void
-        **/
-        _cleanStyles: function(e) {
-          if (!e || e.tagName.toLowerCase() === "svg")
+         **/
+        _cleanStyles(e) {
+          if (!e || e.tagName.toLowerCase() === "svg") {
             return;
+          }
           for (var i = 0; i < this.PRESENTATIONAL_ATTRIBUTES.length; i++) {
             e.removeAttribute(this.PRESENTATIONAL_ATTRIBUTES[i]);
           }
-          if (this.DEPRECATED_SIZE_ATTRIBUTE_ELEMS.indexOf(e.tagName) !== -1) {
+          if (this.DEPRECATED_SIZE_ATTRIBUTE_ELEMS.includes(e.tagName)) {
             e.removeAttribute("width");
             e.removeAttribute("height");
           }
@@ -1402,11 +1520,12 @@
          *
          * @param Element
          * @return number (float)
-        **/
-        _getLinkDensity: function(element) {
+         **/
+        _getLinkDensity(element) {
           var textLength = this._getInnerText(element).length;
-          if (textLength === 0)
+          if (textLength === 0) {
             return 0;
+          }
           var linkLength = 0;
           this._forEachNode(element.getElementsByTagName("a"), function(linkNode) {
             var href = linkNode.getAttribute("href");
@@ -1421,22 +1540,27 @@
          *
          * @param Element
          * @return number (Integer)
-        **/
-        _getClassWeight: function(e) {
-          if (!this._flagIsActive(this.FLAG_WEIGHT_CLASSES))
+         **/
+        _getClassWeight(e) {
+          if (!this._flagIsActive(this.FLAG_WEIGHT_CLASSES)) {
             return 0;
+          }
           var weight = 0;
           if (typeof e.className === "string" && e.className !== "") {
-            if (this.REGEXPS.negative.test(e.className))
+            if (this.REGEXPS.negative.test(e.className)) {
               weight -= 25;
-            if (this.REGEXPS.positive.test(e.className))
+            }
+            if (this.REGEXPS.positive.test(e.className)) {
               weight += 25;
+            }
           }
           if (typeof e.id === "string" && e.id !== "") {
-            if (this.REGEXPS.negative.test(e.id))
+            if (this.REGEXPS.negative.test(e.id)) {
               weight -= 25;
-            if (this.REGEXPS.positive.test(e.id))
+            }
+            if (this.REGEXPS.positive.test(e.id)) {
               weight += 25;
+            }
           }
           return weight;
         },
@@ -1448,8 +1572,8 @@
          * @param string tag to clean
          * @return void
          **/
-        _clean: function(e, tag) {
-          var isEmbed = ["object", "embed", "iframe"].indexOf(tag) !== -1;
+        _clean(e, tag) {
+          var isEmbed = ["object", "embed", "iframe"].includes(tag);
           this._removeNodes(this._getAllNodesWithTag(e, [tag]), function(element) {
             if (isEmbed) {
               for (var i = 0; i < element.attributes.length; i++) {
@@ -1473,15 +1597,17 @@
          * @param  Function    filterFn a filter to invoke to determine whether this node 'counts'
          * @return Boolean
          */
-        _hasAncestorTag: function(node, tagName, maxDepth, filterFn) {
+        _hasAncestorTag(node, tagName, maxDepth, filterFn) {
           maxDepth = maxDepth || 3;
           tagName = tagName.toUpperCase();
           var depth = 0;
           while (node.parentNode) {
-            if (maxDepth > 0 && depth > maxDepth)
+            if (maxDepth > 0 && depth > maxDepth) {
               return false;
-            if (node.parentNode.tagName === tagName && (!filterFn || filterFn(node.parentNode)))
+            }
+            if (node.parentNode.tagName === tagName && (!filterFn || filterFn(node.parentNode))) {
               return true;
+            }
             node = node.parentNode;
             depth++;
           }
@@ -1490,7 +1616,7 @@
         /**
          * Return an object indicating how many rows and columns this table has.
          */
-        _getRowAndColumnCount: function(table) {
+        _getRowAndColumnCount(table) {
           var rows = 0;
           var columns = 0;
           var trs = table.getElementsByTagName("tr");
@@ -1518,8 +1644,8 @@
          * similar checks as
          * https://searchfox.org/mozilla-central/rev/f82d5c549f046cb64ce5602bfd894b7ae807c8f8/accessible/generic/TableAccessible.cpp#19
          */
-        _markDataTables: function(root) {
-          var tables = root.getElementsByTagName("table");
+        _markDataTables(root2) {
+          var tables = root2.getElementsByTagName("table");
           for (var i = 0; i < tables.length; i++) {
             var table = tables[i];
             var role = table.getAttribute("role");
@@ -1538,7 +1664,7 @@
               continue;
             }
             var caption = table.getElementsByTagName("caption")[0];
-            if (caption && caption.childNodes.length > 0) {
+            if (caption && caption.childNodes.length) {
               table._readabilityDataTable = true;
               continue;
             }
@@ -1556,6 +1682,10 @@
               continue;
             }
             var sizeInfo = this._getRowAndColumnCount(table);
+            if (sizeInfo.columns == 1 || sizeInfo.rows == 1) {
+              table._readabilityDataTable = false;
+              continue;
+            }
             if (sizeInfo.rows >= 10 || sizeInfo.columns > 4) {
               table._readabilityDataTable = true;
               continue;
@@ -1564,66 +1694,72 @@
           }
         },
         /* convert images and figures that have properties like data-src into images that can be loaded without JS */
-        _fixLazyImages: function(root) {
-          this._forEachNode(this._getAllNodesWithTag(root, ["img", "picture", "figure"]), function(elem) {
-            if (elem.src && this.REGEXPS.b64DataUrl.test(elem.src)) {
-              var parts = this.REGEXPS.b64DataUrl.exec(elem.src);
-              if (parts[1] === "image/svg+xml") {
+        _fixLazyImages(root2) {
+          this._forEachNode(
+            this._getAllNodesWithTag(root2, ["img", "picture", "figure"]),
+            function(elem) {
+              if (elem.src && this.REGEXPS.b64DataUrl.test(elem.src)) {
+                var parts = this.REGEXPS.b64DataUrl.exec(elem.src);
+                if (parts[1] === "image/svg+xml") {
+                  return;
+                }
+                var srcCouldBeRemoved = false;
+                for (var i = 0; i < elem.attributes.length; i++) {
+                  var attr = elem.attributes[i];
+                  if (attr.name === "src") {
+                    continue;
+                  }
+                  if (/\.(jpg|jpeg|png|webp)/i.test(attr.value)) {
+                    srcCouldBeRemoved = true;
+                    break;
+                  }
+                }
+                if (srcCouldBeRemoved) {
+                  var b64starts = parts[0].length;
+                  var b64length = elem.src.length - b64starts;
+                  if (b64length < 133) {
+                    elem.removeAttribute("src");
+                  }
+                }
+              }
+              if ((elem.src || elem.srcset && elem.srcset != "null") && !elem.className.toLowerCase().includes("lazy")) {
                 return;
               }
-              var srcCouldBeRemoved = false;
-              for (var i = 0; i < elem.attributes.length; i++) {
-                var attr = elem.attributes[i];
-                if (attr.name === "src") {
+              for (var j = 0; j < elem.attributes.length; j++) {
+                attr = elem.attributes[j];
+                if (attr.name === "src" || attr.name === "srcset" || attr.name === "alt") {
                   continue;
                 }
-                if (/\.(jpg|jpeg|png|webp)/i.test(attr.value)) {
-                  srcCouldBeRemoved = true;
-                  break;
+                var copyTo = null;
+                if (/\.(jpg|jpeg|png|webp)\s+\d/.test(attr.value)) {
+                  copyTo = "srcset";
+                } else if (/^\s*\S+\.(jpg|jpeg|png|webp)\S*\s*$/.test(attr.value)) {
+                  copyTo = "src";
                 }
-              }
-              if (srcCouldBeRemoved) {
-                var b64starts = elem.src.search(/base64\s*/i) + 7;
-                var b64length = elem.src.length - b64starts;
-                if (b64length < 133) {
-                  elem.removeAttribute("src");
-                }
-              }
-            }
-            if ((elem.src || elem.srcset && elem.srcset != "null") && elem.className.toLowerCase().indexOf("lazy") === -1) {
-              return;
-            }
-            for (var j = 0; j < elem.attributes.length; j++) {
-              attr = elem.attributes[j];
-              if (attr.name === "src" || attr.name === "srcset" || attr.name === "alt") {
-                continue;
-              }
-              var copyTo = null;
-              if (/\.(jpg|jpeg|png|webp)\s+\d/.test(attr.value)) {
-                copyTo = "srcset";
-              } else if (/^\s*\S+\.(jpg|jpeg|png|webp)\S*\s*$/.test(attr.value)) {
-                copyTo = "src";
-              }
-              if (copyTo) {
-                if (elem.tagName === "IMG" || elem.tagName === "PICTURE") {
-                  elem.setAttribute(copyTo, attr.value);
-                } else if (elem.tagName === "FIGURE" && !this._getAllNodesWithTag(elem, ["img", "picture"]).length) {
-                  var img = this._doc.createElement("img");
-                  img.setAttribute(copyTo, attr.value);
-                  elem.appendChild(img);
+                if (copyTo) {
+                  if (elem.tagName === "IMG" || elem.tagName === "PICTURE") {
+                    elem.setAttribute(copyTo, attr.value);
+                  } else if (elem.tagName === "FIGURE" && !this._getAllNodesWithTag(elem, ["img", "picture"]).length) {
+                    var img = this._doc.createElement("img");
+                    img.setAttribute(copyTo, attr.value);
+                    elem.appendChild(img);
+                  }
                 }
               }
             }
-          });
+          );
         },
-        _getTextDensity: function(e, tags) {
+        _getTextDensity(e, tags) {
           var textLength = this._getInnerText(e, true).length;
           if (textLength === 0) {
             return 0;
           }
           var childrenLength = 0;
           var children = this._getAllNodesWithTag(e, tags);
-          this._forEachNode(children, (child) => childrenLength += this._getInnerText(child, true).length);
+          this._forEachNode(
+            children,
+            (child) => childrenLength += this._getInnerText(child, true).length
+          );
           return childrenLength / textLength;
         },
         /**
@@ -1632,9 +1768,10 @@
          *
          * @return void
          **/
-        _cleanConditionally: function(e, tag) {
-          if (!this._flagIsActive(this.FLAG_CLEAN_CONDITIONALLY))
+        _cleanConditionally(e, tag) {
+          if (!this._flagIsActive(this.FLAG_CLEAN_CONDITIONALLY)) {
             return;
+          }
           this._removeNodes(this._getAllNodesWithTag(e, [tag]), function(node) {
             var isDataTable = function(t) {
               return t._readabilityDataTable;
@@ -1643,7 +1780,10 @@
             if (!isList) {
               var listLength = 0;
               var listNodes = this._getAllNodesWithTag(node, ["ul", "ol"]);
-              this._forEachNode(listNodes, (list) => listLength += this._getInnerText(list).length);
+              this._forEachNode(
+                listNodes,
+                (list) => listLength += this._getInnerText(list).length
+              );
               isList = listLength / this._getInnerText(node).length > 0.9;
             }
             if (tag === "table" && isDataTable(node)) {
@@ -1653,6 +1793,11 @@
               return false;
             }
             if (this._hasAncestorTag(node, "code")) {
+              return false;
+            }
+            if ([...node.getElementsByTagName("table")].some(
+              (tbl) => tbl._readabilityDataTable
+            )) {
               return false;
             }
             var weight = this._getClassWeight(node);
@@ -1666,9 +1811,20 @@
               var img = node.getElementsByTagName("img").length;
               var li = node.getElementsByTagName("li").length - 100;
               var input = node.getElementsByTagName("input").length;
-              var headingDensity = this._getTextDensity(node, ["h1", "h2", "h3", "h4", "h5", "h6"]);
+              var headingDensity = this._getTextDensity(node, [
+                "h1",
+                "h2",
+                "h3",
+                "h4",
+                "h5",
+                "h6"
+              ]);
               var embedCount = 0;
-              var embeds = this._getAllNodesWithTag(node, ["object", "embed", "iframe"]);
+              var embeds = this._getAllNodesWithTag(node, [
+                "object",
+                "embed",
+                "iframe"
+              ]);
               for (var i = 0; i < embeds.length; i++) {
                 for (var j = 0; j < embeds[i].attributes.length; j++) {
                   if (this._allowedVideoRegex.test(embeds[i].attributes[j].value)) {
@@ -1680,9 +1836,60 @@
                 }
                 embedCount++;
               }
+              var innerText = this._getInnerText(node);
+              if (this.REGEXPS.adWords.test(innerText) || this.REGEXPS.loadingWords.test(innerText)) {
+                return true;
+              }
+              var contentLength = innerText.length;
               var linkDensity = this._getLinkDensity(node);
-              var contentLength = this._getInnerText(node).length;
-              var haveToRemove = img > 1 && p / img < 0.5 && !this._hasAncestorTag(node, "figure") || !isList && li > p || input > Math.floor(p / 3) || !isList && headingDensity < 0.9 && contentLength < 25 && (img === 0 || img > 2) && !this._hasAncestorTag(node, "figure") || !isList && weight < 25 && linkDensity > 0.2 || weight >= 25 && linkDensity > 0.5 || (embedCount === 1 && contentLength < 75 || embedCount > 1);
+              var textishTags = ["SPAN", "LI", "TD"].concat(
+                Array.from(this.DIV_TO_P_ELEMS)
+              );
+              var textDensity = this._getTextDensity(node, textishTags);
+              var isFigureChild = this._hasAncestorTag(node, "figure");
+              const shouldRemoveNode = () => {
+                const errs = [];
+                if (!isFigureChild && img > 1 && p / img < 0.5) {
+                  errs.push(`Bad p to img ratio (img=${img}, p=${p})`);
+                }
+                if (!isList && li > p) {
+                  errs.push(`Too many li's outside of a list. (li=${li} > p=${p})`);
+                }
+                if (input > Math.floor(p / 3)) {
+                  errs.push(`Too many inputs per p. (input=${input}, p=${p})`);
+                }
+                if (!isList && !isFigureChild && headingDensity < 0.9 && contentLength < 25 && (img === 0 || img > 2) && linkDensity > 0) {
+                  errs.push(
+                    `Suspiciously short. (headingDensity=${headingDensity}, img=${img}, linkDensity=${linkDensity})`
+                  );
+                }
+                if (!isList && weight < 25 && linkDensity > 0.2 + this._linkDensityModifier) {
+                  errs.push(
+                    `Low weight and a little linky. (linkDensity=${linkDensity})`
+                  );
+                }
+                if (weight >= 25 && linkDensity > 0.5 + this._linkDensityModifier) {
+                  errs.push(
+                    `High weight and mostly links. (linkDensity=${linkDensity})`
+                  );
+                }
+                if (embedCount === 1 && contentLength < 75 || embedCount > 1) {
+                  errs.push(
+                    `Suspicious embed. (embedCount=${embedCount}, contentLength=${contentLength})`
+                  );
+                }
+                if (img === 0 && textDensity === 0) {
+                  errs.push(
+                    `No useful content. (img=${img}, textDensity=${textDensity})`
+                  );
+                }
+                if (errs.length) {
+                  this.log("Checks failed", errs);
+                  return true;
+                }
+                return false;
+              };
+              var haveToRemove = shouldRemoveNode();
               if (isList && haveToRemove) {
                 for (var x = 0; x < node.children.length; x++) {
                   let child = node.children[x];
@@ -1707,14 +1914,14 @@
          * @param Function determines whether a node should be removed
          * @return void
          **/
-        _cleanMatchedNodes: function(e, filter) {
+        _cleanMatchedNodes(e, filter) {
           var endOfSearchMarkerNode = this._getNextNode(e, true);
-          var next = this._getNextNode(e);
-          while (next && next != endOfSearchMarkerNode) {
-            if (filter.call(this, next, next.className + " " + next.id)) {
-              next = this._removeAndGetNext(next);
+          var next2 = this._getNextNode(e);
+          while (next2 && next2 != endOfSearchMarkerNode) {
+            if (filter.call(this, next2, next2.className + " " + next2.id)) {
+              next2 = this._removeAndGetNext(next2);
             } else {
-              next = this._getNextNode(next);
+              next2 = this._getNextNode(next2);
             }
           }
         },
@@ -1723,8 +1930,8 @@
          *
          * @param Element
          * @return void
-        **/
-        _cleanHeaders: function(e) {
+         **/
+        _cleanHeaders(e) {
           let headingNodes = this._getAllNodesWithTag(e, ["h1", "h2"]);
           this._removeNodes(headingNodes, function(node) {
             let shouldRemove = this._getClassWeight(node) < 0;
@@ -1741,7 +1948,7 @@
          * @param Element  the node to check.
          * @return boolean indicating whether this is a title-like header.
          */
-        _headerDuplicatesTitle: function(node) {
+        _headerDuplicatesTitle(node) {
           if (node.tagName != "H1" && node.tagName != "H2") {
             return false;
           }
@@ -1749,14 +1956,15 @@
           this.log("Evaluating similarity of header:", heading, this._articleTitle);
           return this._textSimilarity(this._articleTitle, heading) > 0.75;
         },
-        _flagIsActive: function(flag) {
+        _flagIsActive(flag) {
           return (this._flags & flag) > 0;
         },
-        _removeFlag: function(flag) {
+        _removeFlag(flag) {
           this._flags = this._flags & ~flag;
         },
-        _isProbablyVisible: function(node) {
-          return (!node.style || node.style.display != "none") && (!node.style || node.style.visibility != "hidden") && !node.hasAttribute("hidden") && (!node.hasAttribute("aria-hidden") || node.getAttribute("aria-hidden") != "true" || node.className && node.className.indexOf && node.className.indexOf("fallback-image") !== -1);
+        _isProbablyVisible(node) {
+          return (!node.style || node.style.display != "none") && (!node.style || node.style.visibility != "hidden") && !node.hasAttribute("hidden") && //check for "fallback-image" so that wikimedia math images are displayed
+          (!node.hasAttribute("aria-hidden") || node.getAttribute("aria-hidden") != "true" || node.className && node.className.includes && node.className.includes("fallback-image"));
         },
         /**
          * Runs readability.
@@ -1770,11 +1978,13 @@
          *
          * @return void
          **/
-        parse: function() {
+        parse() {
           if (this._maxElemsToParse > 0) {
             var numTags = this._doc.getElementsByTagName("*").length;
             if (numTags > this._maxElemsToParse) {
-              throw new Error("Aborting parsing document; " + numTags + " elements found");
+              throw new Error(
+                "Aborting parsing document; " + numTags + " elements found"
+              );
             }
           }
           this._unwrapNoscriptImages(this._doc);
@@ -1782,15 +1992,17 @@
           this._removeScripts(this._doc);
           this._prepDocument();
           var metadata = this._getArticleMetadata(jsonLd);
+          this._metadata = metadata;
           this._articleTitle = metadata.title;
           var articleContent = this._grabArticle();
-          if (!articleContent)
+          if (!articleContent) {
             return null;
+          }
           this.log("Grabbed: " + articleContent.innerHTML);
           this._postProcessContent(articleContent);
           if (!metadata.excerpt) {
             var paragraphs = articleContent.getElementsByTagName("p");
-            if (paragraphs.length > 0) {
+            if (paragraphs.length) {
               metadata.excerpt = paragraphs[0].textContent.trim();
             }
           }
@@ -1825,13 +2037,18 @@
         okMaybeItsACandidate: /and|article|body|column|content|main|shadow/i
       };
       function isNodeVisible(node) {
-        return (!node.style || node.style.display != "none") && !node.hasAttribute("hidden") && (!node.hasAttribute("aria-hidden") || node.getAttribute("aria-hidden") != "true" || node.className && node.className.indexOf && node.className.indexOf("fallback-image") !== -1);
+        return (!node.style || node.style.display != "none") && !node.hasAttribute("hidden") && //check for "fallback-image" so that wikimedia math images are displayed
+        (!node.hasAttribute("aria-hidden") || node.getAttribute("aria-hidden") != "true" || node.className && node.className.includes && node.className.includes("fallback-image"));
       }
       function isProbablyReaderable2(doc, options = {}) {
         if (typeof options == "function") {
           options = { visibilityChecker: options };
         }
-        var defaultOptions = { minScore: 20, minContentLength: 140, visibilityChecker: isNodeVisible };
+        var defaultOptions = {
+          minScore: 20,
+          minContentLength: 140,
+          visibilityChecker: isNodeVisible
+        };
         options = Object.assign(defaultOptions, options);
         var nodes = doc.querySelectorAll("p, pre, article");
         var brNodes = doc.querySelectorAll("div > br");
@@ -1885,6 +2102,772 @@
 
   // SelectionToMarkdownContextMenu.user.src.js
   var import_readability = __toESM(require_readability());
+
+  // lib/turndown.browser.es.js
+  function extend(destination) {
+    for (var i = 1; i < arguments.length; i++) {
+      var source = arguments[i];
+      for (var key in source) {
+        if (source.hasOwnProperty(key))
+          destination[key] = source[key];
+      }
+    }
+    return destination;
+  }
+  function repeat(character, count) {
+    return Array(count + 1).join(character);
+  }
+  function trimLeadingNewlines(string) {
+    return string.replace(/^\n*/, "");
+  }
+  function trimTrailingNewlines(string) {
+    var indexEnd = string.length;
+    while (indexEnd > 0 && string[indexEnd - 1] === "\n")
+      indexEnd--;
+    return string.substring(0, indexEnd);
+  }
+  var blockElements = [
+    "ADDRESS",
+    "ARTICLE",
+    "ASIDE",
+    "AUDIO",
+    "BLOCKQUOTE",
+    "BODY",
+    "CANVAS",
+    "CENTER",
+    "DD",
+    "DIR",
+    "DIV",
+    "DL",
+    "DT",
+    "FIELDSET",
+    "FIGCAPTION",
+    "FIGURE",
+    "FOOTER",
+    "FORM",
+    "FRAMESET",
+    "H1",
+    "H2",
+    "H3",
+    "H4",
+    "H5",
+    "H6",
+    "HEADER",
+    "HGROUP",
+    "HR",
+    "HTML",
+    "ISINDEX",
+    "LI",
+    "MAIN",
+    "MENU",
+    "NAV",
+    "NOFRAMES",
+    "NOSCRIPT",
+    "OL",
+    "OUTPUT",
+    "P",
+    "PRE",
+    "SECTION",
+    "TABLE",
+    "TBODY",
+    "TD",
+    "TFOOT",
+    "TH",
+    "THEAD",
+    "TR",
+    "UL"
+  ];
+  function isBlock(node) {
+    return is(node, blockElements);
+  }
+  var voidElements = [
+    "AREA",
+    "BASE",
+    "BR",
+    "COL",
+    "COMMAND",
+    "EMBED",
+    "HR",
+    "IMG",
+    "INPUT",
+    "KEYGEN",
+    "LINK",
+    "META",
+    "PARAM",
+    "SOURCE",
+    "TRACK",
+    "WBR"
+  ];
+  function isVoid(node) {
+    return is(node, voidElements);
+  }
+  function hasVoid(node) {
+    return has(node, voidElements);
+  }
+  var meaningfulWhenBlankElements = [
+    "A",
+    "TABLE",
+    "THEAD",
+    "TBODY",
+    "TFOOT",
+    "TH",
+    "TD",
+    "IFRAME",
+    "SCRIPT",
+    "AUDIO",
+    "VIDEO"
+  ];
+  function isMeaningfulWhenBlank(node) {
+    return is(node, meaningfulWhenBlankElements);
+  }
+  function hasMeaningfulWhenBlank(node) {
+    return has(node, meaningfulWhenBlankElements);
+  }
+  function is(node, tagNames) {
+    return tagNames.indexOf(node.nodeName) >= 0;
+  }
+  function has(node, tagNames) {
+    return node.getElementsByTagName && tagNames.some(function(tagName) {
+      return node.getElementsByTagName(tagName).length;
+    });
+  }
+  var rules = {};
+  rules.paragraph = {
+    filter: "p",
+    replacement: function(content) {
+      return "\n\n" + content + "\n\n";
+    }
+  };
+  rules.lineBreak = {
+    filter: "br",
+    replacement: function(content, node, options) {
+      return options.br + "\n";
+    }
+  };
+  rules.heading = {
+    filter: ["h1", "h2", "h3", "h4", "h5", "h6"],
+    replacement: function(content, node, options) {
+      var hLevel = Number(node.nodeName.charAt(1));
+      if (options.headingStyle === "setext" && hLevel < 3) {
+        var underline = repeat(hLevel === 1 ? "=" : "-", content.length);
+        return "\n\n" + content + "\n" + underline + "\n\n";
+      } else {
+        return "\n\n" + repeat("#", hLevel) + " " + content + "\n\n";
+      }
+    }
+  };
+  rules.blockquote = {
+    filter: "blockquote",
+    replacement: function(content) {
+      content = content.replace(/^\n+|\n+$/g, "");
+      content = content.replace(/^/gm, "> ");
+      return "\n\n" + content + "\n\n";
+    }
+  };
+  rules.list = {
+    filter: ["ul", "ol"],
+    replacement: function(content, node) {
+      var parent = node.parentNode;
+      if (parent.nodeName === "LI" && parent.lastElementChild === node) {
+        return "\n" + content;
+      } else {
+        return "\n\n" + content + "\n\n";
+      }
+    }
+  };
+  rules.listItem = {
+    filter: "li",
+    replacement: function(content, node, options) {
+      content = content.replace(/^\n+/, "").replace(/\n+$/, "\n").replace(/\n/gm, "\n    ");
+      var prefix = options.bulletListMarker + "   ";
+      var parent = node.parentNode;
+      if (parent.nodeName === "OL") {
+        var start = parent.getAttribute("start");
+        var index = Array.prototype.indexOf.call(parent.children, node);
+        prefix = (start ? Number(start) + index : index + 1) + ".  ";
+      }
+      return prefix + content + (node.nextSibling && !/\n$/.test(content) ? "\n" : "");
+    }
+  };
+  rules.indentedCodeBlock = {
+    filter: function(node, options) {
+      return options.codeBlockStyle === "indented" && node.nodeName === "PRE" && node.firstChild && node.firstChild.nodeName === "CODE";
+    },
+    replacement: function(content, node, options) {
+      return "\n\n    " + node.firstChild.textContent.replace(/\n/g, "\n    ") + "\n\n";
+    }
+  };
+  rules.fencedCodeBlock = {
+    filter: function(node, options) {
+      return options.codeBlockStyle === "fenced" && node.nodeName === "PRE" && node.firstChild && node.firstChild.nodeName === "CODE";
+    },
+    replacement: function(content, node, options) {
+      var className = node.firstChild.getAttribute("class") || "";
+      var language = (className.match(/language-(\S+)/) || [null, ""])[1];
+      var code = node.firstChild.textContent;
+      var fenceChar = options.fence.charAt(0);
+      var fenceSize = 3;
+      var fenceInCodeRegex = new RegExp("^" + fenceChar + "{3,}", "gm");
+      var match;
+      while (match = fenceInCodeRegex.exec(code)) {
+        if (match[0].length >= fenceSize) {
+          fenceSize = match[0].length + 1;
+        }
+      }
+      var fence = repeat(fenceChar, fenceSize);
+      return "\n\n" + fence + language + "\n" + code.replace(/\n$/, "") + "\n" + fence + "\n\n";
+    }
+  };
+  rules.horizontalRule = {
+    filter: "hr",
+    replacement: function(content, node, options) {
+      return "\n\n" + options.hr + "\n\n";
+    }
+  };
+  rules.inlineLink = {
+    filter: function(node, options) {
+      return options.linkStyle === "inlined" && node.nodeName === "A" && node.getAttribute("href");
+    },
+    replacement: function(content, node) {
+      var href = node.getAttribute("href");
+      if (href)
+        href = href.replace(/([()])/g, "\\$1");
+      var title = cleanAttribute(node.getAttribute("title"));
+      if (title)
+        title = ' "' + title.replace(/"/g, '\\"') + '"';
+      return "[" + content + "](" + href + title + ")";
+    }
+  };
+  rules.referenceLink = {
+    filter: function(node, options) {
+      return options.linkStyle === "referenced" && node.nodeName === "A" && node.getAttribute("href");
+    },
+    replacement: function(content, node, options) {
+      var href = node.getAttribute("href");
+      var title = cleanAttribute(node.getAttribute("title"));
+      if (title)
+        title = ' "' + title + '"';
+      var replacement;
+      var reference;
+      switch (options.linkReferenceStyle) {
+        case "collapsed":
+          replacement = "[" + content + "][]";
+          reference = "[" + content + "]: " + href + title;
+          break;
+        case "shortcut":
+          replacement = "[" + content + "]";
+          reference = "[" + content + "]: " + href + title;
+          break;
+        default:
+          var id = this.references.length + 1;
+          replacement = "[" + content + "][" + id + "]";
+          reference = "[" + id + "]: " + href + title;
+      }
+      this.references.push(reference);
+      return replacement;
+    },
+    references: [],
+    append: function(options) {
+      var references = "";
+      if (this.references.length) {
+        references = "\n\n" + this.references.join("\n") + "\n\n";
+        this.references = [];
+      }
+      return references;
+    }
+  };
+  rules.emphasis = {
+    filter: ["em", "i"],
+    replacement: function(content, node, options) {
+      if (!content.trim())
+        return "";
+      return options.emDelimiter + content + options.emDelimiter;
+    }
+  };
+  rules.strong = {
+    filter: ["strong", "b"],
+    replacement: function(content, node, options) {
+      if (!content.trim())
+        return "";
+      return options.strongDelimiter + content + options.strongDelimiter;
+    }
+  };
+  rules.code = {
+    filter: function(node) {
+      var hasSiblings = node.previousSibling || node.nextSibling;
+      var isCodeBlock = node.parentNode.nodeName === "PRE" && !hasSiblings;
+      return node.nodeName === "CODE" && !isCodeBlock;
+    },
+    replacement: function(content) {
+      if (!content)
+        return "";
+      content = content.replace(/\r?\n|\r/g, " ");
+      var extraSpace = /^`|^ .*?[^ ].* $|`$/.test(content) ? " " : "";
+      var delimiter = "`";
+      var matches = content.match(/`+/gm) || [];
+      while (matches.indexOf(delimiter) !== -1)
+        delimiter = delimiter + "`";
+      return delimiter + extraSpace + content + extraSpace + delimiter;
+    }
+  };
+  rules.image = {
+    filter: "img",
+    replacement: function(content, node) {
+      var alt = cleanAttribute(node.getAttribute("alt"));
+      var src = node.getAttribute("src") || "";
+      var title = cleanAttribute(node.getAttribute("title"));
+      var titlePart = title ? ' "' + title + '"' : "";
+      return src ? "![" + alt + "](" + src + titlePart + ")" : "";
+    }
+  };
+  function cleanAttribute(attribute) {
+    return attribute ? attribute.replace(/(\n+\s*)+/g, "\n") : "";
+  }
+  function Rules(options) {
+    this.options = options;
+    this._keep = [];
+    this._remove = [];
+    this.blankRule = {
+      replacement: options.blankReplacement
+    };
+    this.keepReplacement = options.keepReplacement;
+    this.defaultRule = {
+      replacement: options.defaultReplacement
+    };
+    this.array = [];
+    for (var key in options.rules)
+      this.array.push(options.rules[key]);
+  }
+  Rules.prototype = {
+    add: function(key, rule) {
+      this.array.unshift(rule);
+    },
+    keep: function(filter) {
+      this._keep.unshift({
+        filter,
+        replacement: this.keepReplacement
+      });
+    },
+    remove: function(filter) {
+      this._remove.unshift({
+        filter,
+        replacement: function() {
+          return "";
+        }
+      });
+    },
+    forNode: function(node) {
+      if (node.isBlank)
+        return this.blankRule;
+      var rule;
+      if (rule = findRule(this.array, node, this.options))
+        return rule;
+      if (rule = findRule(this._keep, node, this.options))
+        return rule;
+      if (rule = findRule(this._remove, node, this.options))
+        return rule;
+      return this.defaultRule;
+    },
+    forEach: function(fn) {
+      for (var i = 0; i < this.array.length; i++)
+        fn(this.array[i], i);
+    }
+  };
+  function findRule(rules2, node, options) {
+    for (var i = 0; i < rules2.length; i++) {
+      var rule = rules2[i];
+      if (filterValue(rule, node, options))
+        return rule;
+    }
+    return void 0;
+  }
+  function filterValue(rule, node, options) {
+    var filter = rule.filter;
+    if (typeof filter === "string") {
+      if (filter === node.nodeName.toLowerCase())
+        return true;
+    } else if (Array.isArray(filter)) {
+      if (filter.indexOf(node.nodeName.toLowerCase()) > -1)
+        return true;
+    } else if (typeof filter === "function") {
+      if (filter.call(rule, node, options))
+        return true;
+    } else {
+      throw new TypeError("`filter` needs to be a string, array, or function");
+    }
+  }
+  function collapseWhitespace(options) {
+    var element = options.element;
+    var isBlock2 = options.isBlock;
+    var isVoid2 = options.isVoid;
+    var isPre = options.isPre || function(node2) {
+      return node2.nodeName === "PRE";
+    };
+    if (!element.firstChild || isPre(element))
+      return;
+    var prevText = null;
+    var keepLeadingWs = false;
+    var prev = null;
+    var node = next(prev, element, isPre);
+    while (node !== element) {
+      if (node.nodeType === 3 || node.nodeType === 4) {
+        var text = node.data.replace(/[ \r\n\t]+/g, " ");
+        if ((!prevText || / $/.test(prevText.data)) && !keepLeadingWs && text[0] === " ") {
+          text = text.substr(1);
+        }
+        if (!text) {
+          node = remove(node);
+          continue;
+        }
+        node.data = text;
+        prevText = node;
+      } else if (node.nodeType === 1) {
+        if (isBlock2(node) || node.nodeName === "BR") {
+          if (prevText) {
+            prevText.data = prevText.data.replace(/ $/, "");
+          }
+          prevText = null;
+          keepLeadingWs = false;
+        } else if (isVoid2(node) || isPre(node)) {
+          prevText = null;
+          keepLeadingWs = true;
+        } else if (prevText) {
+          keepLeadingWs = false;
+        }
+      } else {
+        node = remove(node);
+        continue;
+      }
+      var nextNode = next(prev, node, isPre);
+      prev = node;
+      node = nextNode;
+    }
+    if (prevText) {
+      prevText.data = prevText.data.replace(/ $/, "");
+      if (!prevText.data) {
+        remove(prevText);
+      }
+    }
+  }
+  function remove(node) {
+    var next2 = node.nextSibling || node.parentNode;
+    node.parentNode.removeChild(node);
+    return next2;
+  }
+  function next(prev, current, isPre) {
+    if (prev && prev.parentNode === current || isPre(current)) {
+      return current.nextSibling || current.parentNode;
+    }
+    return current.firstChild || current.nextSibling || current.parentNode;
+  }
+  var root = typeof window !== "undefined" ? window : {};
+  function canParseHTMLNatively() {
+    var Parser = root.DOMParser;
+    var canParse = false;
+    try {
+      if (new Parser().parseFromString("", "text/html")) {
+        canParse = true;
+      }
+    } catch (e) {
+    }
+    return canParse;
+  }
+  function createHTMLParser() {
+    var Parser = function() {
+    };
+    {
+      if (shouldUseActiveX()) {
+        Parser.prototype.parseFromString = function(string) {
+          var doc = new window.ActiveXObject("htmlfile");
+          doc.designMode = "on";
+          doc.open();
+          doc.write(string);
+          doc.close();
+          return doc;
+        };
+      } else {
+        Parser.prototype.parseFromString = function(string) {
+          var doc = document.implementation.createHTMLDocument("");
+          doc.open();
+          doc.write(string);
+          doc.close();
+          return doc;
+        };
+      }
+    }
+    return Parser;
+  }
+  function shouldUseActiveX() {
+    var useActiveX = false;
+    try {
+      document.implementation.createHTMLDocument("").open();
+    } catch (e) {
+      if (root.ActiveXObject)
+        useActiveX = true;
+    }
+    return useActiveX;
+  }
+  var HTMLParser = canParseHTMLNatively() ? root.DOMParser : createHTMLParser();
+  function RootNode(input, options) {
+    var root2;
+    if (typeof input === "string") {
+      var doc = htmlParser().parseFromString(
+        // DOM parsers arrange elements in the <head> and <body>.
+        // Wrapping in a custom element ensures elements are reliably arranged in
+        // a single element.
+        '<x-turndown id="turndown-root">' + input + "</x-turndown>",
+        "text/html"
+      );
+      root2 = doc.getElementById("turndown-root");
+    } else {
+      root2 = input.cloneNode(true);
+    }
+    collapseWhitespace({
+      element: root2,
+      isBlock,
+      isVoid,
+      isPre: options.preformattedCode ? isPreOrCode : null
+    });
+    return root2;
+  }
+  var _htmlParser;
+  function htmlParser() {
+    _htmlParser = _htmlParser || new HTMLParser();
+    return _htmlParser;
+  }
+  function isPreOrCode(node) {
+    return node.nodeName === "PRE" || node.nodeName === "CODE";
+  }
+  function Node(node, options) {
+    node.isBlock = isBlock(node);
+    node.isCode = node.nodeName === "CODE" || node.parentNode.isCode;
+    node.isBlank = isBlank(node);
+    node.flankingWhitespace = flankingWhitespace(node, options);
+    return node;
+  }
+  function isBlank(node) {
+    return !isVoid(node) && !isMeaningfulWhenBlank(node) && /^\s*$/i.test(node.textContent) && !hasVoid(node) && !hasMeaningfulWhenBlank(node);
+  }
+  function flankingWhitespace(node, options) {
+    if (node.isBlock || options.preformattedCode && node.isCode) {
+      return { leading: "", trailing: "" };
+    }
+    var edges = edgeWhitespace(node.textContent);
+    if (edges.leadingAscii && isFlankedByWhitespace("left", node, options)) {
+      edges.leading = edges.leadingNonAscii;
+    }
+    if (edges.trailingAscii && isFlankedByWhitespace("right", node, options)) {
+      edges.trailing = edges.trailingNonAscii;
+    }
+    return { leading: edges.leading, trailing: edges.trailing };
+  }
+  function edgeWhitespace(string) {
+    var m = string.match(/^(([ \t\r\n]*)(\s*))(?:(?=\S)[\s\S]*\S)?((\s*?)([ \t\r\n]*))$/);
+    return {
+      leading: m[1],
+      // whole string for whitespace-only strings
+      leadingAscii: m[2],
+      leadingNonAscii: m[3],
+      trailing: m[4],
+      // empty for whitespace-only strings
+      trailingNonAscii: m[5],
+      trailingAscii: m[6]
+    };
+  }
+  function isFlankedByWhitespace(side, node, options) {
+    var sibling;
+    var regExp;
+    var isFlanked;
+    if (side === "left") {
+      sibling = node.previousSibling;
+      regExp = / $/;
+    } else {
+      sibling = node.nextSibling;
+      regExp = /^ /;
+    }
+    if (sibling) {
+      if (sibling.nodeType === 3) {
+        isFlanked = regExp.test(sibling.nodeValue);
+      } else if (options.preformattedCode && sibling.nodeName === "CODE") {
+        isFlanked = false;
+      } else if (sibling.nodeType === 1 && !isBlock(sibling)) {
+        isFlanked = regExp.test(sibling.textContent);
+      }
+    }
+    return isFlanked;
+  }
+  var reduce = Array.prototype.reduce;
+  var escapes = [
+    [/\\/g, "\\\\"],
+    [/\*/g, "\\*"],
+    [/^-/g, "\\-"],
+    [/^\+ /g, "\\+ "],
+    [/^(=+)/g, "\\$1"],
+    [/^(#{1,6}) /g, "\\$1 "],
+    [/`/g, "\\`"],
+    [/^~~~/g, "\\~~~"],
+    [/\[/g, "\\["],
+    [/\]/g, "\\]"],
+    [/^>/g, "\\>"],
+    [/_/g, "\\_"],
+    [/^(\d+)\. /g, "$1\\. "]
+  ];
+  function TurndownService(options) {
+    if (!(this instanceof TurndownService))
+      return new TurndownService(options);
+    var defaults = {
+      rules,
+      headingStyle: "setext",
+      hr: "* * *",
+      bulletListMarker: "*",
+      codeBlockStyle: "indented",
+      fence: "```",
+      emDelimiter: "_",
+      strongDelimiter: "**",
+      linkStyle: "inlined",
+      linkReferenceStyle: "full",
+      br: "  ",
+      preformattedCode: false,
+      blankReplacement: function(content, node) {
+        return node.isBlock ? "\n\n" : "";
+      },
+      keepReplacement: function(content, node) {
+        return node.isBlock ? "\n\n" + node.outerHTML + "\n\n" : node.outerHTML;
+      },
+      defaultReplacement: function(content, node) {
+        return node.isBlock ? "\n\n" + content + "\n\n" : content;
+      }
+    };
+    this.options = extend({}, defaults, options);
+    this.rules = new Rules(this.options);
+  }
+  TurndownService.prototype = {
+    /**
+     * The entry point for converting a string or DOM node to Markdown
+     * @public
+     * @param {String|HTMLElement} input The string or DOM node to convert
+     * @returns A Markdown representation of the input
+     * @type String
+     */
+    turndown: function(input) {
+      if (!canConvert(input)) {
+        throw new TypeError(
+          input + " is not a string, or an element/document/fragment node."
+        );
+      }
+      if (input === "")
+        return "";
+      var output = process.call(this, new RootNode(input, this.options));
+      return postProcess.call(this, output);
+    },
+    /**
+     * Add one or more plugins
+     * @public
+     * @param {Function|Array} plugin The plugin or array of plugins to add
+     * @returns The Turndown instance for chaining
+     * @type Object
+     */
+    use: function(plugin) {
+      if (Array.isArray(plugin)) {
+        for (var i = 0; i < plugin.length; i++)
+          this.use(plugin[i]);
+      } else if (typeof plugin === "function") {
+        plugin(this);
+      } else {
+        throw new TypeError("plugin must be a Function or an Array of Functions");
+      }
+      return this;
+    },
+    /**
+     * Adds a rule
+     * @public
+     * @param {String} key The unique key of the rule
+     * @param {Object} rule The rule
+     * @returns The Turndown instance for chaining
+     * @type Object
+     */
+    addRule: function(key, rule) {
+      this.rules.add(key, rule);
+      return this;
+    },
+    /**
+     * Keep a node (as HTML) that matches the filter
+     * @public
+     * @param {String|Array|Function} filter The unique key of the rule
+     * @returns The Turndown instance for chaining
+     * @type Object
+     */
+    keep: function(filter) {
+      this.rules.keep(filter);
+      return this;
+    },
+    /**
+     * Remove a node that matches the filter
+     * @public
+     * @param {String|Array|Function} filter The unique key of the rule
+     * @returns The Turndown instance for chaining
+     * @type Object
+     */
+    remove: function(filter) {
+      this.rules.remove(filter);
+      return this;
+    },
+    /**
+     * Escapes Markdown syntax
+     * @public
+     * @param {String} string The string to escape
+     * @returns A string with Markdown syntax escaped
+     * @type String
+     */
+    escape: function(string) {
+      return escapes.reduce(function(accumulator, escape) {
+        return accumulator.replace(escape[0], escape[1]);
+      }, string);
+    }
+  };
+  function process(parentNode) {
+    var self = this;
+    return reduce.call(parentNode.childNodes, function(output, node) {
+      node = new Node(node, self.options);
+      var replacement = "";
+      if (node.nodeType === 3) {
+        replacement = node.isCode ? node.nodeValue : self.escape(node.nodeValue);
+      } else if (node.nodeType === 1) {
+        replacement = replacementForNode.call(self, node);
+      }
+      return join(output, replacement);
+    }, "");
+  }
+  function postProcess(output) {
+    var self = this;
+    this.rules.forEach(function(rule) {
+      if (typeof rule.append === "function") {
+        output = join(output, rule.append(self.options));
+      }
+    });
+    return output.replace(/^[\t\r\n]+/, "").replace(/[\t\r\n\s]+$/, "");
+  }
+  function replacementForNode(node) {
+    var rule = this.rules.forNode(node);
+    var content = process.call(this, node);
+    var whitespace = node.flankingWhitespace;
+    if (whitespace.leading || whitespace.trailing)
+      content = content.trim();
+    return whitespace.leading + rule.replacement(content, node, this.options) + whitespace.trailing;
+  }
+  function join(output, replacement) {
+    var s1 = trimTrailingNewlines(output);
+    var s2 = trimLeadingNewlines(replacement);
+    var nls = Math.max(output.length - s1.length, replacement.length - s2.length);
+    var separator = "\n\n".substring(0, nls);
+    return s1 + separator + s2;
+  }
+  function canConvert(input) {
+    return input != null && (typeof input === "string" || input.nodeType && (input.nodeType === 1 || input.nodeType === 9 || input.nodeType === 11));
+  }
+  var turndown_browser_es_default = TurndownService;
+
+  // SelectionToMarkdownContextMenu.user.src.js
   function getHTMLfromSelectorOrContent() {
     let selection = window.getSelection();
     let html2 = "";
@@ -1926,395 +2909,28 @@
     }
     return html2;
   }
-  var html2markdown = function(html2) {
-    let toMarkdown = function(e, n) {
-      return e();
-    }(function() {
-      return function e(n, t, r) {
-        function o(a2, c) {
-          if (!t[a2]) {
-            if (!n[a2]) {
-              var l = "function" == typeof __require && __require;
-              if (!c && l)
-                return l(a2, true);
-              if (i)
-                return i(a2, true);
-              var u = Error("Cannot find module '" + a2 + "'");
-              throw u.code = "MODULE_NOT_FOUND", u;
-            }
-            var f = t[a2] = { exports: {} };
-            n[a2][0].call(f.exports, function(e2) {
-              var t2;
-              return o(n[a2][1][e2] || e2);
-            }, f, f.exports, e, n, t, r);
-          }
-          return t[a2].exports;
-        }
-        for (var i = "function" == typeof __require && __require, a = 0; a < r.length; a++)
-          o(r[a]);
-        return o;
-      }({ 1: [function(e, n, t) {
-        "use strict";
-        var r, o, i = e("./lib/md-converters"), a = e("./lib/gfm-converters"), c = e("./lib/html-parser"), l = e("collapse-whitespace"), u = ["address", "article", "aside", "audio", "blockquote", "body", "canvas", "center", "dd", "dir", "div", "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "frameset", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "html", "isindex", "li", "main", "menu", "nav", "noframes", "noscript", "ol", "output", "p", "pre", "section", "table", "tbody", "td", "tfoot", "th", "thead", "tr", "ul"];
-        function f(e2) {
-          return -1 !== u.indexOf(e2.nodeName.toLowerCase());
-        }
-        var s = ["area", "base", "br", "col", "command", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"];
-        function d(e2) {
-          return -1 !== s.indexOf(e2.nodeName.toLowerCase());
-        }
-        function p(e2) {
-          for (var n2 = "", t2 = 0; t2 < e2.childNodes.length; t2++)
-            if (1 === e2.childNodes[t2].nodeType)
-              n2 += e2.childNodes[t2]._replacement;
-            else {
-              if (3 !== e2.childNodes[t2].nodeType)
-                continue;
-              n2 += e2.childNodes[t2].data;
-            }
-          return n2;
-        }
-        function m(e2, n2) {
-          if ("string" == typeof n2)
-            return n2 === e2.nodeName.toLowerCase();
-          if (Array.isArray(n2))
-            return -1 !== n2.indexOf(e2.nodeName.toLowerCase());
-          if ("function" == typeof n2)
-            return n2.call(r, e2);
-          throw TypeError("`filter` needs to be a string, array, or function");
-        }
-        function h(e2, n2) {
-          var t2, r2, o2;
-          return "left" === e2 ? (t2 = n2.previousSibling, r2 = / $/) : (t2 = n2.nextSibling, r2 = /^ /), t2 && (3 === t2.nodeType ? o2 = r2.test(t2.nodeValue) : 1 !== t2.nodeType || f(t2) || (o2 = r2.test(t2.textContent))), o2;
-        }
-        function g(e2) {
-          var n2 = "", t2 = "";
-          if (!f(e2)) {
-            var r2 = /^[ \r\n\t]/.test(e2.innerHTML), o2 = /[ \r\n\t]$/.test(e2.innerHTML);
-            r2 && !h("left", e2) && (n2 = " "), o2 && !h("right", e2) && (t2 = " ");
-          }
-          return { leading: n2, trailing: t2 };
-        }
-        function v(e2) {
-          var n2, t2 = p(e2);
-          if (!d(e2) && !/A|TH|TD/.test(e2.nodeName) && /^\s*$/i.test(t2)) {
-            e2._replacement = "";
-            return;
-          }
-          for (var i2 = 0; i2 < o.length; i2++) {
-            var a2 = o[i2];
-            if (m(e2, a2.filter)) {
-              if ("function" != typeof a2.replacement)
-                throw TypeError("`replacement` needs to be a function that returns a string");
-              var c2 = g(e2);
-              (c2.leading || c2.trailing) && (t2 = t2.trim()), n2 = c2.leading + a2.replacement.call(r, t2, e2) + c2.trailing;
-              break;
-            }
-          }
-          e2._replacement = n2;
-        }
-        (r = function(e2, n2) {
-          if (n2 = n2 || {}, "string" != typeof e2)
-            throw TypeError(e2 + " is not a string");
-          var t2, r2, u2, s2 = (t2 = e2 = e2.replace(/(>[\r\n\s]*)(\d+)\.(&nbsp;| )/g, "$1$2\\.$3"), r2 = new c().parseFromString(t2, "text/html"), l(r2.documentElement, f), r2).body, d2 = function e3(n3) {
-            for (var t3, r3, o2, i2 = [n3], a2 = []; i2.length > 0; )
-              for (a2.push(t3 = i2.shift()), r3 = t3.childNodes, o2 = 0; o2 < r3.length; o2++)
-                1 === r3[o2].nodeType && i2.push(r3[o2]);
-            return a2.shift(), a2;
-          }(s2);
-          o = i.slice(0), n2.gfm && (o = a.concat(o)), n2.converters && (o = n2.converters.concat(o));
-          for (var m2 = d2.length - 1; m2 >= 0; m2--)
-            v(d2[m2]);
-          return (u2 = p(s2)).replace(/^[\t\r\n]+|[\t\r\n\s]+$/g, "").replace(/\n\s+\n/g, "\n\n").replace(/\n{3,}/g, "\n\n");
-        }).isBlock = f, r.isVoid = d, r.outer = function e2(n2, t2) {
-          return n2.cloneNode(false).outerHTML.replace("><", ">" + t2 + "<");
-        }, n.exports = r;
-      }, { "./lib/gfm-converters": 2, "./lib/html-parser": 3, "./lib/md-converters": 4, "collapse-whitespace": 7 }], 2: [function(e, n, t) {
-        "use strict";
-        function r(e2, n2) {
-          var t2 = Array.prototype.indexOf.call(n2.parentNode.childNodes, n2), r2 = " ";
-          return 0 === t2 && (r2 = "| "), r2 + e2 + " |";
-        }
-        var o = /highlight highlight-(\S+)/;
-        n.exports = [{ filter: "br", replacement: function() {
-          return "\n";
-        } }, { filter: ["del", "s", "strike"], replacement: function(e2) {
-          return "~~" + e2 + "~~";
-        } }, { filter: function(e2) {
-          return "checkbox" === e2.type && "LI" === e2.parentNode.nodeName;
-        }, replacement: function(e2, n2) {
-          return (n2.checked ? "[x]" : "[ ]") + " ";
-        } }, { filter: ["th", "td"], replacement: function(e2, n2) {
-          return r(e2, n2);
-        } }, { filter: "tr", replacement: function(e2, n2) {
-          var t2 = "", o2 = { left: ":--", right: "--:", center: ":-:" };
-          if ("THEAD" === n2.parentNode.nodeName)
-            for (var i = 0; i < n2.childNodes.length; i++) {
-              var a = n2.childNodes[i].attributes.align, c = "---";
-              a && (c = o2[a.value] || c), t2 += r(c, n2.childNodes[i]);
-            }
-          return "\n" + e2 + (t2 ? "\n" + t2 : "");
-        } }, { filter: "table", replacement: function(e2) {
-          return "\n\n" + e2 + "\n\n";
-        } }, { filter: ["thead", "tbody", "tfoot"], replacement: function(e2) {
-          return e2;
-        } }, { filter: function(e2) {
-          return "PRE" === e2.nodeName && e2.firstChild && "CODE" === e2.firstChild.nodeName;
-        }, replacement: function(e2, n2) {
-          return "\n\n```\n" + n2.firstChild.textContent.trim() + "\n```\n\n";
-        } }, { filter: function(e2) {
-          return "PRE" === e2.nodeName && "DIV" === e2.parentNode.nodeName && o.test(e2.parentNode.className);
-        }, replacement: function(e2, n2) {
-          return "\n\n```" + n2.parentNode.className.match(o)[1] + "\n" + n2.textContent + "\n```\n\n";
-        } }, { filter: function(e2) {
-          return "DIV" === e2.nodeName && o.test(e2.className);
-        }, replacement: function(e2) {
-          return "\n\n" + e2 + "\n\n";
-        } }];
-      }, {}], 3: [function(e, n, t) {
-        var r = "undefined" != typeof window ? window : this;
-        n.exports = !function e2() {
-          var n2 = r.DOMParser, t2 = false;
-          try {
-            new n2().parseFromString("", "text/html") && (t2 = true);
-          } catch (o) {
-          }
-          return t2;
-        }() ? function n2() {
-          var t2 = function() {
-          };
-          if ("undefined" == typeof document) {
-            var r2 = e("jsdom");
-            t2.prototype.parseFromString = function(e2) {
-              return r2.jsdom(e2, { features: { FetchExternalResources: [], ProcessExternalResources: false } });
-            };
-          } else
-            !function e2() {
-              var n3 = false;
-              try {
-                document.implementation.createHTMLDocument("").open();
-              } catch (t3) {
-                window.ActiveXObject && (n3 = true);
-              }
-              return n3;
-            }() ? t2.prototype.parseFromString = function(e2) {
-              var n3 = document.implementation.createHTMLDocument("");
-              return n3.open(), n3.write(e2), n3.close(), n3;
-            } : t2.prototype.parseFromString = function(e2) {
-              var n3 = new window.ActiveXObject("htmlfile");
-              return n3.designMode = "on", n3.open(), n3.write(e2), n3.close(), n3;
-            };
-          return t2;
-        }() : r.DOMParser;
-      }, { jsdom: 6 }], 4: [function(e, n, t) {
-        "use strict";
-        n.exports = [{ filter: "p", replacement: function(e2) {
-          return "\n\n" + e2 + "\n\n";
-        } }, { filter: "br", replacement: function() {
-          return "  \n";
-        } }, { filter: ["h1", "h2", "h3", "h4", "h5", "h6"], replacement: function(e2, n2) {
-          for (var t2 = n2.nodeName.charAt(1), r = "", o = 0; o < t2; o++)
-            r += "#";
-          return "\n\n" + r + " " + e2 + "\n\n";
-        } }, { filter: "hr", replacement: function() {
-          return "\n\n* * *\n\n";
-        } }, { filter: ["em", "i"], replacement: function(e2) {
-          return "_" + e2 + "_";
-        } }, { filter: ["strong", "b"], replacement: function(e2) {
-          return "**" + e2 + "**";
-        } }, { filter: function(e2) {
-          var n2 = e2.previousSibling || e2.nextSibling, t2 = "PRE" === e2.parentNode.nodeName && !n2;
-          return "CODE" === e2.nodeName && !t2;
-        }, replacement: function(e2) {
-          return "`" + e2 + "`";
-        } }, { filter: function(e2) {
-          return "A" === e2.nodeName && e2.getAttribute("href");
-        }, replacement: function(e2, n2) {
-          var t2 = n2.title ? ' "' + n2.title + '"' : "";
-          return "[" + e2 + "](" + n2.getAttribute("href") + t2 + ")";
-        } }, { filter: "img", replacement: function(e2, n2) {
-          var t2 = n2.alt || "image", r = n2.getAttribute("src") || "", o = n2.title || "";
-          return r ? "![" + t2 + "](" + r + (o ? ' "' + o + '"' : "") + ")" : "";
-        } }, { filter: function(e2) {
-          return "PRE" === e2.nodeName && "CODE" === e2.firstChild.nodeName;
-        }, replacement: function(e2, n2) {
-          return "\n\n    " + n2.firstChild.textContent.replace(/\n/g, "\n    ") + "\n\n";
-        } }, { filter: "blockquote", replacement: function(e2) {
-          return "\n\n" + (e2 = (e2 = (e2 = e2.trim()).replace(/\n{3,}/g, "\n\n")).replace(/^/gm, "> ")) + "\n\n";
-        } }, { filter: "li", replacement: function(e2, n2) {
-          e2 = e2.replace(/^\s+/, "").replace(/\n/gm, "\n    ");
-          var t2 = "*   ", r = n2.parentNode, o = Array.prototype.indexOf.call(r.children, n2) + 1;
-          return (t2 = /ol/i.test(r.nodeName) ? o + ".  " : "*   ") + e2;
-        } }, { filter: ["ul", "ol"], replacement: function(e2, n2) {
-          for (var t2 = [], r = 0; r < n2.childNodes.length; r++)
-            t2.push(n2.childNodes[r]._replacement);
-          return /li/i.test(n2.parentNode.nodeName) ? "\n" + t2.join("\n") : "\n\n" + t2.join("\n") + "\n\n";
-        } }, { filter: function(e2) {
-          return this.isBlock(e2);
-        }, replacement: function(e2, n2) {
-          return "\n\n" + e2 + "\n\n";
-        } }, { filter: function() {
-          return true;
-        }, replacement: function(e2, n2) {
-          return e2;
-        } }];
-      }, {}], 5: [function(e, n, t) {
-        n.exports = ["address", "article", "aside", "audio", "blockquote", "canvas", "dd", "div", "dl", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main", "nav", "noscript", "ol", "output", "p", "pre", "section", "table", "tfoot", "ul", "video"];
-      }, {}], 6: [function(e, n, t) {
-      }, {}], 7: [function(e, n, t) {
-        "use strict";
-        var r = e("void-elements");
-        Object.keys(r).forEach(function(e2) {
-          r[e2.toUpperCase()] = 1;
-        });
-        var o = {};
-        function i(e2) {
-          return !!(e2 && o[e2.nodeName]);
-        }
-        function a(e2) {
-          return !!(e2 && r[e2.nodeName]);
-        }
-        function c(e2) {
-          var n2 = e2.nextSibling || e2.parentNode;
-          return e2.parentNode.removeChild(e2), n2;
-        }
-        function l(e2, n2) {
-          return e2 && e2.parentNode === n2 || "PRE" === n2.nodeName ? n2.nextSibling || n2.parentNode : n2.firstChild || n2.nextSibling || n2.parentNode;
-        }
-        e("block-elements").forEach(function(e2) {
-          o[e2.toUpperCase()] = 1;
-        }), n.exports = function e2(n2, t2) {
-          if (n2.firstChild && "PRE" !== n2.nodeName) {
-            "function" != typeof t2 && (t2 = i);
-            for (var r2 = null, o2 = false, u = null, f = l(u, n2); f !== n2; ) {
-              if (3 === f.nodeType) {
-                var s = f.data.replace(/[ \r\n\t]+/g, " ");
-                if ((!r2 || / $/.test(r2.data)) && !o2 && " " === s[0] && (s = s.substr(1)), !s) {
-                  f = c(f);
-                  continue;
-                }
-                f.data = s, r2 = f;
-              } else if (1 === f.nodeType)
-                t2(f) || "BR" === f.nodeName ? (r2 && (r2.data = r2.data.replace(/ $/, "")), r2 = null, o2 = false) : a(f) && (r2 = null, o2 = true);
-              else {
-                f = c(f);
-                continue;
-              }
-              var d = l(u, f);
-              u = f, f = d;
-            }
-            r2 && (r2.data = r2.data.replace(/ $/, ""), r2.data || c(r2));
-          }
-        };
-      }, { "block-elements": 5, "void-elements": 8 }], 8: [function(e, n, t) {
-        n.exports = { area: true, base: true, br: true, col: true, embed: true, hr: true, img: true, input: true, keygen: true, link: true, menuitem: true, meta: true, param: true, source: true, track: true, wbr: true };
-      }, {}] }, {}, [1])(1);
-    });
-    let isHTML = function(str) {
-      var doc = new DOMParser().parseFromString(str, "text/html");
-      return Array.from(doc.body.childNodes).some((node) => node.nodeType === 1);
-    };
-    let escape = function(str) {
-      return str.replace(/[\u2018\u2019\u00b4]/g, "'").replace(/[\u201c\u201d\u2033]/g, '"').replace(/[\u2212\u2022\u00b7\u25aa]/g, "-").replace(/[\u2013\u2015]/g, "--").replace(/\u2014/g, "---").replace(/\u2026/g, "...").replace(/[ ]+\n/g, "\n").replace(/\s*\\\n/g, "\\\n").replace(/\s*\\\n\s*\\\n/g, "\n\n").replace(/\s*\\\n\n/g, "\n\n").replace(/\n-\n/g, "\n").replace(/\n\n\s*\\\n/g, "\n\n").replace(/\n\n\n*/g, "\n\n").replace(/[ ]+$/gm, "").replace(/^\s+|[\s\\]+$/g, "").replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, " ").replace(/[\u200B\uFEFF]/g, "");
-    };
-    let pandoc = [
-      {
-        filter: "h1",
-        replacement: function(content, node) {
-          return "# " + content + "\n\n";
-        }
-      },
-      {
-        filter: "h2",
-        replacement: function(content, node) {
-          return "## " + content + "\n\n";
-        }
-      },
-      {
-        filter: "sup",
-        replacement: function(content) {
-          return "^" + content + "^";
-        }
-      },
-      {
-        filter: "sub",
-        replacement: function(content) {
-          return "~" + content + "~";
-        }
-      },
-      {
-        filter: "br",
-        replacement: function() {
-          return "\\\n";
-        }
-      },
-      {
-        filter: "hr",
-        replacement: function() {
-          return "\n\n***\n\n";
-        }
-      },
-      {
-        filter: ["em", "i", "cite", "var"],
-        replacement: function(content) {
-          return "*" + content + "*";
-        }
-      },
-      {
-        filter: function(node) {
-          var hasSiblings = node.previousSibling || node.nextSibling;
-          var isCodeBlock = node.parentNode.nodeName === "PRE" && !hasSiblings;
-          var isCodeElem = node.nodeName === "CODE" || node.nodeName === "KBD" || node.nodeName === "SAMP" || node.nodeName === "TT";
-          return isCodeElem && !isCodeBlock;
-        },
-        replacement: function(content) {
-          return "`" + content + "`";
-        }
-      },
-      {
-        filter: function(node) {
-          return node.nodeName === "A" && node.getAttribute("href");
-        },
-        replacement: function(content, node) {
-          var url = node.getAttribute("href");
-          var titlePart = node.title ? ' "' + node.title + '"' : "";
-          if (content === "") {
-            return "";
-          } else if (content === url) {
-            return "<" + url + ">";
-          } else if (url === "mailto:" + content) {
-            return "<" + content + ">";
-          } else {
-            return "[" + content + "](" + url + titlePart + ")";
-          }
-        }
-      },
-      {
-        filter: "li",
-        replacement: function(content, node) {
-          content = content.replace(/^\s+/, "").replace(/\n/gm, "\n  ");
-          var prefix = "- ";
-          var parent = node.parentNode;
-          var index = Array.prototype.indexOf.call(parent.children, node) + 1;
-          prefix = parent.nodeName === "OL" ? index + ".  " : "- ";
-          return (parent.nodeName === "BODY" ? "\n" : "") + prefix + content;
-        }
-      }
-    ];
-    let markdown = html2;
-    if (isHTML(html2)) {
-      markdown = toMarkdown(html2, { converters: pandoc, gfm: true });
-    }
-    return escape(markdown);
-  };
   var html = getHTMLfromSelectorOrContent();
   if (!!html) {
-    markdown = html2markdown(html);
+    turndownService = new turndown_browser_es_default({
+      headingStyle: "atx",
+      hr: "- - -",
+      bulletListMarker: "-",
+      codeBlockStyle: "fenced",
+      fence: "```",
+      emDelimiter: "_",
+      strongDelimiter: "**",
+      linkStyle: "inlined",
+      linkReferenceStyle: "full",
+      br: "  ",
+      preformattedCode: false
+    });
+    markdown = turndownService.turndown(html);
     if (!!markdown) {
       GM_setClipboard(markdown, "text");
     } else {
       alert("\u7121\u6CD5\u5C07\u9078\u53D6\u7BC4\u570D\u7684 HTML \u8F49\u6210 Markdown \u683C\u5F0F");
     }
   }
+  var turndownService;
   var markdown;
 })();
