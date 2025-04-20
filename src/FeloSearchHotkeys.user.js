@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Felo Search: 好用的鍵盤快速鍵集合
-// @version      0.13.2
+// @version      0.14.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄、按下 j 與 k 快速切換搜尋結果頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -12,7 +12,7 @@
 // @match        https://felo.ai/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=felo.ai
 // @require      https://doggy8088.github.io/playwright-js/src/playwright.js
-// @grant        none
+// @grant        GM_log
 // ==/UserScript==
 
 (async function () {
@@ -122,11 +122,13 @@
         }
 
         // 按下 Ctrl+Delete 或 Command+Delete 快速刪除 Felo Search 聊天記錄
-        if (isCtrlOrMetaKeyPressed(event) && event.key === 'Delete') {
+        if (isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 'Delete') {
             // 如果是輸入欄位，就不要觸發
-            if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') {
+            if (isInInputMode(event.target) && !!event.target.textContent && !confirm('是否要刪除本篇聊天記錄？')) {
                 return;
             }
+
+            GM_log('正在刪除討論串: ' + window.location.pathname);
 
             await (await window.page.getByRole('button', undefined, document.querySelector('header')).last()).press('Enter');
             await window.page.getByRole('menuitem', { name: ['刪除討論串', '删除帖子', '投稿を削除', 'Delete Thread'] }).click();
