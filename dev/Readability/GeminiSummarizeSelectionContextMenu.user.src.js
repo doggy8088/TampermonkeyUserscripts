@@ -5,7 +5,7 @@ import {
 
 function getHTMLfromSelectorOrContent() {
 
-    let selection = window.getSelection();
+    let selection = document.getSelection();
     let html = '';
 
     let container = document.createElement('div');
