@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         按下多次 Ctrl-C 就會自動複製網址
-// @version      0.12.0
+// @version      0.13.0
 // @description  按下多次 Ctrl-C 就會自動複製網址，為了方便自行實作複製網址的邏輯。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -10,6 +10,7 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/CtrlCCtrlCCopyURL.user.js
 // @author       Will Huang
 // @match        *://*/*
+// @grant        GM_setClipboard
 // ==/UserScript==
 
 (async function () {
@@ -85,13 +86,9 @@
                 url = await sanitizeGitHubUrl(url);
             }
 
-            navigator.clipboard.writeText(url)
-                .then(() => {
-                    console.log('URL copied to clipboard:', url);
-                })
-                .catch((error) => {
-                    console.error('Failed to copy URL to clipboard:', error);
-                });
+            // 使用 Tampermonkey 內建 剪貼簿 函式
+            GM_setClipboard(url);
+            console.log('URL 已複製到剪貼簿:', url);
 
             event.preventDefault();
         }
@@ -123,6 +120,7 @@
 
         // get path info and separate to various meaningful parts
         const urlParts = url.split('/');
+        console.log('urlParts', urlParts);
         const user = urlParts[3];
         const repo = urlParts[4];
         const type = urlParts[5];
