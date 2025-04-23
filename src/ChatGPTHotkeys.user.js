@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.9.0
+// @version      0.10.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -61,16 +61,41 @@
 
         // 按下 Ctrl+B 快速切換側邊欄
         if (isCtrlOrMetaKeyPressed(event) && !event.altKey && event.key === 'b') {
-            document.querySelector('[data-testid="close-sidebar-button"]')?.click();
+            let firstButton = document.querySelectorAll('button')[0];
+            if (!firstButton) return;
+
+            if (firstButton.parentElement.dataset['state'] === 'closed') {
+                firstButton.click();
+                return;
+            }
+
+            if (firstButton.dataset['testid'] === 'open-sidebar-button') {
+                firstButton.click();
+                return;
+
+            }
+
+            let sidebarButton = document.querySelector('button[data-testid="sidebar-button"]');
+            if (sidebarButton) {
+                sidebarButton.click();
+                return;
+            }
         }
 
-        // 按下 Alt + S 快速切換搜尋功能
+        // 按下 Alt + S 快速切換 搜尋 / 深入研究 / 預設 功能
         if (!isCtrlOrMetaKeyPressed(event) && event.altKey && event.key === 's') {
-            const searchButton =
-                document.querySelector('button[aria-label="Search"]')
-                || document.querySelector('button[aria-label="搜尋"]')
-                || document.querySelector('button[aria-label="検索"]')
-            searchButton?.click();
+            const searchButton = document.querySelector('button[data-testid="composer-button-search"]');
+            const deepResearchButton = document.querySelector('button[data-testid="composer-button-deep-research"]');
+            if (searchButton.ariaPressed === 'false' && deepResearchButton.ariaPressed === 'false') {
+                searchButton.click();
+            }
+            if (searchButton.ariaPressed === 'true' && deepResearchButton.ariaPressed === 'false') {
+                deepResearchButton.click();
+            }
+            if (searchButton.ariaPressed === 'false' && deepResearchButton.ariaPressed === 'true') {
+                deepResearchButton.click();
+            }
+            return;
         }
 
         // 按下 Alt + 1 ~ 4 快速切換檢視工具
