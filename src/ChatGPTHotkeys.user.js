@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.11.0
+// @version      0.11.1
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -91,14 +91,18 @@
     async function handleAltS(event) {
         const searchButton = document.querySelector('button[data-testid="composer-button-search"]');
         const deepResearchButton = document.querySelector('button[data-testid="composer-button-deep-research"]');
-        if (searchButton.ariaPressed === 'false' && deepResearchButton.ariaPressed === 'false') {
+        const createImageButton = document.querySelector('button[data-testid="composer-button-create-image"]');
+        if (searchButton.ariaPressed === 'false' && deepResearchButton.ariaPressed === 'false' && createImageButton.ariaPressed === 'false') {
             searchButton.click();
         }
-        if (searchButton.ariaPressed === 'true' && deepResearchButton.ariaPressed === 'false') {
+        if (searchButton.ariaPressed === 'true' && deepResearchButton.ariaPressed === 'false' && createImageButton.ariaPressed === 'false') {
             deepResearchButton.click();
         }
-        if (searchButton.ariaPressed === 'false' && deepResearchButton.ariaPressed === 'true') {
-            deepResearchButton.click();
+        if (searchButton.ariaPressed === 'false' && deepResearchButton.ariaPressed === 'true' && createImageButton.ariaPressed === 'false') {
+            createImageButton.click();
+        }
+        if (searchButton.ariaPressed === 'false' && deepResearchButton.ariaPressed === 'false' && createImageButton.ariaPressed === 'true') {
+            createImageButton.click();
         }
     }
 
