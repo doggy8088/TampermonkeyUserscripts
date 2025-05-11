@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ReadingMode: 讓網頁更容易閱讀與翻譯的工具
-// @version      0.5.0
-// @description  按下 f 鍵可讓網頁僅顯示 main 元素的內容，再按一次 f 或按下 Esc 恢復原狀
+// @version      0.6.0
+// @description  按下 ctrl-alt-shift-f 鍵可讓網頁僅顯示 main 元素的內容，按下 Esc 恢復原狀
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -19,6 +19,7 @@
 // @exclude      https://www.facebook.com/*
 // @exclude      https://www.youtube.com/*
 // @exclude      https://studio.youtube.com/*
+// @exclude      https://remotedesktop.google.com/*
 // ==/UserScript==
 
 (function () {
@@ -27,9 +28,9 @@
     let bodyStyle = null;
 
     document.addEventListener('keydown', e => {
-        if (isInInputMode(e.target) || e.altKey || e.metaKey || e.ctrlKey || e.shiftKey) return;
+        if (isInInputMode(e.target)) return;
 
-        if (e.key === 'f' || e.key === 'F' || (isReading && e.key === 'Escape')) {
+        if ((e.altKey && (e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) || (isReading && e.key === 'Escape')) {
             // console.log('isReading: ', isReading)
             if (!isReading) {
                 // 第一次按下快速鍵時才建立暫存容器
