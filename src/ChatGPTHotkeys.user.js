@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.12.1
+// @version      0.13.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -68,22 +68,37 @@
     }
 
     function handleCtrlToggleSidebar(event) {
-        let firstButton = document.querySelectorAll('button')[0];
-        if (!firstButton) return;
-
-        if (firstButton.parentElement.dataset['state'] === 'closed') {
-            firstButton.click();
+        // Check for close sidebar button first (when sidebar is open)
+        const closeSidebarButton = document.querySelector('button[data-testid="close-sidebar-button"]');
+        if (closeSidebarButton) {
+            console.log('Clicking close sidebar button');
+            simulateMouseClick(closeSidebarButton);
             return;
         }
 
-        if (firstButton.dataset['testid'] === 'open-sidebar-button') {
-            firstButton.click();
+        // Check for open sidebar button (in mobile view)
+        const openSidebarButton = document.querySelector('button[data-testid="open-sidebar-button"]');
+        if (openSidebarButton) {
+            console.log('Clicking open sidebar button');
+            simulateMouseClick(openSidebarButton);
             return;
         }
 
-        let sidebarButton = document.querySelector('button[data-testid="sidebar-button"]');
+        // Check for the first button (fallback for desktop view)
+        const firstButton = document.querySelectorAll('button')[0];
+        if (firstButton) {
+            if (firstButton.parentElement && firstButton.parentElement.dataset['state'] === 'closed') {
+                console.log('Clicking first button (state closed)');
+                simulateMouseClick(firstButton);
+                return;
+            }
+        }
+
+        // Final fallback to original sidebar button
+        const sidebarButton = document.querySelector('button[data-testid="sidebar-button"]');
         if (sidebarButton) {
-            sidebarButton.click();
+            console.log('Clicking sidebar button');
+            simulateMouseClick(sidebarButton);
             return;
         }
     }
