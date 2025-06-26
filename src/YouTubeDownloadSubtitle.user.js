@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         YouTube: 自動下載影片字幕 (alt+s)
-// @version      0.3.0
+// @version      0.3.1
 // @description  按下 alt+s 就可以自動下載當前影片字幕，並在 downsub.com 自動點擊 RAW 按鈕。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -10,6 +10,7 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/YouTubeDownloadSubtitle.user.js
 // @author       Will Huang
 // @match        https://www.youtube.com/*
+// @match        https://m.youtube.com/*
 // @match        https://downsub.com/*
 // @grant        GM_openInTab
 // @grant        window.focus
