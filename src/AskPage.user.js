@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AskPage 頁問 (Ctrl+I)
-// @version      0.1.0
+// @version      0.1.1
 // @description  (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -33,13 +33,70 @@
     /* --------------------------------------------------
         API Key 設定選單
     -------------------------------------------------- */
-    GM_registerMenuCommand('設定 Gemini API Key', async () => {
-        const newKey = prompt('請輸入 Gemini API Key', apiKey || '');
-        if (newKey !== null) {
-            apiKey = newKey.trim();
+    GM_registerMenuCommand('設定 Gemini API Key', () => {
+        /* ---------- 建立遮罩 ---------- */
+        const overlay = document.createElement('div');
+        overlay.style.cssText =
+            'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:2147483647;';
+
+        /* ---------- 建立對話框 ---------- */
+        const panel = document.createElement('div');
+        panel.style.cssText =
+            'background:#fff;padding:20px 24px;border-radius:10px;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.2);display:flex;flex-direction:column;gap:12px;';
+
+        const label = document.createElement('label');
+        label.textContent = '請輸入 Gemini API Key';
+
+        const input = document.createElement('input');
+        input.type = 'password';               // ← 以密碼模式顯示，隱藏內容
+        input.value = apiKey || '';
+        input.style.cssText =
+            'padding:8px 10px;font-size:14px;border:1px solid #ccc;border-radius:6px;';
+
+        /* ---------- 按鈕 ---------- */
+        const btnBar = document.createElement('div');
+        btnBar.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;';
+
+        const btnCancel = document.createElement('button');
+        btnCancel.textContent = '取消';
+
+        const btnSave = document.createElement('button');
+        btnSave.textContent = '儲存';
+        btnSave.style.cssText = 'background:#1a73e8;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;';
+
+        btnBar.appendChild(btnCancel);
+        btnBar.appendChild(btnSave);
+
+        panel.appendChild(label);
+        panel.appendChild(input);
+        panel.appendChild(btnBar);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+        input.focus();
+
+        /* ---------- 關閉 ---------- */
+        function close() {
+            overlay.remove();
+        }
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) close();
+        });
+        btnCancel.addEventListener('click', close);
+        window.addEventListener(
+            'keydown',
+            (e) => {
+                if (e.key === 'Escape') close();
+            },
+            { once: true },
+        );
+
+        /* ---------- 儲存 ---------- */
+        btnSave.addEventListener('click', () => {
+            apiKey = input.value.trim();
             GM_setValue(API_KEY_STORAGE, apiKey);
             alert('已儲存 API Key');
-        }
+            close();
+        });
     });
 
     /* --------------------------------------------------
