@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AskPage 頁問 (Ctrl+I)
-// @version      0.1.1
+// @version      0.2.0
 // @description  (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -34,35 +34,33 @@
         API Key 設定選單
     -------------------------------------------------- */
     GM_registerMenuCommand('設定 Gemini API Key', () => {
+        if (document.getElementById('gemini-settings-overlay')) return;
         /* ---------- 建立遮罩 ---------- */
         const overlay = document.createElement('div');
-        overlay.style.cssText =
-            'position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:center;justify-content:center;z-index:2147483647;';
+        overlay.id = 'gemini-settings-overlay';
 
         /* ---------- 建立對話框 ---------- */
         const panel = document.createElement('div');
-        panel.style.cssText =
-            'background:#fff;padding:20px 24px;border-radius:10px;min-width:260px;box-shadow:0 4px 12px rgba(0,0,0,.2);display:flex;flex-direction:column;gap:12px;';
+        panel.id = 'gemini-settings-panel';
 
         const label = document.createElement('label');
         label.textContent = '請輸入 Gemini API Key';
 
         const input = document.createElement('input');
-        input.type = 'password';               // ← 以密碼模式顯示，隱藏內容
+        input.type = 'password';
         input.value = apiKey || '';
-        input.style.cssText =
-            'padding:8px 10px;font-size:14px;border:1px solid #ccc;border-radius:6px;';
 
         /* ---------- 按鈕 ---------- */
         const btnBar = document.createElement('div');
-        btnBar.style.cssText = 'display:flex;justify-content:flex-end;gap:8px;';
+        btnBar.id = 'gemini-settings-btn-bar';
 
         const btnCancel = document.createElement('button');
         btnCancel.textContent = '取消';
+        btnCancel.className = 'btn-cancel';
 
         const btnSave = document.createElement('button');
         btnSave.textContent = '儲存';
-        btnSave.style.cssText = 'background:#1a73e8;color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;';
+        btnSave.className = 'btn-save';
 
         btnBar.appendChild(btnCancel);
         btnBar.appendChild(btnSave);
@@ -94,6 +92,7 @@
         btnSave.addEventListener('click', () => {
             apiKey = input.value.trim();
             GM_setValue(API_KEY_STORAGE, apiKey);
+            console.log('[AskPage] API Key 已儲存');
             alert('已儲存 API Key');
             close();
         });
@@ -103,6 +102,106 @@
         UI 樣式
     -------------------------------------------------- */
     GM_addStyle(`
+    /* --------------------------------------------------
+        API Key 設定對話框樣式
+    -------------------------------------------------- */
+    #gemini-settings-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 2147483647;
+        font-family: system-ui, -apple-system, Roboto, "Segoe UI", Helvetica, Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    #gemini-settings-panel {
+        background: #ffffff;
+        padding: 24px 28px;
+        border-radius: 12px;
+        min-width: 300px;
+        max-width: 400px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+        border: 1px solid #e0e0e0;
+        color: #000000;
+    }
+    #gemini-settings-panel label {
+        font-size: 16px;
+        font-weight: 600;
+        margin-bottom: 4px;
+    }
+    #gemini-settings-panel input {
+        padding: 10px 12px;
+        font-size: 14px;
+        border: 2px solid #cccccc;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #000000;
+        outline: none;
+        transition: border-color 0.2s;
+    }
+    #gemini-settings-panel input:focus {
+        border-color: #1a73e8;
+    }
+    #gemini-settings-btn-bar {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        margin-top: 8px;
+    }
+    #gemini-settings-panel button {
+        padding: 8px 16px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        transition: background-color 0.2s;
+    }
+    #gemini-settings-panel .btn-cancel {
+        background: #f5f5f5;
+        color: #000000;
+        border: 1px solid #e0e0e0;
+    }
+    #gemini-settings-panel .btn-cancel:hover {
+        background: #e8e8e8;
+    }
+    #gemini-settings-panel .btn-save {
+        background: #1a73e8;
+        color: #ffffff;
+        border: none;
+        font-weight: 500;
+    }
+    #gemini-settings-panel .btn-save:hover {
+        background: #1565c0;
+    }
+
+    /* Dark theme for settings */
+    @media (prefers-color-scheme: dark) {
+        #gemini-settings-panel {
+            background: #2a2a2a;
+            border: 1px solid #404040;
+            color: #ffffff;
+        }
+        #gemini-settings-panel input {
+            border: 2px solid #555555;
+            background: #1f1f1f;
+            color: #ffffff;
+        }
+        #gemini-settings-panel .btn-cancel {
+            background: #404040;
+            color: #ffffff;
+            border-color: #404040;
+        }
+        #gemini-settings-panel .btn-cancel:hover {
+            background: #505050;
+        }
+    }
+
+    /* --------------------------------------------------
+        Q&A 對話框樣式
+    -------------------------------------------------- */
     #gemini-qna-overlay {
       position: fixed;
       inset: 0;
@@ -112,10 +211,12 @@
       justify-content: center;
       z-index: 2147483647;
     }
+
+    /* 明亮主題作為預設 (Light Theme as Default) */
     #gemini-qna-dialog {
       width: min(700px, 92%);
       max-height: 85vh;
-      background: #fff;
+      background: #ffffff;
       border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
       display: flex;
@@ -125,34 +226,95 @@
     }
     #gemini-qna-messages {
       flex: 1 1 auto;
-      padding: 16px;
+      padding: 20px;
       overflow-y: auto;
-      color: #202124;
-      line-height: 1.55;
+      background: #f5f5f5;
+      color: #000000;
+      line-height: 1.6;
+      font-size: 15px;
+      font-weight: 500;
     }
     .gemini-msg-user {
       font-weight: 600;
-      margin-bottom: 4px;
-      color: #1a73e8;
+      margin-bottom: 8px;
+      padding: 8px 12px;
+      background: #1565c0;
+      border-radius: 8px;
+      color: #ffffff;
       white-space: pre-wrap;
+      border-left: 3px solid #0d47a1;
     }
     .gemini-msg-assistant {
-      margin-bottom: 12px;
-      color: #202124;
-      white-space: normal; /* 允許 HTML mark-up 自然排版 */
+      margin-bottom: 16px;
+      padding: 12px 16px;
+      background: #ffffff;
+      border: 1px solid #e0e0e0;
+      border-radius: 8px;
+      color: #000000;
+      border-left: 3px solid #4caf50;
+      white-space: normal;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+      font-weight: 500;
     }
-    /* 讓程式碼區塊更好讀 */
+    .gemini-msg-assistant ul,
+    .gemini-msg-assistant ol {
+      margin: 8px 0;
+      padding-left: 20px;
+    }
+    .gemini-msg-assistant li {
+      margin-bottom: 4px;
+      line-height: 1.5;
+      color: #000000;
+      font-weight: 500;
+    }
+    .gemini-msg-assistant h1,
+    .gemini-msg-assistant h2,
+    .gemini-msg-assistant h3,
+    .gemini-msg-assistant h4,
+    .gemini-msg-assistant h5,
+    .gemini-msg-assistant h6 {
+      margin: 12px 0 8px 0;
+      color: #1565c0;
+      font-weight: 700;
+    }
+    .gemini-msg-assistant p {
+      margin: 8px 0;
+      color: #000000;
+      font-weight: 500;
+    }
     .gemini-msg-assistant pre {
-      background: #f1f3f4;
-      padding: 8px 12px;
-      border-radius: 6px;
+      background: #1e1e1e;
+      color: #ffffff;
+      padding: 12px 16px;
+      border-radius: 8px;
       overflow: auto;
+      margin: 12px 0;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.4;
+      border: 1px solid #333333;
+      font-weight: 500;
     }
     .gemini-msg-assistant code {
-      background: #f1f3f4;
-      padding: 2px 4px;
+      background: #f0f0f0;
+      color: #d32f2f;
+      padding: 2px 6px;
       border-radius: 4px;
-      font-family: monospace;
+      font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid #cccccc;
+    }
+    .gemini-msg-assistant pre code {
+      background: transparent;
+      color: inherit;
+      padding: 0;
+      border: none;
+    }
+    .gemini-msg-assistant strong,
+    .gemini-msg-assistant b {
+      color: #000000;
+      font-weight: 700;
     }
     #gemini-qna-input-area {
       display: flex;
@@ -160,6 +322,7 @@
       padding: 12px;
       border-top: 1px solid #ddd;
       gap: 8px;
+      background: #ffffff;
     }
     #gemini-qna-input {
       flex: 1 1 auto;
@@ -167,6 +330,11 @@
       font-size: 14px;
       border: 1px solid #ccc;
       border-radius: 8px;
+      background: #ffffff;
+      color: #000000;
+    }
+    #gemini-qna-input::placeholder {
+      color: #666666;
     }
     #gemini-qna-btn {
       padding: 8px 14px;
@@ -176,6 +344,70 @@
       color: #fff;
       border-radius: 8px;
       cursor: pointer;
+    }
+
+    /* 只有在暗色主題偏好時才覆蓋樣式 (Dark Theme Override Only) */
+    @media (prefers-color-scheme: dark) {
+      #gemini-qna-dialog {
+        background: #1f1f1f;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+      }
+      #gemini-qna-messages {
+        background: #141414;
+        color: #ffffff;
+      }
+      .gemini-msg-user {
+        background: #2196f3;
+        border-left: 3px solid #1976d2;
+        color: #ffffff;
+      }
+      .gemini-msg-assistant {
+        background: #2a2a2a;
+        border: 1px solid #404040;
+        color: #ffffff;
+        border-left: 3px solid #4caf50;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+      }
+      .gemini-msg-assistant li {
+        color: #ffffff;
+      }
+      .gemini-msg-assistant h1,
+      .gemini-msg-assistant h2,
+      .gemini-msg-assistant h3,
+      .gemini-msg-assistant h4,
+      .gemini-msg-assistant h5,
+      .gemini-msg-assistant h6 {
+        color: #64b5f6;
+      }
+      .gemini-msg-assistant p {
+        color: #ffffff;
+      }
+      .gemini-msg-assistant pre {
+        background: #0d1117;
+        color: #f0f6fc;
+        border: 1px solid #30363d;
+      }
+      .gemini-msg-assistant code {
+        background: #21262d;
+        color: #ff6b6b;
+        border: 1px solid #30363d;
+      }
+      .gemini-msg-assistant strong,
+      .gemini-msg-assistant b {
+        color: #ffffff;
+      }
+      #gemini-qna-input-area {
+        background: #1f1f1f;
+        border-top: 1px solid #404040;
+      }
+      #gemini-qna-input {
+        background: #2a2a2a;
+        border: 1px solid #404040;
+        color: #ffffff;
+      }
+      #gemini-qna-input::placeholder {
+        color: #888888;
+      }
     }
   `);
 
@@ -240,6 +472,7 @@
         async function handleAsk() {
             const question = input.value.trim();
             if (!question) return;
+            console.log('[AskPage] 使用者提問:', question);
             appendMessage('user', question);
             input.value = '';
             await askGemini(question);
@@ -273,20 +506,26 @@
                 return;
             }
 
+            console.log('[AskPage] 開始處理問題:', question);
             appendMessage('assistant', '...thinking...');
 
             // 抓取 <main> 文字，若不存在則用 body（最多 15,000 字元）
             const container = document.querySelector('main') || document.body;
             const pageText = container.innerText.slice(0, 15000);
+            console.log('[AskPage] 擷取頁面文字長度:', pageText.length);
 
-            let response;
+            let responseData;
             try {
-                response = await fetch(
-                    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview-06-17:generateContent?key=${apiKey}`,
-                    {
+                console.log('[AskPage] 準備呼叫 Gemini API');
+                // 使用 GM_xmlhttpRequest 而非 fetch 來避免 CSP 問題
+                responseData = await new Promise((resolve, reject) => {
+                    GM_xmlhttpRequest({
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
+                        url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview-06-17:generateContent?key=${apiKey}`,
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        data: JSON.stringify({
                             contents: [
                                 {
                                     role: 'user',
@@ -306,14 +545,37 @@
                                 maxOutputTokens: 1024,
                             },
                         }),
-                    },
-                );
+                        onload: (response) => {
+                            console.log('[AskPage] API 回應狀態:', response.status);
+                            if (response.status >= 200 && response.status < 300) {
+                                try {
+                                    const parsedResponse = JSON.parse(response.responseText);
+                                    console.log('[AskPage] API 回應解析成功');
+                                    resolve(parsedResponse);
+                                } catch (parseError) {
+                                    console.error('[AskPage] JSON 解析錯誤:', parseError);
+                                    reject(new Error(`JSON 解析錯誤: ${parseError.message}`));
+                                }
+                            } else {
+                                console.error('[AskPage] API 錯誤回應:', response.status, response.statusText);
+                                reject(new Error(`${response.status} ${response.statusText}`));
+                            }
+                        },
+                        onerror: (error) => {
+                            console.error('[AskPage] 網路錯誤:', error);
+                            reject(new Error(`網路錯誤: ${error.error || 'Unknown error'}`));
+                        },
+                        ontimeout: () => {
+                            console.error('[AskPage] 請求逾時');
+                            reject(new Error('請求逾時'));
+                        },
+                        timeout: 30000, // 30 秒逾時
+                    });
+                });
 
-                if (!response.ok) {
-                    throw new Error(`${response.status} ${response.statusText}`);
-                }
-                response = await response.json();
+                console.log('[AskPage] API 呼叫成功');
             } catch (err) {
+                console.error('[AskPage] API 呼叫失敗:', err);
                 messagesEl.removeChild(messagesEl.lastChild); // 移除 thinking 訊息
                 appendMessage('assistant', `錯誤: ${err}`);
                 return;
@@ -322,8 +584,9 @@
             messagesEl.removeChild(messagesEl.lastChild); // 移除 thinking 訊息
 
             const answer =
-                response.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') ||
+                responseData.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') ||
                 '未取得回應';
+            console.log('[AskPage] 準備顯示回應，長度:', answer.length);
             appendMessage('assistant', answer);
         }
     }
@@ -337,6 +600,7 @@
             e.key.toLowerCase() === 'i' &&
             !document.getElementById('gemini-qna-overlay')
         ) {
+            console.log('[AskPage] 偵測到 Ctrl+I 快捷鍵，建立對話框');
             e.preventDefault();
             createDialog();
         }
