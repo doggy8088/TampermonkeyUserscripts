@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AskPage 頁問 (Ctrl+I)
-// @version      0.3.1
+// @version      0.3.2
 // @description  (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -447,6 +447,37 @@
         input.type = 'text';
         input.placeholder = '輸入問題後按 Enter 或點 Ask';
 
+        // ---------- intellisense 指令清單與 UI ----------
+        const intelliCommands = [
+            { cmd: '/clear', desc: '清除提問歷史紀錄' },
+            { cmd: '/summary', desc: '總結本頁內容' },
+        ];
+        const intelliBox = document.createElement('div');
+        intelliBox.id = 'gemini-qna-intellisense';
+        intelliBox.style.display = 'none';
+        intelliBox.style.position = 'absolute';
+        intelliBox.style.left = '0';
+        intelliBox.style.top = '0';
+        intelliBox.style.zIndex = '2147483648';
+        intelliBox.style.background = '#fff';
+        intelliBox.style.border = '1px solid #ccc';
+        intelliBox.style.borderRadius = '8px';
+        intelliBox.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)';
+        intelliBox.style.minWidth = '180px';
+        intelliBox.style.fontSize = '14px';
+        intelliBox.style.maxHeight = '180px';
+        intelliBox.style.overflowY = 'auto';
+        intelliBox.style.padding = '4px 0';
+        intelliBox.style.color = '#222';
+        intelliBox.style.fontFamily = 'inherit';
+        intelliBox.style.cursor = 'pointer';
+        intelliBox.style.userSelect = 'none';
+        intelliBox.style.background = 'var(--gemini-intellisense-bg, #fff)';
+        intelliBox.style.color = 'var(--gemini-intellisense-color, #222)';
+        intelliBox.style.display = 'none';
+        intelliBox.tabIndex = -1;
+        inputArea.appendChild(intelliBox);
+
         const btn = document.createElement('button');
         btn.id = 'gemini-qna-btn';
         btn.textContent = 'Ask';
@@ -474,6 +505,7 @@
         let historyIndex = promptHistory.length;
 
         async function handleAsk() {
+            hideIntelliBox(); // 確保浮動提示視窗關閉
             let question = input.value.trim();
             if (!question) return;
 
@@ -502,9 +534,80 @@
             appendMessage('user', question);
             input.value = '';
             await askGemini(question);
-        }""
+        }
+
+        // ---------- intellisense 功能 ----------
+        let intelliActive = false;
+        let intelliIndex = 0;
+        function showIntelliBox(filtered) {
+            if (!filtered.length) {
+                intelliBox.style.display = 'none';
+                intelliActive = false;
+                return;
+            }
+            intelliBox.innerHTML = '';
+            filtered.forEach((item, idx) => {
+                const el = document.createElement('div');
+                el.className = 'gemini-intelli-item' + (idx === intelliIndex ? ' active' : '');
+                el.textContent = `${item.cmd} － ${item.desc}`;
+                el.dataset.cmd = item.cmd;
+                el.style.padding = '6px 16px';
+                el.style.background = idx === intelliIndex ? '#e3f2fd' : '';
+                el.style.fontWeight = idx === intelliIndex ? 'bold' : '';
+                intelliBox.appendChild(el);
+            });
+            // 定位在 input 下方
+            const rect = input.getBoundingClientRect();
+            intelliBox.style.left = rect.left + 'px';
+            intelliBox.style.top = rect.bottom + window.scrollY + 2 + 'px';
+            intelliBox.style.display = 'block';
+            intelliActive = true;
+        }
+        function hideIntelliBox() {
+            intelliBox.style.display = 'none';
+            intelliActive = false;
+            intelliIndex = 0; // 重設選擇索引
+        }
+        function filterIntelli(val) {
+            return intelliCommands.filter(c => c.cmd.startsWith(val));
+        }
+        input.addEventListener('input', (e) => {
+            const val = input.value;
+            if (val.startsWith('/')) {
+                const filtered = filterIntelli(val);
+                intelliIndex = 0;
+                showIntelliBox(filtered);
+            } else {
+                hideIntelliBox();
+            }
+        });
+        input.addEventListener('blur', hideIntelliBox);
 
         input.addEventListener('keydown', (e) => {
+            if (intelliActive) {
+                const val = input.value;
+                const filtered = filterIntelli(val);
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    intelliIndex = (intelliIndex + 1) % filtered.length;
+                    showIntelliBox(filtered);
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    intelliIndex = (intelliIndex - 1 + filtered.length) % filtered.length;
+                    showIntelliBox(filtered);
+                } else if (e.key === 'Enter' || e.key === 'Tab') {
+                    if (filtered.length) {
+                        e.preventDefault();
+                        input.value = filtered[intelliIndex].cmd;
+                        hideIntelliBox();
+                        intelliActive = false; // 確保標記為非活動狀態
+                        handleAsk(); // 直接執行指令
+                    }
+                } else if (e.key === 'Escape') {
+                    hideIntelliBox();
+                }
+                return; // 防止 intellisense 狀態下觸發下方歷史紀錄邏輯
+            }
             if (e.key === 'Enter') {
                 e.preventDefault();
                 handleAsk();
@@ -524,8 +627,8 @@
                     input.value = '';
                 }
             }
-        });
-        btn.addEventListener('click', handleAsk);""
+        }, true);
+        btn.addEventListener('click', handleAsk);
 
         /* ---------- 顯示訊息 ---------- */
         function appendMessage(role, text) {
