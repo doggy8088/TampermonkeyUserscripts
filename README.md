@@ -60,6 +60,15 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AskPage.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>AskPage 頁問 (Ctrl+I)</td>
+      <td>
+        (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題，彈出視窗可直接輸入問題並取得 AI 回答
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ReadingMode.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>ReadingMode: 讓網頁更容易閱讀與翻譯的工具</td>
