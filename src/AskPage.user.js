@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AskPage 頁問 (Ctrl+I)
-// @version      0.3.0
+// @version      0.3.1
 // @description  (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -551,7 +551,17 @@
             appendMessage('assistant', '...thinking...');
 
             // 抓取 <main> 文字，若不存在則用 body（最多 15,000 字元）
-            const container = document.querySelector('main') || document.body;
+            let container;
+            if (document.querySelector('main')) {
+                container = document.querySelector('main');
+            } else {
+                const articles = document.querySelectorAll('article');
+                if (articles.length === 1) {
+                    container = articles[0];
+                } else {
+                    container = document.body;
+                }
+            }
             const pageText = container.innerText.slice(0, 15000);
             console.log('[AskPage] 擷取頁面文字長度:', pageText.length);
 
