@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AskPage 頁問 (Ctrl+I)
-// @version      0.2.0
+// @version      0.3.0
 // @description  (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -28,6 +28,7 @@
         設定 / 變數
     -------------------------------------------------- */
     const API_KEY_STORAGE = 'GEMINI_API_KEY';
+    const PROMPT_HISTORY_STORAGE = 'ASKPAGE_PROMPT_HISTORY';
     let apiKey = GM_getValue(API_KEY_STORAGE, '');
 
     /* --------------------------------------------------
@@ -469,22 +470,62 @@
         });
 
         /* ---------- 提問處理 ---------- */
+        const promptHistory = JSON.parse(GM_getValue(PROMPT_HISTORY_STORAGE, '[]'));
+        let historyIndex = promptHistory.length;
+
         async function handleAsk() {
-            const question = input.value.trim();
+            let question = input.value.trim();
             if (!question) return;
+
+            if (question === '/clear') {
+                promptHistory.length = 0;
+                historyIndex = 0;
+                GM_setValue(PROMPT_HISTORY_STORAGE, '[]');
+                messagesEl.innerHTML = ''; // 清空畫面對話
+                appendMessage('assistant', '已清除您的提問歷史紀錄。');
+                input.value = '';
+                return;
+            }
+
+            if (question === '/summary') {
+                question = '請幫我總結這篇文章，並以 Markdown 格式輸出，內容包含「標題」、「重點摘要」、「總結」';
+            }
+
+            promptHistory.push(question);
+            if (promptHistory.length > 100) {
+                promptHistory.shift(); // 限制歷史紀錄最多100筆
+            }
+            historyIndex = promptHistory.length;
+            GM_setValue(PROMPT_HISTORY_STORAGE, JSON.stringify(promptHistory));
+
             console.log('[AskPage] 使用者提問:', question);
             appendMessage('user', question);
             input.value = '';
             await askGemini(question);
-        }
+        }""
 
         input.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
                 handleAsk();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (historyIndex > 0) {
+                    historyIndex--;
+                    input.value = promptHistory[historyIndex];
+                }
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (historyIndex < promptHistory.length - 1) {
+                    historyIndex++;
+                    input.value = promptHistory[historyIndex];
+                } else {
+                    historyIndex = promptHistory.length;
+                    input.value = '';
+                }
             }
         });
-        btn.addEventListener('click', handleAsk);
+        btn.addEventListener('click', handleAsk);""
 
         /* ---------- 顯示訊息 ---------- */
         function appendMessage(role, text) {
