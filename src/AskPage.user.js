@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AskPage 頁問 (Ctrl+I)
-// @version      0.3.2
+// @version      0.3.3
 // @description  (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -455,7 +455,7 @@
         const intelliBox = document.createElement('div');
         intelliBox.id = 'gemini-qna-intellisense';
         intelliBox.style.display = 'none';
-        intelliBox.style.position = 'absolute';
+        intelliBox.style.position = 'fixed';
         intelliBox.style.left = '0';
         intelliBox.style.top = '0';
         intelliBox.style.zIndex = '2147483648';
@@ -494,10 +494,18 @@
 
         /* ---------- 關閉事件 ---------- */
         overlay.addEventListener('click', (e) => {
-            if (e.target === overlay) overlay.remove();
+            if (e.target === overlay) {
+                hideIntelliBox();
+                overlay.remove();
+            } else if (!intelliBox.contains(e.target) && !input.contains(e.target)) {
+                hideIntelliBox();
+            }
         });
         window.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') overlay.remove();
+            if (e.key === 'Escape') {
+                hideIntelliBox();
+                overlay.remove();
+            }
         });
 
         /* ---------- 提問處理 ---------- */
@@ -554,12 +562,20 @@
                 el.style.padding = '6px 16px';
                 el.style.background = idx === intelliIndex ? '#e3f2fd' : '';
                 el.style.fontWeight = idx === intelliIndex ? 'bold' : '';
+                // 加入點擊事件
+                el.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    input.value = item.cmd;
+                    hideIntelliBox();
+                    handleAsk(); // 直接執行指令
+                });
                 intelliBox.appendChild(el);
             });
             // 定位在 input 下方
             const rect = input.getBoundingClientRect();
             intelliBox.style.left = rect.left + 'px';
-            intelliBox.style.top = rect.bottom + window.scrollY + 2 + 'px';
+            intelliBox.style.top = rect.bottom + 2 + 'px';
             intelliBox.style.display = 'block';
             intelliActive = true;
         }
@@ -581,7 +597,6 @@
                 hideIntelliBox();
             }
         });
-        input.addEventListener('blur', hideIntelliBox);
 
         input.addEventListener('keydown', (e) => {
             if (intelliActive) {
