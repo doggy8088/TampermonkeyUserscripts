@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AskPage 頁問 (Ctrl+I)
-// @version      0.3.3
+// @version      0.4.0
 // @description  (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -430,6 +430,10 @@
         建立對話框
     -------------------------------------------------- */
     function createDialog() {
+        // 在對話框建立之前先捕獲選取文字，避免因為焦點變更而失去選取狀態
+        const initialSelection = window.getSelection();
+        const capturedSelectedText = initialSelection.toString().trim();
+
         const overlay = document.createElement('div');
         overlay.id = 'gemini-qna-overlay';
 
@@ -445,7 +449,7 @@
         const input = document.createElement('input');
         input.id = 'gemini-qna-input';
         input.type = 'text';
-        input.placeholder = '輸入問題後按 Enter 或點 Ask';
+        input.placeholder = '輸入問題後按 Enter 或點擊 Ask 按鈕 (可先選取文字範圍)';
 
         // ---------- intellisense 指令清單與 UI ----------
         const intelliCommands = [
@@ -491,6 +495,13 @@
 
         document.body.appendChild(overlay);
         input.focus();
+
+        // 顯示歡迎訊息和使用說明
+        if (capturedSelectedText && capturedSelectedText.length > 0) {
+            appendMessage('assistant', `🎯 **已偵測到選取文字** (${capturedSelectedText.length} 字元)\n\n您可以直接提問，系統將以選取的文字作為分析對象。\n\n💡 **可用指令:**\n- \`/clear\` - 清除歷史紀錄\n- \`/summary\` - 總結整個頁面`);
+        } else {
+            appendMessage('assistant', `💡 **使用提示:**\n\n您可以直接提問關於此頁面的問題，或先選取頁面上的文字範圍後再提問。\n\n**可用指令:**\n- \`/clear\` - 清除歷史紀錄\n- \`/summary\` - 總結整個頁面`);
+        }
 
         /* ---------- 關閉事件 ---------- */
         overlay.addEventListener('click', (e) => {
@@ -541,7 +552,7 @@
             console.log('[AskPage] 使用者提問:', question);
             appendMessage('user', question);
             input.value = '';
-            await askGemini(question);
+            await askGemini(question, capturedSelectedText);
         }
 
         // ---------- intellisense 功能 ----------
@@ -659,7 +670,7 @@
         }
 
         /* ---------- 呼叫 Gemini ---------- */
-        async function askGemini(question) {
+        async function askGemini(question, capturedSelectedText = '') {
             if (!apiKey) {
                 appendMessage('assistant', '請先在 Tampermonkey 選單設定 API Key。');
                 return;
@@ -668,7 +679,7 @@
             console.log('[AskPage] 開始處理問題:', question);
             appendMessage('assistant', '...thinking...');
 
-            // 抓取 <main> 文字，若不存在則用 body（最多 15,000 字元）
+            // 取得整個頁面的內容作為基礎 context
             let container;
             if (document.querySelector('main')) {
                 container = document.querySelector('main');
@@ -680,8 +691,37 @@
                     container = document.body;
                 }
             }
-            const pageText = container.innerText.slice(0, 15000);
-            console.log('[AskPage] 擷取頁面文字長度:', pageText.length);
+            const fullPageText = container.innerText.slice(0, 15000);
+
+            // 根據是否有選取文字來構建不同的 context 和提示
+            let contextParts = [];
+            let contentSource;
+            let systemPrompt;
+
+            if (capturedSelectedText && capturedSelectedText.length > 0) {
+                // 有選取文字：提供完整頁面 + 重點選取文字
+                contentSource = '選取文字（含完整頁面背景）';
+                systemPrompt = `You are a helpful assistant that answers questions about web page content. The user has selected specific text that they want to focus on, but you also have the full page context for background understanding. Please focus primarily on the selected text while using the full page context to provide comprehensive answers. Answer only in zh-tw.`;
+
+                contextParts.push(
+                    { text: `Full page content for context:\n${fullPageText}` },
+                    { text: `Selected text (main focus):\n${capturedSelectedText.slice(0, 5000)}` },
+                    { text: question }
+                );
+
+                console.log('[AskPage] 使用選取文字 + 完整頁面背景，選取文字長度:', capturedSelectedText.length, '，完整頁面長度:', fullPageText.length);
+            } else {
+                // 沒有選取文字：只使用完整頁面
+                contentSource = '整個頁面';
+                systemPrompt = `You are a helpful assistant that answers questions about the provided web page content. Please format your answer using Markdown when appropriate. Answer only in zh-tw.`;
+
+                contextParts.push(
+                    { text: `Page content:\n${fullPageText}` },
+                    { text: question }
+                );
+
+                console.log('[AskPage] 使用整個頁面內容，長度:', fullPageText.length);
+            }
 
             let responseData;
             try {
@@ -699,12 +739,8 @@
                                 {
                                     role: 'user',
                                     parts: [
-                                        {
-                                            text:
-                                                'You are a helpful assistant that answers questions about the provided web page. Please format your answer using Markdown when appropriate. Answer only in zh-tw.',
-                                        },
-                                        { text: `Page content (truncated):\n${pageText}` },
-                                        { text: question },
+                                        { text: systemPrompt },
+                                        ...contextParts
                                     ],
                                 },
                             ],
