@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AskPage 頁問 (Ctrl+I)
-// @version      0.4.0
+// @version      0.5.0
 // @description  (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -256,6 +256,7 @@
       white-space: normal;
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
       font-weight: 500;
+      position: relative;
     }
     .gemini-msg-assistant ul,
     .gemini-msg-assistant ol {
@@ -316,6 +317,47 @@
     .gemini-msg-assistant b {
       color: #000000;
       font-weight: 700;
+    }
+
+    /* 複製按鈕樣式 */
+    .gemini-copy-btn {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      width: 24px;
+      height: 24px;
+      background: rgba(255, 255, 255, 0.9);
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      opacity: 0.7;
+      transition: all 0.2s ease;
+      font-size: 12px;
+      z-index: 1;
+    }
+    .gemini-copy-btn:hover {
+      opacity: 1;
+      background: rgba(255, 255, 255, 1);
+      border-color: #bbb;
+      transform: scale(1.05);
+    }
+    .gemini-copy-btn svg {
+      width: 14px;
+      height: 14px;
+      fill: #666;
+    }
+    .gemini-copy-btn:hover svg {
+      fill: #333;
+    }
+    .gemini-copy-btn.copied {
+      background: #4caf50;
+      border-color: #4caf50;
+    }
+    .gemini-copy-btn.copied svg {
+      fill: white;
     }
     #gemini-qna-input-area {
       display: flex;
@@ -396,6 +438,22 @@
       .gemini-msg-assistant strong,
       .gemini-msg-assistant b {
         color: #ffffff;
+      }
+
+      /* 暗色主題複製按鈕 */
+      .gemini-copy-btn {
+        background: rgba(42, 42, 42, 0.9);
+        border-color: #555;
+      }
+      .gemini-copy-btn:hover {
+        background: rgba(42, 42, 42, 1);
+        border-color: #777;
+      }
+      .gemini-copy-btn svg {
+        fill: #ccc;
+      }
+      .gemini-copy-btn:hover svg {
+        fill: #fff;
       }
       #gemini-qna-input-area {
         background: #1f1f1f;
@@ -660,11 +718,78 @@
         function appendMessage(role, text) {
             const div = document.createElement('div');
             div.className = role === 'user' ? 'gemini-msg-user' : 'gemini-msg-assistant';
+
             if (role === 'assistant') {
                 div.innerHTML = renderMarkdown(text);
+
+                // 為助手訊息加入複製按鈕
+                const copyBtn = document.createElement('button');
+                copyBtn.className = 'gemini-copy-btn';
+                copyBtn.title = '複製 Markdown 內容';
+                copyBtn.innerHTML = `
+                    <svg viewBox="0 0 24 24">
+                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                    </svg>
+                `;
+
+                // 複製功能
+                copyBtn.addEventListener('click', async (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    try {
+                        await navigator.clipboard.writeText(text);
+
+                        // 視覺回饋
+                        copyBtn.classList.add('copied');
+                        copyBtn.innerHTML = `
+                            <svg viewBox="0 0 24 24">
+                                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                            </svg>
+                        `;
+                        copyBtn.title = '已複製！';
+
+                        setTimeout(() => {
+                            copyBtn.classList.remove('copied');
+                            copyBtn.innerHTML = `
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                </svg>
+                            `;
+                            copyBtn.title = '複製 Markdown 內容';
+                        }, 1500);
+
+                    } catch (err) {
+                        console.error('[AskPage] 複製失敗:', err);
+
+                        // 失敗回饋
+                        copyBtn.style.background = '#f44336';
+                        copyBtn.style.borderColor = '#f44336';
+                        copyBtn.innerHTML = `
+                            <svg viewBox="0 0 24 24">
+                                <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
+                            </svg>
+                        `;
+                        copyBtn.title = '複製失敗';
+
+                        setTimeout(() => {
+                            copyBtn.style.background = '';
+                            copyBtn.style.borderColor = '';
+                            copyBtn.innerHTML = `
+                                <svg viewBox="0 0 24 24">
+                                    <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
+                                </svg>
+                            `;
+                            copyBtn.title = '複製 Markdown 內容';
+                        }, 1500);
+                    }
+                });
+
+                div.appendChild(copyBtn);
             } else {
                 div.textContent = (role === 'user' ? '你: ' : 'Gemini: ') + text;
             }
+
             messagesEl.appendChild(div);
             messagesEl.scrollTop = messagesEl.scrollHeight;
         }
