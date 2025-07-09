@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         AskPage 頁問 (Ctrl+I)
-// @version      0.5.0
-// @description  (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題
+// @version      0.6.0
+// @description  (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題，支援多模型選擇
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -28,13 +28,20 @@
         設定 / 變數
     -------------------------------------------------- */
     const API_KEY_STORAGE = 'GEMINI_API_KEY';
+    const MODEL_STORAGE = 'GEMINI_MODEL';
     const PROMPT_HISTORY_STORAGE = 'ASKPAGE_PROMPT_HISTORY';
+    const AVAILABLE_MODELS = [
+        { value: 'gemini-2.5-pro', label: 'Gemini 2.5 Pro (最佳品質)' },
+        { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (平衡速度與品質)' },
+        { value: 'gemini-2.5-flash-lite-preview-06-17', label: 'Gemini 2.5 Flash Lite (最快速度)' }
+    ];
     let apiKey = GM_getValue(API_KEY_STORAGE, '');
+    let selectedModel = GM_getValue(MODEL_STORAGE, 'gemini-2.5-flash-lite-preview-06-17');
 
     /* --------------------------------------------------
         API Key 設定選單
     -------------------------------------------------- */
-    GM_registerMenuCommand('設定 Gemini API Key', () => {
+    GM_registerMenuCommand('設定 Gemini API', () => {
         if (document.getElementById('gemini-settings-overlay')) return;
         /* ---------- 建立遮罩 ---------- */
         const overlay = document.createElement('div');
@@ -44,12 +51,28 @@
         const panel = document.createElement('div');
         panel.id = 'gemini-settings-panel';
 
-        const label = document.createElement('label');
-        label.textContent = '請輸入 Gemini API Key';
+        const keyLabel = document.createElement('label');
+        keyLabel.textContent = '請輸入 Gemini API Key';
 
-        const input = document.createElement('input');
-        input.type = 'password';
-        input.value = apiKey || '';
+        const keyInput = document.createElement('input');
+        keyInput.type = 'password';
+        keyInput.value = apiKey || '';
+
+        const modelLabel = document.createElement('label');
+        modelLabel.textContent = '選擇 Gemini 模型';
+        modelLabel.style.marginTop = '16px';
+
+        const modelSelect = document.createElement('select');
+        modelSelect.id = 'gemini-model-select';
+        AVAILABLE_MODELS.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.value;
+            option.textContent = model.label;
+            if (model.value === selectedModel) {
+                option.selected = true;
+            }
+            modelSelect.appendChild(option);
+        });
 
         /* ---------- 按鈕 ---------- */
         const btnBar = document.createElement('div');
@@ -66,12 +89,14 @@
         btnBar.appendChild(btnCancel);
         btnBar.appendChild(btnSave);
 
-        panel.appendChild(label);
-        panel.appendChild(input);
+        panel.appendChild(keyLabel);
+        panel.appendChild(keyInput);
+        panel.appendChild(modelLabel);
+        panel.appendChild(modelSelect);
         panel.appendChild(btnBar);
         overlay.appendChild(panel);
         document.body.appendChild(overlay);
-        input.focus();
+        keyInput.focus();
 
         /* ---------- 關閉 ---------- */
         function close() {
@@ -91,10 +116,12 @@
 
         /* ---------- 儲存 ---------- */
         btnSave.addEventListener('click', () => {
-            apiKey = input.value.trim();
+            apiKey = keyInput.value.trim();
+            selectedModel = modelSelect.value;
             GM_setValue(API_KEY_STORAGE, apiKey);
-            console.log('[AskPage] API Key 已儲存');
-            alert('已儲存 API Key');
+            GM_setValue(MODEL_STORAGE, selectedModel);
+            console.log('[AskPage] API Key 和模型已儲存');
+            alert('已儲存 API Key 和模型設定');
             close();
         });
     });
@@ -147,6 +174,20 @@
     #gemini-settings-panel input:focus {
         border-color: #1a73e8;
     }
+    #gemini-settings-panel select {
+        padding: 10px 12px;
+        font-size: 14px;
+        border: 2px solid #cccccc;
+        border-radius: 8px;
+        background: #ffffff;
+        color: #000000;
+        outline: none;
+        transition: border-color 0.2s;
+        cursor: pointer;
+    }
+    #gemini-settings-panel select:focus {
+        border-color: #1a73e8;
+    }
     #gemini-settings-btn-bar {
         display: flex;
         justify-content: flex-end;
@@ -186,6 +227,11 @@
             color: #ffffff;
         }
         #gemini-settings-panel input {
+            border: 2px solid #555555;
+            background: #1f1f1f;
+            color: #ffffff;
+        }
+        #gemini-settings-panel select {
             border: 2px solid #555555;
             background: #1f1f1f;
             color: #ffffff;
@@ -869,12 +915,12 @@ ${currentTimeInfo}`;
 
             let responseData;
             try {
-                console.log('[AskPage] 準備呼叫 Gemini API');
+                console.log('[AskPage] 準備呼叫 Gemini API，使用模型:', selectedModel);
                 // 使用 GM_xmlhttpRequest 而非 fetch 來避免 CSP 問題
                 responseData = await new Promise((resolve, reject) => {
                     GM_xmlhttpRequest({
                         method: 'POST',
-                        url: `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite-preview-06-17:generateContent?key=${apiKey}`,
+                        url: `https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${apiKey}`,
                         headers: {
                             'Content-Type': 'application/json',
                         },
