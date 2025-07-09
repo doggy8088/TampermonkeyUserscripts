@@ -818,6 +818,21 @@
             }
             const fullPageText = container.innerText.slice(0, 15000);
 
+            // 取得當前時間與時區資訊
+            const now = new Date();
+            const timeString = now.toLocaleString('zh-TW', {
+                timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                weekday: 'long'
+            });
+            const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+            const currentTimeInfo = `Current time: ${timeString} (${timeZone})`;
+
             // 根據是否有選取文字來構建不同的 context 和提示
             let contextParts = [];
             let contentSource;
@@ -826,7 +841,9 @@
             if (capturedSelectedText && capturedSelectedText.length > 0) {
                 // 有選取文字：提供完整頁面 + 重點選取文字
                 contentSource = '選取文字（含完整頁面背景）';
-                systemPrompt = `You are a helpful assistant that answers questions about web page content. The user has selected specific text that they want to focus on, but you also have the full page context for background understanding. Please focus primarily on the selected text while using the full page context to provide comprehensive answers. Answer only in zh-tw.`;
+                systemPrompt = `You are a helpful assistant that answers questions about web page content. The user has selected specific text that they want to focus on, but you also have the full page context for background understanding. Please focus primarily on the selected text while using the full page context to provide comprehensive answers. Answer only in zh-tw.
+
+${currentTimeInfo}`;
 
                 contextParts.push(
                     { text: `Full page content for context:\n${fullPageText}` },
@@ -838,7 +855,9 @@
             } else {
                 // 沒有選取文字：只使用完整頁面
                 contentSource = '整個頁面';
-                systemPrompt = `You are a helpful assistant that answers questions about the provided web page content. Please format your answer using Markdown when appropriate. Answer only in zh-tw.`;
+                systemPrompt = `You are a helpful assistant that answers questions about the provided web page content. Please format your answer using Markdown when appropriate. Answer only in zh-tw.
+
+${currentTimeInfo}`;
 
                 contextParts.push(
                     { text: `Page content:\n${fullPageText}` },
