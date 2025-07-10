@@ -45,7 +45,7 @@
 
 2. 要到[管理擴充功能](chrome://extensions/)頁面啟用「開發人員模式」選項
 
-3. 要到[擴充功能的管理頁面](chrome://extensions/?id=dhdgffkkebhmkfjojejmpbldmpobfkfo)啟用「允許使用者指令碼」選項
+3. 要到**篡改猴**的**擴充功能管理頁面**啟用「允許使用者指令碼」選項
 
    ![允許使用者指令碼](images/allow-access-to-user-scripts.png)
 
