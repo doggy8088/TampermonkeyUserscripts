@@ -43,7 +43,11 @@
     </tr>
     </table>
 
-2. 點擊以下 **使用者腳本 (Userscript)** 的**安裝圖示**即可啟動 Tampermonkey 擴充套件頁面，按下 **Install** 即可自動安裝完畢！
+2. 要到[擴充功能的管理頁面](chrome://extensions/?id=dhdgffkkebhmkfjojejmpbldmpobfkfo)啟用「允許使用者指令碼」選項
+
+   ![允許使用者指令碼](images/allow-access-to-user-scripts.png)
+
+3. 點擊以下 **使用者腳本 (Userscript)** 的**安裝圖示**即可啟動 Tampermonkey 擴充套件頁面，按下 **Install** 即可自動安裝完畢！
 
     ![Tampermonkey Userscript installation](https://user-images.githubusercontent.com/88981/125022420-3baca180-e0af-11eb-9d37-7abad8bf96fa.jpg)
 
