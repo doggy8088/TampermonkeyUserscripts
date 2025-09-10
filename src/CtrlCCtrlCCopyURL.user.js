@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         按下多次 Ctrl-C 就會自動複製網址
-// @version      0.13.0
+// @version      0.13.1
 // @description  按下多次 Ctrl-C 就會自動複製網址，為了方便自行實作複製網址的邏輯。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -111,6 +111,15 @@
     }
 
     async function sanitizeGitHubUrl(url) {
+        // 先移除所有 QueryString 與 Fragment，避免影響路徑解析與 git 指令
+        try {
+            const u = new URL(url, window.location.href);
+            url = u.origin + u.pathname; // 移除 ?... 與 #...
+        } catch (e) {
+            // 非法 URL 的後援做法
+            url = url.split('#')[0].split('?')[0];
+        }
+
         // https://github.com/doggy8088/Software-Engineering-at-Google
         // https://github.com/doggy8088/Software-Engineering-at-Google/tree/zh-tw-20240725
         // https://github.com/doggy8088/Software-Engineering-at-Google/tree/zh-tw/assets/images
@@ -132,12 +141,10 @@
         const tree = urlParts[6];
         const blob = urlParts[6];
         const path = urlParts.slice(7).join('/');
-        const hash = location.hash;
 
         if (!user) {
             return url;
         }
-
 
         if (!repo) {
             return url;
