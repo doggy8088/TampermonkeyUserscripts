@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.13.0
+// @version      0.13.1
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -69,7 +69,7 @@
 
     function handleCtrlToggleSidebar(event) {
         // Check for close sidebar button first (when sidebar is open)
-        const closeSidebarButton = document.querySelector('button[data-testid="close-sidebar-button"]');
+        const closeSidebarButton = document.querySelector('button[data-testid="close-sidebar-button"][aria-expanded="true"]');
         if (closeSidebarButton) {
             console.log('Clicking close sidebar button');
             simulateMouseClick(closeSidebarButton);
