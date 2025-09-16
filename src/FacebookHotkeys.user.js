@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Facebook: 好用的鍵盤快速鍵集合
-// @version      0.8.1
+// @version      0.8.2
 // @description  按下 Ctrl+B 快速切換側邊欄、Ctrl+I 檢舉留言、Ctrl+Delete 刪除留言、Alt+B 快速封鎖使用者
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -23,7 +23,9 @@
     'use strict';
 
     // 當頁面載入後，先執行一次 ctrl+b 操作
-    window.addEventListener('load', toggleSidebar);
+    window.addEventListener('load', () => {
+        setTimeout(toggleSidebar, 1000);
+    });
 
     document.addEventListener("keydown", async (event) => {
 
