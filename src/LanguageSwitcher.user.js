@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.12.0
+// @version      1.13.0
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -106,6 +106,14 @@
                 }
                 if (ln.indexOf('//angular.tw/') >= 0) {
                     void (location.href = ln.replace(/angular\.tw/i, 'angular.io'));
+                }
+
+                // angular.dev <-> dev.angular.tw
+                if (ln.indexOf('//angular.dev/') >= 0 || ln === 'https://angular.dev/' || ln === 'http://angular.dev/') {
+                    void (location.href = ln.replace(/angular\.dev/i, 'dev.angular.tw'));
+                }
+                if (ln.indexOf('//dev.angular.tw/') >= 0 || ln === 'https://dev.angular.tw/' || ln === 'http://dev.angular.tw/') {
+                    void (location.href = ln.replace(/dev\.angular\.tw/i, 'angular.dev'));
                 }
 
                 if (ln.indexOf('//material.angular.io/') >= 0) {
