@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.14.0
+// @version      1.15.0
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -263,6 +263,12 @@
         // VS Code
         () => setHostIf(getCurrentUrl().indexOf('//code.visualstudio.com/') >= 0, 'vscode.dev.org.tw'),
         () => setHostIf(getCurrentUrl().indexOf('//vscode.dev.org.tw/') >= 0, 'code.visualstudio.com'),
+
+        // Google Gemini CLI docs (GitHub <-> Chinese mirror)
+        // e.g. https://github.com/google-gemini/gemini-cli/blob/main/docs/Uninstall.md
+        //   <-> https://gemini-cli.gh.miniasp.com/Uninstall.html
+        () => replaceHref(/^https?:\/\/github\.com\/google-gemini\/gemini-cli\/blob\/main\/docs\/(.+?)\.md([?#].*)?$/i, 'https://gemini-cli.gh.miniasp.com/$1.html$2'),
+        () => replaceHref(/^https?:\/\/gemini-cli\.gh\.miniasp\.com\/(.+?)\.html([?#].*)?$/i, 'https://github.com/google-gemini/gemini-cli/blob/main/docs/$1.md$2'),
     ];
 
     function applyFirstMatch() {
