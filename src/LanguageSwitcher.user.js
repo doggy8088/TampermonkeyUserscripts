@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.15.0
+// @version      1.16.0
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -269,6 +269,11 @@
         //   <-> https://gemini-cli.gh.miniasp.com/Uninstall.html
         () => replaceHref(/^https?:\/\/github\.com\/google-gemini\/gemini-cli\/blob\/main\/docs\/(.+?)\.md([?#].*)?$/i, 'https://gemini-cli.gh.miniasp.com/$1.html$2'),
         () => replaceHref(/^https?:\/\/gemini-cli\.gh\.miniasp\.com\/(.+?)\.html([?#].*)?$/i, 'https://github.com/google-gemini/gemini-cli/blob/main/docs/$1.md$2'),
+
+        // OpenAI Agents Python docs (English <-> Chinese mirror)
+        // https://openai.github.io/openai-agents-python/ <-> https://doggy8088.github.io/openai-agents-python/
+        () => setHostIf(getCurrentUrl().indexOf('//openai.github.io/openai-agents-python') >= 0, 'doggy8088.github.io'),
+        () => setHostIf(getCurrentUrl().indexOf('//doggy8088.github.io/openai-agents-python') >= 0, 'openai.github.io'),
     ];
 
     function applyFirstMatch() {
