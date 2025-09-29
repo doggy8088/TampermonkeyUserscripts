@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.16.0
+// @version      1.17.0
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -42,17 +42,40 @@
     };
 
     const toggleGoogleHl = () => {
-        if (getLowercaseHostname().includes('google.com') && getLowercaseHostname() !== 'mail.google.com') {
+        const allowedHosts = [
+            'google.com', // but exclude mail.google.com
+            'developer.chrome.com',
+            'ai.google.dev'
+        ];
+        const host = getLowercaseHostname();
+        const isAllowed = allowedHosts.some(allowed => host.includes(allowed)) && host !== 'mail.google.com';
+
+        console.log('[LanguageSwitcher] toggleGoogleHl: host =', host, 'isAllowed =', isAllowed);
+
+        if (isAllowed) {
             const url = new URL(getCurrentUrl());
             const current = url.searchParams.get('hl');
+            console.log('[LanguageSwitcher] toggleGoogleHl: current hl =', current);
+
+            const isAiGoogleDev = host.includes('ai.google.dev');
+            let enTarget = isAiGoogleDev ? 'en' : 'en-us';
+            let zhTarget = isAiGoogleDev ? 'zh-tw' : 'zh-Hant';
+
             if (!current) {
-                url.searchParams.set('hl', 'en-us');
+                url.searchParams.set('hl', enTarget);
+                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', enTarget);
             } else if (/^en(\b|[-_])/i.test(current)) {
-                url.searchParams.set('hl', 'zh-Hant');
+                url.searchParams.set('hl', zhTarget);
+                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', zhTarget);
+            } else if (/^zh(\b|[-_])/i.test(current)) {
+                url.searchParams.set('hl', enTarget);
+                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', enTarget);
             } else {
-                url.searchParams.set('hl', 'en-us');
+                url.searchParams.set('hl', enTarget);
+                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', enTarget, '(fallback)');
             }
             location.href = url.toString();
+            console.log('[LanguageSwitcher] toggleGoogleHl: redirecting to', url.toString());
             return true;
         }
         return false;
