@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.17.0
+// @version      1.18.0
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -42,37 +42,41 @@
     };
 
     const toggleGoogleHl = () => {
-        const allowedHosts = [
-            'google.com', // but exclude mail.google.com
-            'developer.chrome.com',
-            'ai.google.dev'
-        ];
+        // 定義不同網址的語言參數配置
+        const siteConfigs = {
+            'google.com': { en: 'en-us', zh: 'zh-Hant' },
+            'developer.chrome.com': { en: 'en', zh: 'zh-tw' },
+            'ai.google.dev': { en: 'en', zh: 'zh-tw' }
+        };
+
         const host = getLowercaseHostname();
-        const isAllowed = allowedHosts.some(allowed => host.includes(allowed)) && host !== 'mail.google.com';
 
-        console.log('[LanguageSwitcher] toggleGoogleHl: host =', host, 'isAllowed =', isAllowed);
+        // 排除 mail.google.com
+        if (host === 'mail.google.com') return false;
 
-        if (isAllowed) {
+        // 找到匹配的網站配置
+        const matchedSite = Object.keys(siteConfigs).find(site => host.includes(site));
+
+        console.log('[LanguageSwitcher] toggleGoogleHl: host =', host, 'matchedSite =', matchedSite);
+
+        if (matchedSite) {
+            const config = siteConfigs[matchedSite];
             const url = new URL(getCurrentUrl());
             const current = url.searchParams.get('hl');
             console.log('[LanguageSwitcher] toggleGoogleHl: current hl =', current);
 
-            const isAiGoogleDev = host.includes('ai.google.dev');
-            let enTarget = isAiGoogleDev ? 'en' : 'en-us';
-            let zhTarget = isAiGoogleDev ? 'zh-tw' : 'zh-Hant';
-
             if (!current) {
-                url.searchParams.set('hl', enTarget);
-                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', enTarget);
+                url.searchParams.set('hl', config.en);
+                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', config.en);
             } else if (/^en(\b|[-_])/i.test(current)) {
-                url.searchParams.set('hl', zhTarget);
-                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', zhTarget);
+                url.searchParams.set('hl', config.zh);
+                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', config.zh);
             } else if (/^zh(\b|[-_])/i.test(current)) {
-                url.searchParams.set('hl', enTarget);
-                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', enTarget);
+                url.searchParams.set('hl', config.en);
+                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', config.en);
             } else {
-                url.searchParams.set('hl', enTarget);
-                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', enTarget, '(fallback)');
+                url.searchParams.set('hl', config.en);
+                console.log('[LanguageSwitcher] toggleGoogleHl: setting hl to', config.en, '(fallback)');
             }
             location.href = url.toString();
             console.log('[LanguageSwitcher] toggleGoogleHl: redirecting to', url.toString());
