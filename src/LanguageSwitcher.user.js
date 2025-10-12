@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.18.0
+// @version      1.19.0
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -26,8 +26,15 @@
 
     const replaceHref = (regex, replacement) => {
         const url = getCurrentUrl();
-        if (regex.test(url)) {
-            location.href = url.replace(regex, replacement);
+        // 保留 Query String 和 Hash
+        const urlObj = new URL(url);
+        const baseUrl = url.split('?')[0].split('#')[0];
+
+        // 只用基礎 URL 來測試 regex
+        if (regex.test(baseUrl)) {
+            const newBaseUrl = baseUrl.replace(regex, replacement);
+            const newUrl = newBaseUrl + urlObj.search + urlObj.hash;
+            location.href = newUrl;
             return true;
         }
         return false;
@@ -301,6 +308,16 @@
         // https://openai.github.io/openai-agents-python/ <-> https://doggy8088.github.io/openai-agents-python/
         () => setHostIf(getCurrentUrl().indexOf('//openai.github.io/openai-agents-python') >= 0, 'doggy8088.github.io'),
         () => setHostIf(getCurrentUrl().indexOf('//doggy8088.github.io/openai-agents-python') >= 0, 'openai.github.io'),
+
+        // GitHub spec-kit (English <-> Chinese)
+        // Repository home or tree/main pages
+        () => replaceHref(/^https?:\/\/github\.com\/github\/spec-kit\/?$/i, 'https://github.com/doggy8088/spec-kit/tree/zh-tw/'),
+        () => replaceHref(/^https?:\/\/github\.com\/github\/spec-kit\/tree\/main\/?$/i, 'https://github.com/doggy8088/spec-kit/tree/zh-tw/'),
+        () => replaceHref(/^https?:\/\/github\.com\/doggy8088\/spec-kit\/?$/i, 'https://github.com/github/spec-kit/tree/main/'),
+        () => replaceHref(/^https?:\/\/github\.com\/doggy8088\/spec-kit\/tree\/zh-tw\/?$/i, 'https://github.com/github/spec-kit/tree/main/'),
+        // Blob pages (file view)
+        () => replaceHref(/^https?:\/\/github\.com\/github\/spec-kit\/blob\/main\//i, 'https://github.com/doggy8088/spec-kit/blob/zh-tw/'),
+        () => replaceHref(/^https?:\/\/github\.com\/doggy8088\/spec-kit\/blob\/zh-tw\//i, 'https://github.com/github/spec-kit/blob/main/'),
     ];
 
     function applyFirstMatch() {
