@@ -23,6 +23,8 @@
         'Web 平台庫': 'Web 平台函式庫',
         'for 循環': 'for 迴圈',
         '「類」': '「類別」',
+        '視頻': '影片',
+        '音頻': '音訊',
         '一些庫': '一些函式庫',
         '一個庫': '一個函式庫',
         '一個類': '一個類別',
@@ -231,10 +233,10 @@
         const simplifiedChars = /[国际发经现实应图书馆学无东业产]/g;
         // 一些常見的繁體字特徵字符
         const traditionalChars = /[國際發經現實應圖書館學無東業產]/g;
-        
+
         const simplifiedCount = (text.match(simplifiedChars) || []).length;
         const traditionalCount = (text.match(traditionalChars) || []).length;
-        
+
         // 如果簡體字明顯多於繁體字，則判定為簡體中文
         return simplifiedCount > traditionalCount && simplifiedCount > 0;
     }
@@ -244,10 +246,10 @@
         let sampleText = '';
         let sampleCount = 0;
         const maxSamples = 50; // 取樣50個文字節點
-        
+
         function collectSamples(node) {
             if (sampleCount >= maxSamples) return;
-            
+
             if (node.nodeType === Node.TEXT_NODE) {
                 const text = node.nodeValue.trim();
                 if (text.length > 10) {
@@ -260,7 +262,7 @@
                 }
             }
         }
-        
+
         collectSamples(document.body);
         return isSimplifiedChinese(sampleText);
     }
@@ -268,24 +270,24 @@
     // 轉換文本：簡體轉繁體 + 詞彙替換
     function convertText(text) {
         if (!text || text.trim() === '') return text;
-        
+
         // 使用 OpenCC 進行簡體到繁體的轉換
         let convertedText = text;
         if (typeof OpenCC !== 'undefined') {
             const converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
             convertedText = converter(text);
         }
-        
+
         // 應用詞庫對照表進行替換
         // 按照詞語長度從長到短排序，避免短詞覆蓋長詞
         const sortedTerms = Object.keys(termMapping).sort((a, b) => b.length - a.length);
-        
+
         for (const term of sortedTerms) {
             const replacement = termMapping[term];
             // 使用全局替換
             convertedText = convertedText.split(term).join(replacement);
         }
-        
+
         return convertedText;
     }
 
@@ -315,14 +317,14 @@
             console.log('[簡轉繁] 此頁面不是簡體中文，跳過轉換');
             return;
         }
-        
+
         console.log('[簡轉繁] 偵測到簡體中文，開始轉換...');
-        
+
         // 轉換現有內容
         traverse(document.body);
-        
+
         console.log('[簡轉繁] 轉換完成');
-        
+
         // 監聽 DOM 變化，處理動態載入的內容
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
@@ -343,7 +345,7 @@
                 }
             });
         });
-        
+
         // 設定監聽整個文件內容的變化
         observer.observe(document.body, {
             childList: true,
