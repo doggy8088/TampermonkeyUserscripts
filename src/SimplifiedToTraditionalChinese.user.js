@@ -228,9 +228,9 @@
     // 檢測文本是否主要為簡體中文
     function isSimplifiedChinese(text) {
         // 一些常見的簡體字特徵字符
-        const simplifiedChars = /[国际发经现实应图书馆学无东业产]/ ;
+        const simplifiedChars = /[国际发经现实应图书馆学无东业产]/g;
         // 一些常見的繁體字特徵字符
-        const traditionalChars = /[國際發經現實應圖書館學無東業產]/;
+        const traditionalChars = /[國際發經現實應圖書館學無東業產]/g;
         
         const simplifiedCount = (text.match(simplifiedChars) || []).length;
         const traditionalCount = (text.match(traditionalChars) || []).length;
