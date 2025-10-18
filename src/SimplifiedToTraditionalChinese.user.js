@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         簡體中文自動轉繁體中文
-// @version      0.1.0
-// @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語
+// @version      0.2.1
+// @description  自動識別網頁中的簡體中文並轉換為繁體中文,同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -384,9 +384,9 @@
     // 檢測文本是否主要為簡體中文
     function isSimplifiedChinese(text) {
         // 一些常見的簡體字特徵字符
-        const simplifiedChars = /[国际发经现实应图书馆学无东业产]/g;
+        const simplifiedChars = /[并变东报边们么门马风发对动当点电带达单体题头条统来两乐难连个国过关观开会后还话经进间将机见几记结计旧紧气区强亲学现选许写这种着张长场车产处传时说实数书声师设术认让总资从样业应义养银为问无万于与员运爱儿办备标笔满妈飞费负丰复饭导读断队听图团态谈农脑论类离联领历罗泪该规够广课华欢号还护觉节较举级军极据际积济讲净请轻确线兴习响续系显转战质装专争只众制称创视书识树试双热则参虽岁议阳艺亚游医烟务湾温远约语园帮宝补邮卖妇待独担灯党弹讨铁龙练丽劳陆楼绿录兰礼脸乱构馆干顾刚干贵挂况块获换怀划剧尽绝继静简渐脚坚击仅惊权须乡戏协险终证织职钟针庄陈厂谁势适伤属顺术胜软责错采财词赛伞欧优叶营严压药亿维闻围网鱼云愿预余扑朴]/g;
         // 一些常見的繁體字特徵字符
-        const traditionalChars = /[國際發經現實應圖書館學無東業產]/g;
+        const traditionalChars = /[並變東報邊們麼門馬風發對動當點電帶達單體題頭條統來兩樂難連個國過關觀開會後還話經進間將機見幾記結計舊緊氣區強親學現選許寫這種著張長場車產處傳時說實數書聲師設術認讓總資從樣業應義養銀為問無萬於與員運愛兒辦備標筆滿媽飛費負豐復飯導讀斷隊聽圖團態談農腦論類離聯領歷羅淚該規夠廣課華歡號還護覺節較舉級軍極據際積濟講淨請輕確線興習響續係顯轉戰質裝專爭隻眾製稱創視書識樹試雙熱則參雖歲議陽藝亞遊醫煙務灣溫遠約語園幫寶補郵賣婦待獨擔燈黨彈討鐵龍練麗勞陸樓綠錄蘭禮臉亂構館幹顧剛乾貴掛況塊獲換懷劃劇盡絕繼靜簡漸腳堅擊僅驚權須鄉戲協險終證織職鐘針莊陳廠誰勢適傷屬順術勝軟責錯採財詞賽傘歐優葉營嚴壓藥億維聞圍網魚雲願預餘撲樸]/g;
 
         const simplifiedCount = (text.match(simplifiedChars) || []).length;
         const traditionalCount = (text.match(traditionalChars) || []).length;
@@ -421,25 +421,43 @@
         return isSimplifiedChinese(sampleText);
     }
 
+    // 建立 OpenCC 轉換器實例（只建立一次）
+    let converter = null;
+
+    // 建立正規表達式（只建立一次）
+    let termRegex = null;
+
+    function initConverter() {
+        if (typeof OpenCC !== 'undefined' && !converter) {
+            converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
+        }
+    }
+
+    function initTermRegex() {
+        if (!termRegex) {
+            // 按照詞語長度從長到短排序，避免短詞覆蓋長詞
+            const sortedTerms = Object.keys(termMapping)
+                .sort((a, b) => b.length - a.length)
+                .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')); // 轉義特殊字元
+
+            // 建立一個大的正規表達式，一次匹配所有詞彙
+            termRegex = new RegExp(sortedTerms.join('|'), 'g');
+        }
+    }
+
     // 轉換文本：簡體轉繁體 + 詞彙替換
     function convertText(text) {
         if (!text || text.trim() === '') return text;
 
         // 使用 OpenCC 進行簡體到繁體的轉換
         let convertedText = text;
-        if (typeof OpenCC !== 'undefined') {
-            const converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
+        if (converter) {
             convertedText = converter(text);
         }
 
-        // 應用詞庫對照表進行替換
-        // 按照詞語長度從長到短排序，避免短詞覆蓋長詞
-        const sortedTerms = Object.keys(termMapping).sort((a, b) => b.length - a.length);
-
-        for (const term of sortedTerms) {
-            const replacement = termMapping[term];
-            // 使用全局替換
-            convertedText = convertedText.split(term).join(replacement);
+        // 使用正規表達式一次性替換所有詞彙
+        if (termRegex) {
+            convertedText = convertedText.replace(termRegex, match => termMapping[match] || match);
         }
 
         return convertedText;
@@ -474,30 +492,58 @@
 
         console.log('[簡轉繁] 偵測到簡體中文，開始轉換...');
 
+        // 初始化轉換器和正規表達式
+        initConverter();
+        initTermRegex();
+
+        // 轉換頁面標題
+        if (document.title) {
+            const convertedTitle = convertText(document.title);
+            if (convertedTitle !== document.title) {
+                document.title = convertedTitle;
+            }
+        }
+
         // 轉換現有內容
         traverse(document.body);
 
         console.log('[簡轉繁] 轉換完成');
 
-        // 監聽 DOM 變化，處理動態載入的內容
+        // 使用防抖技術減少 MutationObserver 的執行頻率
+        let debounceTimer = null;
+        const pendingNodes = new Set();
+
         const observer = new MutationObserver((mutations) => {
             mutations.forEach((mutation) => {
                 if (mutation.type === 'childList') {
                     mutation.addedNodes.forEach((node) => {
-                        traverse(node);
+                        pendingNodes.add(node);
                     });
                 } else if (mutation.type === 'characterData') {
                     if (mutation.target.nodeType === Node.TEXT_NODE) {
-                        const originalText = mutation.target.nodeValue;
-                        if (originalText && originalText.trim() !== "") {
-                            const convertedText = convertText(originalText);
-                            if (convertedText !== originalText) {
-                                mutation.target.nodeValue = convertedText;
-                            }
-                        }
+                        pendingNodes.add(mutation.target);
                     }
                 }
             });
+
+            // 防抖：延遲執行，避免頻繁觸發
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(() => {
+                pendingNodes.forEach((node) => {
+                    if (node.nodeType === Node.TEXT_NODE) {
+                        const originalText = node.nodeValue;
+                        if (originalText && originalText.trim() !== "") {
+                            const convertedText = convertText(originalText);
+                            if (convertedText !== originalText) {
+                                node.nodeValue = convertedText;
+                            }
+                        }
+                    } else {
+                        traverse(node);
+                    }
+                });
+                pendingNodes.clear();
+            }, 100); // 100ms 的防抖延遲
         });
 
         // 設定監聽整個文件內容的變化
@@ -506,6 +552,36 @@
             subtree: true,
             characterData: true
         });
+
+        // 監聽標題變化
+        const titleObserver = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.type === 'childList' && document.title) {
+                    const convertedTitle = convertText(document.title);
+                    if (convertedTitle !== document.title) {
+                        // 暫時停止監聽，避免無限循環
+                        titleObserver.disconnect();
+                        document.title = convertedTitle;
+                        // 重新開始監聽
+                        titleObserver.observe(document.querySelector('title'), {
+                            childList: true,
+                            characterData: true,
+                            subtree: true
+                        });
+                    }
+                }
+            });
+        });
+
+        // 如果有 title 元素，監聽它的變化
+        const titleElement = document.querySelector('title');
+        if (titleElement) {
+            titleObserver.observe(titleElement, {
+                childList: true,
+                characterData: true,
+                subtree: true
+            });
+        }
     }
 
     // 等待 OpenCC 庫載入完成後再執行
