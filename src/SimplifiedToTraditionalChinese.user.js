@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      0.5.3
+// @version      0.6.0
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -405,45 +405,22 @@
         return false;
     }
 
-    // // 檢測文本是否主要為簡體中文
-    // function isSimplifiedChinese(text) {
-    //     // 一些常見的簡體字特徵字符
-    //     const simplifiedChars = /[码并变东报边们么门马风发对动当点电带达单体题头条统来两乐难连个国过关观开会后还话经进间将机见几记结计旧紧气区强亲学现选许写这种着张长场车产处传时说实数书声师设术认让总资从样业应义养银为问无万于与员运爱儿办备标笔满妈飞费负丰复饭导读断队听图团态谈农脑论类离联领历罗泪该规够广课华欢号还护觉节较举级军极据际积济讲净请轻确线兴习响续系显转战质装专争只众制称创视书识树试双热则参虽岁议阳艺亚游医烟务湾温远约语园帮宝补邮卖妇待独担灯党弹讨铁龙练丽劳陆楼绿录兰礼脸乱构馆干顾刚干贵挂况块获换怀划剧尽绝继静简渐脚坚击仅惊权须乡戏协险终证织职钟针庄陈厂谁势适伤属顺术胜软责错采财词赛伞欧优叶营严压药亿维闻围网鱼云愿预余扑朴]/g;
-    //     // 一些常見的繁體字特徵字符
-    //     const traditionalChars = /[碼並變東報邊們麼門馬風發對動當點電帶達單體題頭條統來兩樂難連個國過關觀開會後還話經進間將機見幾記結計舊緊氣區強親學現選許寫這種著張長場車產處傳時說實數書聲師設術認讓總資從樣業應義養銀為問無萬於與員運愛兒辦備標筆滿媽飛費負豐復飯導讀斷隊聽圖團態談農腦論類離聯領歷羅淚該規夠廣課華歡號還護覺節較舉級軍極據際積濟講淨請輕確線興習響續係顯轉戰質裝專爭隻眾製稱創視書識樹試雙熱則參雖歲議陽藝亞遊醫煙務灣溫遠約語園幫寶補郵賣婦待獨擔燈黨彈討鐵龍練麗勞陸樓綠錄蘭禮臉亂構館幹顧剛乾貴掛況塊獲換懷劃劇盡絕繼靜簡漸腳堅擊僅驚權須鄉戲協險終證織職鐘針莊陳廠誰勢適傷屬順術勝軟責錯採財詞賽傘歐優葉營嚴壓藥億維聞圍網魚雲願預餘撲樸]/g;
+    // 檢測文本是否主要為簡體中文
+    function isSimplifiedChinese(text) {
+        // 只檢測明確的簡體字特徵字符（排除台灣常用的簡化字）
+        // 這些字在繁體中文環境中幾乎不會使用
+        const simplifiedChars = /[码并变东报边们么门马风发对动当点电带达单体题头条统来两乐难连个国过关观开会后还话经进间将机见几记结计旧紧气区强亲学现选许写这种着张长场车产处传时说实数书声师设术认让总资从样业应义养银为问无万于与员运爱儿办备标笔满妈飞费负丰复饭导读断队听图团态谈农脑论类离联领历罗泪该规够广课华欢号还护觉节较举级军极据际积济讲净请轻确线兴习响续系显转战质装专争只众制称创视书识树试双热则参虽岁议阳艺亚游医烟务湾温远约语园帮宝补邮卖妇待独担灯党弹讨铁龙练丽劳陆楼绿录兰礼脸乱构馆干顾刚干贵挂况块获换怀划剧尽绝继静简渐脚坚击仅惊权须乡戏协险终证织职钟针庄陈厂谁势适伤属顺术胜软责错采财词赛伞欧优叶营严压药亿维闻围网鱼云愿预余扑朴]/g;
 
-    //     const simplifiedCount = (text.match(simplifiedChars) || []).length;
-    //     const traditionalCount = (text.match(traditionalChars) || []).length;
+        // 一些常見的繁體字特徵字符
+        const traditionalChars = /[碼並變東報邊們麼門馬風發對動當點電帶達單體題頭條統來兩樂難連個國過關觀開會後還話經進間將機見幾記結計舊緊氣區強親學現選許寫這種著張長場車產處傳時說實數書聲師設術認讓總資從樣業應義養銀為問無萬於與員運愛兒辦備標筆滿媽飛費負豐復飯導讀斷隊聽圖團態談農腦論類離聯領歷羅淚該規夠廣課華歡號還護覺節較舉級軍極據際積濟講淨請輕確線興習響續係顯轉戰質裝專爭隻眾製稱創視書識樹試雙熱則參雖歲議陽藝亞遊醫煙務灣溫遠約語園幫寶補郵賣婦待獨擔燈黨彈討鐵龍練麗勞陸樓綠錄蘭禮臉亂構館幹顧剛乾貴掛況塊獲換懷劃劇盡絕繼靜簡漸腳堅擊僅驚權須鄉戲協險終證織職鐘針莊陳廠誰勢適傷屬順術勝軟責錯採財詞賽傘歐優葉營嚴壓藥億維聞圍網魚雲願預餘撲樸]/g;
 
-    //     // 如果簡體字明顯多於繁體字，則判定為簡體中文
-    //     return simplifiedCount > traditionalCount && simplifiedCount > 0;
-    // }
+        const simplifiedCount = (text.match(simplifiedChars) || []).length;
+        const traditionalCount = (text.match(traditionalChars) || []).length;
 
-    // // 檢測整個頁面是否主要為簡體中文
-    // function isPageSimplifiedChinese() {
-    //     let sampleText = '';
-    //     let sampleCount = 0;
-    //     const maxSamples = 50; // 取樣50個文字節點
-
-    //     function collectSamples(node) {
-    //         if (sampleCount >= maxSamples) return;
-
-    //         if (node.nodeType === Node.TEXT_NODE) {
-    //             const text = node.nodeValue.trim();
-    //             if (text.length > 10) {
-    //                 sampleText += text + ' ';
-    //                 sampleCount++;
-    //             }
-    //         } else if (node.nodeType === Node.ELEMENT_NODE && !isExcluded(node)) {
-    //             for (let i = 0; i < node.childNodes.length && sampleCount < maxSamples; i++) {
-    //                 collectSamples(node.childNodes[i]);
-    //             }
-    //         }
-    //     }
-
-    //     collectSamples(document.body);
-    //     return isSimplifiedChinese(sampleText);
-    // }
+        // 如果簡體字明顯多於繁體字，則判定為簡體中文
+        // 設定閾值：簡體字數量要大於繁體字，且至少有 2 個簡體字
+        return simplifiedCount > traditionalCount && simplifiedCount >= 2;
+    }
 
     // 建立 OpenCC 轉換器實例（只建立一次）
     let converter = null;
@@ -513,22 +490,23 @@
         // 如果文字中沒有中文字元，直接返回，避免不必要的轉換
         if (!hasChinese(text)) return text;
 
+        // **關鍵改進：先檢測是否為簡體中文**
+        // 如果不是簡體中文，直接返回原文，不做任何轉換
+        if (!isSimplifiedChinese(text)) {
+            return text;
+        }
+
         // 使用 OpenCC 進行簡體到繁體的轉換
         let convertedText = text;
         if (converter) {
             convertedText = converter(text);
         }
 
-        // 即使簡繁轉換後文字相同，仍需檢查是否有詞彙需要替換
-        // 但先用快速檢查避免不必要的正則表達式執行
-        const needsTermReplacement = (convertedText === text) && mayContainTerms(text);
+        // 只對真正從簡體轉換過來的文字進行詞彙替換
         const hasSimplifiedChars = convertedText !== text;
 
-        // 如果既沒有簡體字，也不可能包含需要替換的詞彙，直接返回
-        if (!hasSimplifiedChars && !needsTermReplacement) return text;
-
-        // 使用正規表達式進行詞彙替換，只替換簡體->繁體轉換後的詞彙（避免重複替換）
-        if (termRegex && (hasSimplifiedChars || needsTermReplacement)) {
+        // 使用正規表達式進行詞彙替換
+        if (termRegex && hasSimplifiedChars) {
             // 記錄已經完成的替換，避免對替換結果再次進行替換
             const replaced = new Set();
 
