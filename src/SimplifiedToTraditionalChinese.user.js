@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         簡體中文自動轉繁體中文
-// @version      0.2.1
-// @description  自動識別網頁中的簡體中文並轉換為繁體中文,同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題)
+// @name         多奇中文簡繁轉換大師
+// @version      0.4.2
+// @description  自動識別網頁中的簡體中文並轉換為繁體中文,同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值),支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -20,6 +20,9 @@
 
     // 詞庫對照表 (中國大陸用語 => 台灣用語)
     const termMapping = {
+        '惰性加载': '延遲載入',
+        '引用變數': '參考變數',
+        '變量': '變數',
         'Web 平台庫': 'Web 平台函式庫',
         'for 循環': 'for 迴圈',
         'while 循環': 'while 迴圈',
@@ -374,52 +377,52 @@
         if (tagName === "IFRAME") return true;
         if (tagName === "OBJECT") return true;
         if (tagName === "CODE") return true;
-        if (tagName === "PRE") return true;
+        // if (tagName === "PRE") return true;
         if (tagName === "TEXTAREA") return true;
         if (tagName === "INPUT") return true;
         if (tagName === "SELECT") return true;
         return false;
     }
 
-    // 檢測文本是否主要為簡體中文
-    function isSimplifiedChinese(text) {
-        // 一些常見的簡體字特徵字符
-        const simplifiedChars = /[并变东报边们么门马风发对动当点电带达单体题头条统来两乐难连个国过关观开会后还话经进间将机见几记结计旧紧气区强亲学现选许写这种着张长场车产处传时说实数书声师设术认让总资从样业应义养银为问无万于与员运爱儿办备标笔满妈飞费负丰复饭导读断队听图团态谈农脑论类离联领历罗泪该规够广课华欢号还护觉节较举级军极据际积济讲净请轻确线兴习响续系显转战质装专争只众制称创视书识树试双热则参虽岁议阳艺亚游医烟务湾温远约语园帮宝补邮卖妇待独担灯党弹讨铁龙练丽劳陆楼绿录兰礼脸乱构馆干顾刚干贵挂况块获换怀划剧尽绝继静简渐脚坚击仅惊权须乡戏协险终证织职钟针庄陈厂谁势适伤属顺术胜软责错采财词赛伞欧优叶营严压药亿维闻围网鱼云愿预余扑朴]/g;
-        // 一些常見的繁體字特徵字符
-        const traditionalChars = /[並變東報邊們麼門馬風發對動當點電帶達單體題頭條統來兩樂難連個國過關觀開會後還話經進間將機見幾記結計舊緊氣區強親學現選許寫這種著張長場車產處傳時說實數書聲師設術認讓總資從樣業應義養銀為問無萬於與員運愛兒辦備標筆滿媽飛費負豐復飯導讀斷隊聽圖團態談農腦論類離聯領歷羅淚該規夠廣課華歡號還護覺節較舉級軍極據際積濟講淨請輕確線興習響續係顯轉戰質裝專爭隻眾製稱創視書識樹試雙熱則參雖歲議陽藝亞遊醫煙務灣溫遠約語園幫寶補郵賣婦待獨擔燈黨彈討鐵龍練麗勞陸樓綠錄蘭禮臉亂構館幹顧剛乾貴掛況塊獲換懷劃劇盡絕繼靜簡漸腳堅擊僅驚權須鄉戲協險終證織職鐘針莊陳廠誰勢適傷屬順術勝軟責錯採財詞賽傘歐優葉營嚴壓藥億維聞圍網魚雲願預餘撲樸]/g;
+    // // 檢測文本是否主要為簡體中文
+    // function isSimplifiedChinese(text) {
+    //     // 一些常見的簡體字特徵字符
+    //     const simplifiedChars = /[码并变东报边们么门马风发对动当点电带达单体题头条统来两乐难连个国过关观开会后还话经进间将机见几记结计旧紧气区强亲学现选许写这种着张长场车产处传时说实数书声师设术认让总资从样业应义养银为问无万于与员运爱儿办备标笔满妈飞费负丰复饭导读断队听图团态谈农脑论类离联领历罗泪该规够广课华欢号还护觉节较举级军极据际积济讲净请轻确线兴习响续系显转战质装专争只众制称创视书识树试双热则参虽岁议阳艺亚游医烟务湾温远约语园帮宝补邮卖妇待独担灯党弹讨铁龙练丽劳陆楼绿录兰礼脸乱构馆干顾刚干贵挂况块获换怀划剧尽绝继静简渐脚坚击仅惊权须乡戏协险终证织职钟针庄陈厂谁势适伤属顺术胜软责错采财词赛伞欧优叶营严压药亿维闻围网鱼云愿预余扑朴]/g;
+    //     // 一些常見的繁體字特徵字符
+    //     const traditionalChars = /[碼並變東報邊們麼門馬風發對動當點電帶達單體題頭條統來兩樂難連個國過關觀開會後還話經進間將機見幾記結計舊緊氣區強親學現選許寫這種著張長場車產處傳時說實數書聲師設術認讓總資從樣業應義養銀為問無萬於與員運愛兒辦備標筆滿媽飛費負豐復飯導讀斷隊聽圖團態談農腦論類離聯領歷羅淚該規夠廣課華歡號還護覺節較舉級軍極據際積濟講淨請輕確線興習響續係顯轉戰質裝專爭隻眾製稱創視書識樹試雙熱則參雖歲議陽藝亞遊醫煙務灣溫遠約語園幫寶補郵賣婦待獨擔燈黨彈討鐵龍練麗勞陸樓綠錄蘭禮臉亂構館幹顧剛乾貴掛況塊獲換懷劃劇盡絕繼靜簡漸腳堅擊僅驚權須鄉戲協險終證織職鐘針莊陳廠誰勢適傷屬順術勝軟責錯採財詞賽傘歐優葉營嚴壓藥億維聞圍網魚雲願預餘撲樸]/g;
 
-        const simplifiedCount = (text.match(simplifiedChars) || []).length;
-        const traditionalCount = (text.match(traditionalChars) || []).length;
+    //     const simplifiedCount = (text.match(simplifiedChars) || []).length;
+    //     const traditionalCount = (text.match(traditionalChars) || []).length;
 
-        // 如果簡體字明顯多於繁體字，則判定為簡體中文
-        return simplifiedCount > traditionalCount && simplifiedCount > 0;
-    }
+    //     // 如果簡體字明顯多於繁體字，則判定為簡體中文
+    //     return simplifiedCount > traditionalCount && simplifiedCount > 0;
+    // }
 
-    // 檢測整個頁面是否主要為簡體中文
-    function isPageSimplifiedChinese() {
-        let sampleText = '';
-        let sampleCount = 0;
-        const maxSamples = 50; // 取樣50個文字節點
+    // // 檢測整個頁面是否主要為簡體中文
+    // function isPageSimplifiedChinese() {
+    //     let sampleText = '';
+    //     let sampleCount = 0;
+    //     const maxSamples = 50; // 取樣50個文字節點
 
-        function collectSamples(node) {
-            if (sampleCount >= maxSamples) return;
+    //     function collectSamples(node) {
+    //         if (sampleCount >= maxSamples) return;
 
-            if (node.nodeType === Node.TEXT_NODE) {
-                const text = node.nodeValue.trim();
-                if (text.length > 10) {
-                    sampleText += text + ' ';
-                    sampleCount++;
-                }
-            } else if (node.nodeType === Node.ELEMENT_NODE && !isExcluded(node)) {
-                for (let i = 0; i < node.childNodes.length && sampleCount < maxSamples; i++) {
-                    collectSamples(node.childNodes[i]);
-                }
-            }
-        }
+    //         if (node.nodeType === Node.TEXT_NODE) {
+    //             const text = node.nodeValue.trim();
+    //             if (text.length > 10) {
+    //                 sampleText += text + ' ';
+    //                 sampleCount++;
+    //             }
+    //         } else if (node.nodeType === Node.ELEMENT_NODE && !isExcluded(node)) {
+    //             for (let i = 0; i < node.childNodes.length && sampleCount < maxSamples; i++) {
+    //                 collectSamples(node.childNodes[i]);
+    //             }
+    //         }
+    //     }
 
-        collectSamples(document.body);
-        return isSimplifiedChinese(sampleText);
-    }
+    //     collectSamples(document.body);
+    //     return isSimplifiedChinese(sampleText);
+    // }
 
     // 建立 OpenCC 轉換器實例（只建立一次）
     let converter = null;
@@ -455,6 +458,9 @@
             convertedText = converter(text);
         }
 
+        // 如果轉換後與原文相同，表示沒有簡體字，直接返回
+        if (convertedText === text) return text;
+
         // 使用正規表達式一次性替換所有詞彙
         if (termRegex) {
             convertedText = convertedText.replace(termRegex, match => termMapping[match] || match);
@@ -463,14 +469,58 @@
         return convertedText;
     }
 
-    // 遍歷並轉換所有文字節點
-    function traverse(elm) {
-        if (elm.nodeType === Node.ELEMENT_NODE || elm.nodeType === Node.DOCUMENT_NODE) {
-            if (isExcluded(elm)) return;
-            for (let i = 0; i < elm.childNodes.length; i++) {
-                traverse(elm.childNodes[i]);
+    // 定義需要排除的屬性清單（核心屬性和 JS 常用屬性）
+    const excludedAttributes = new Set([
+        'id', 'class', 'style', 'href', 'src', 'action', 'method',
+        'type', 'name', 'value', 'for', 'rel', 'charset', 'content',
+        'http-equiv', 'property', 'itemtype', 'itemprop', 'itemscope',
+        'xmlns', 'role', 'aria-label', 'aria-labelledby', 'aria-describedby',
+        'tabindex', 'contenteditable', 'draggable', 'spellcheck',
+        'autocomplete', 'autocorrect', 'autocapitalize',
+        'inputmode', 'pattern', 'accept', 'accept-charset',
+        'enctype', 'formaction', 'formenctype', 'formmethod',
+        'target', 'download', 'ping', 'referrerpolicy',
+        'crossorigin', 'integrity', 'async', 'defer',
+        'loading', 'decoding', 'fetchpriority'
+    ]);
+
+    // 轉換元素的屬性值
+    function convertAttributes(element) {
+        if (!element.attributes) return;
+
+        for (let i = 0; i < element.attributes.length; i++) {
+            const attr = element.attributes[i];
+            const attrName = attr.name.toLowerCase();
+
+            // 排除核心屬性和 JS 常用屬性
+            if (excludedAttributes.has(attrName)) continue;
+
+            // 排除以特定前綴開頭的屬性（但保留 data-* 屬性）
+            if (attrName.startsWith('on')) continue; // 事件處理器
+            if (attrName.startsWith('v-')) continue; // Vue 指令
+            if (attrName.startsWith(':')) continue; // Vue 簡寫
+            if (attrName.startsWith('@')) continue; // Vue 事件簡寫
+            if (attrName.startsWith('ng-')) continue; // Angular 指令
+            if (attrName.startsWith('*ng')) continue; // Angular 結構指令
+            if (attrName.startsWith('[')) continue; // Angular 屬性綁定
+            if (attrName.startsWith('(')) continue; // Angular 事件綁定
+            if (attrName.startsWith('bind')) continue; // 綁定相關
+            if (attrName.startsWith('x-')) continue; // Alpine.js 指令
+
+            // 轉換屬性值
+            const originalValue = attr.value;
+            if (originalValue && originalValue.trim() !== "") {
+                const convertedValue = convertText(originalValue);
+                if (convertedValue !== originalValue) {
+                    element.setAttribute(attr.name, convertedValue);
+                }
             }
         }
+    }
+
+    // 遍歷並轉換所有文字節點和屬性
+    function traverse(elm) {
+        // 處理文字節點
         if (elm.nodeType === Node.TEXT_NODE) {
             const originalText = elm.nodeValue;
             if (originalText && originalText.trim() !== "") {
@@ -479,18 +529,28 @@
                     elm.nodeValue = convertedText;
                 }
             }
+            return;
+        }
+
+        // 處理元素節點和文件節點
+        if (elm.nodeType === Node.ELEMENT_NODE || elm.nodeType === Node.DOCUMENT_NODE) {
+            if (isExcluded(elm)) return;
+
+            // 如果是元素節點，轉換其屬性
+            if (elm.nodeType === Node.ELEMENT_NODE) {
+                convertAttributes(elm);
+            }
+
+            // 遞迴處理所有子節點
+            for (let i = 0; i < elm.childNodes.length; i++) {
+                traverse(elm.childNodes[i]);
+            }
         }
     }
 
     // 主執行函數
     function init() {
-        // 檢測頁面是否為簡體中文
-        if (!isPageSimplifiedChinese()) {
-            console.log('[簡轉繁] 此頁面不是簡體中文，跳過轉換');
-            return;
-        }
-
-        console.log('[簡轉繁] 偵測到簡體中文，開始轉換...');
+        console.log('[簡轉繁] 腳本已啟動，開始監聽頁面變化...');
 
         // 初始化轉換器和正規表達式
         initConverter();
@@ -507,8 +567,6 @@
         // 轉換現有內容
         traverse(document.body);
 
-        console.log('[簡轉繁] 轉換完成');
-
         // 使用防抖技術減少 MutationObserver 的執行頻率
         let debounceTimer = null;
         const pendingNodes = new Set();
@@ -521,6 +579,22 @@
                     });
                 } else if (mutation.type === 'characterData') {
                     if (mutation.target.nodeType === Node.TEXT_NODE) {
+                        pendingNodes.add(mutation.target);
+                    }
+                } else if (mutation.type === 'attributes') {
+                    // 監聽屬性變化
+                    const attrName = mutation.attributeName.toLowerCase();
+                    if (!excludedAttributes.has(attrName) &&
+                        !attrName.startsWith('on') &&
+                        !attrName.startsWith('v-') &&
+                        !attrName.startsWith(':') &&
+                        !attrName.startsWith('@') &&
+                        !attrName.startsWith('ng-') &&
+                        !attrName.startsWith('*ng') &&
+                        !attrName.startsWith('[') &&
+                        !attrName.startsWith('(') &&
+                        !attrName.startsWith('bind') &&
+                        !attrName.startsWith('x-')) {
                         pendingNodes.add(mutation.target);
                     }
                 }
@@ -538,6 +612,10 @@
                                 node.nodeValue = convertedText;
                             }
                         }
+                    } else if (node.nodeType === Node.ELEMENT_NODE) {
+                        // 如果是元素節點，也要轉換屬性
+                        convertAttributes(node);
+                        traverse(node);
                     } else {
                         traverse(node);
                     }
@@ -546,11 +624,64 @@
             }, 100); // 100ms 的防抖延遲
         });
 
-        // 設定監聽整個文件內容的變化
+        // 設定監聽整個文件內容的變化（包含屬性變化）
         observer.observe(document.body, {
             childList: true,
             subtree: true,
-            characterData: true
+            characterData: true,
+            attributes: true,
+            attributeOldValue: false
+        });
+
+        // ===== 支援 SPA 頁面 =====
+
+        // 監聽 URL 變化 (用於 SPA 路由切換)
+        let lastUrl = location.href;
+
+        // 封裝轉換邏輯為函式,便於重複呼叫
+        function convertPage() {
+            // 轉換頁面標題
+            if (document.title) {
+                const convertedTitle = convertText(document.title);
+                if (convertedTitle !== document.title) {
+                    document.title = convertedTitle;
+                }
+            }
+
+            // 轉換頁面內容
+            traverse(document.body);
+        }        // 監聽 pushState 和 replaceState
+        const originalPushState = history.pushState;
+        const originalReplaceState = history.replaceState;
+
+        history.pushState = function(...args) {
+            originalPushState.apply(this, args);
+            if (lastUrl !== location.href) {
+                lastUrl = location.href;
+                // 延遲轉換,等待新內容載入
+                setTimeout(convertPage, 300);
+            }
+        };
+
+        history.replaceState = function(...args) {
+            originalReplaceState.apply(this, args);
+            if (lastUrl !== location.href) {
+                lastUrl = location.href;
+                setTimeout(convertPage, 300);
+            }
+        };
+
+        // 監聽 popstate 事件 (瀏覽器前進/後退按鈕)
+        window.addEventListener('popstate', () => {
+            if (lastUrl !== location.href) {
+                lastUrl = location.href;
+                setTimeout(convertPage, 300);
+            }
+        });
+
+        // 監聽 hashchange 事件 (用於 hash 路由)
+        window.addEventListener('hashchange', () => {
+            setTimeout(convertPage, 300);
         });
 
         // 監聽標題變化
