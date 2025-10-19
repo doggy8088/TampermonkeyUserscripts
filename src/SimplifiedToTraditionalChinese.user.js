@@ -429,6 +429,8 @@
 
     // 建立正規表達式（只建立一次）
     let termRegex = null;
+    // 用於快速檢查的首字集合
+    let termFirstChars = null;
 
     function initConverter() {
         if (typeof OpenCC !== 'undefined' && !converter) {
@@ -445,7 +447,21 @@
 
             // 建立一個大的正規表達式，一次匹配所有詞彙
             termRegex = new RegExp(sortedTerms.join('|'), 'g');
+
+            // 建立首字集合，用於快速檢查
+            termFirstChars = new Set(Object.keys(termMapping).map(term => term[0]));
         }
+    }
+
+    // 快速檢查文字是否可能包含需要替換的詞彙
+    function mayContainTerms(text) {
+        if (!termFirstChars) return false;
+        for (let i = 0; i < text.length; i++) {
+            if (termFirstChars.has(text[i])) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // 轉換文本：簡體轉繁體 + 詞彙替換
@@ -458,11 +474,16 @@
             convertedText = converter(text);
         }
 
-        // 如果轉換後與原文相同，表示沒有簡體字，直接返回
-        if (convertedText === text) return text;
+        // 即使簡繁轉換後文字相同，仍需檢查是否有詞彙需要替換
+        // 但先用快速檢查避免不必要的正則表達式執行
+        const needsTermReplacement = (convertedText === text) && mayContainTerms(text);
+        const hasSimplifiedChars = convertedText !== text;
+
+        // 如果既沒有簡體字，也不可能包含需要替換的詞彙，直接返回
+        if (!hasSimplifiedChars && !needsTermReplacement) return text;
 
         // 使用正規表達式一次性替換所有詞彙
-        if (termRegex) {
+        if (termRegex && (hasSimplifiedChars || needsTermReplacement)) {
             convertedText = convertedText.replace(termRegex, match => termMapping[match] || match);
         }
 
