@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      0.5.2
+// @version      0.5.3
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -368,9 +368,29 @@
         '鼠標事件': '滑鼠事件'
     };
 
+    // 不轉換的選擇器清單
+    const excludedSelectors = [
+        'div#gemini-qna-overlay'
+    ];
+
     // 檢查元素是否應該被排除
     function isExcluded(elm) {
         if (!elm || !elm.tagName) return false;
+
+        // 檢查是否匹配排除的選擇器
+        if (elm.nodeType === Node.ELEMENT_NODE) {
+            for (const selector of excludedSelectors) {
+                try {
+                    if (elm.matches(selector)) {
+                        return true;
+                    }
+                } catch (e) {
+                    // 忽略無效的選擇器
+                    console.warn(`[簡轉繁] 無效的選擇器: ${selector}`, e);
+                }
+            }
+        }
+
         const tagName = elm.tagName.toUpperCase();
         if (tagName === "STYLE") return true;
         if (tagName === "SCRIPT") return true;
