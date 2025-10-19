@@ -491,9 +491,29 @@
         // 如果既沒有簡體字,也不可能包含需要替換的詞彙,直接返回
         if (!hasSimplifiedChars && !needsTermReplacement) return text;
 
-        // 使用正規表達式一次性替換所有詞彙
+        // 使用正規表達式進行詞彙替換，並確保每個位置只替換一次
         if (termRegex && (hasSimplifiedChars || needsTermReplacement)) {
-            convertedText = convertedText.replace(termRegex, match => termMapping[match] || match);
+            // 使用一個特殊標記來防止重複替換
+            const PLACEHOLDER_PREFIX = '\u200B'; // 零寬空格作為佔位符
+            const replacements = [];
+
+            // 第一步：找出所有匹配並記錄替換
+            convertedText = convertedText.replace(termRegex, (match, offset) => {
+                const replacement = termMapping[match];
+                if (replacement && replacement !== match) {
+                    // 使用佔位符標記已替換的位置
+                    const placeholder = `${PLACEHOLDER_PREFIX}${replacements.length}${PLACEHOLDER_PREFIX}`;
+                    replacements.push(replacement);
+                    return placeholder;
+                }
+                return match;
+            });
+
+            // 第二步：將佔位符替換回實際內容
+            replacements.forEach((replacement, index) => {
+                const placeholder = `${PLACEHOLDER_PREFIX}${index}${PLACEHOLDER_PREFIX}`;
+                convertedText = convertedText.replace(placeholder, replacement);
+            });
         }
 
         return convertedText;
