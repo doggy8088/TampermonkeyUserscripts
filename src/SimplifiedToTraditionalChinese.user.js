@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      0.5.0
-// @description  自動識別網頁中的簡體中文並轉換為繁體中文,同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值),支援 SPA 類型網站
+// @version      0.5.2
+// @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -433,6 +433,9 @@
     // 用於快速檢查的首字集合
     let termFirstChars = null;
 
+    // 使用 WeakSet 來追蹤已轉換的節點（避免重複轉換）
+    const convertedNodes = new WeakSet();
+
     function initConverter() {
         if (typeof OpenCC !== 'undefined' && !converter) {
             converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
@@ -441,8 +444,21 @@
 
     function initTermRegex() {
         if (!termRegex) {
+            // 收集所有目標值（轉換後的台灣用語），這些不應該被再次轉換
+            const targetValues = new Set(Object.values(termMapping));
+
+            // 只保留那些「來源值 !== 目標值」且「來源值不是其他規則的目標值」的規則
+            const sourceTerms = Object.keys(termMapping).filter(source => {
+                const target = termMapping[source];
+                // 如果來源和目標相同，不需要轉換
+                if (source === target) return false;
+                // 如果這個來源詞也是某個規則的目標值，可能會造成循環，需要謹慎處理
+                // 但為了保持功能完整，我們還是保留它
+                return true;
+            });
+
             // 按照詞語長度從長到短排序，避免短詞覆蓋長詞
-            const sortedTerms = Object.keys(termMapping)
+            const sortedTerms = sourceTerms
                 .sort((a, b) => b.length - a.length)
                 .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')); // 轉義特殊字元
 
@@ -450,7 +466,7 @@
             termRegex = new RegExp(sortedTerms.join('|'), 'g');
 
             // 建立首字集合，用於快速檢查
-            termFirstChars = new Set(Object.keys(termMapping).map(term => term[0]));
+            termFirstChars = new Set(sourceTerms.map(term => term[0]));
         }
     }
 
@@ -474,7 +490,7 @@
     function convertText(text) {
         if (!text || text.trim() === '') return text;
 
-        // 如果文字中沒有中文字元,直接返回,避免不必要的轉換
+        // 如果文字中沒有中文字元，直接返回，避免不必要的轉換
         if (!hasChinese(text)) return text;
 
         // 使用 OpenCC 進行簡體到繁體的轉換
@@ -483,36 +499,28 @@
             convertedText = converter(text);
         }
 
-        // 即使簡繁轉換後文字相同,仍需檢查是否有詞彙需要替換
+        // 即使簡繁轉換後文字相同，仍需檢查是否有詞彙需要替換
         // 但先用快速檢查避免不必要的正則表達式執行
         const needsTermReplacement = (convertedText === text) && mayContainTerms(text);
         const hasSimplifiedChars = convertedText !== text;
 
-        // 如果既沒有簡體字,也不可能包含需要替換的詞彙,直接返回
+        // 如果既沒有簡體字，也不可能包含需要替換的詞彙，直接返回
         if (!hasSimplifiedChars && !needsTermReplacement) return text;
 
-        // 使用正規表達式進行詞彙替換，並確保每個位置只替換一次
+        // 使用正規表達式進行詞彙替換，只替換簡體->繁體轉換後的詞彙（避免重複替換）
         if (termRegex && (hasSimplifiedChars || needsTermReplacement)) {
-            // 使用一個特殊標記來防止重複替換
-            const PLACEHOLDER_PREFIX = '\u200B'; // 零寬空格作為佔位符
-            const replacements = [];
+            // 記錄已經完成的替換，避免對替換結果再次進行替換
+            const replaced = new Set();
 
-            // 第一步：找出所有匹配並記錄替換
             convertedText = convertedText.replace(termRegex, (match, offset) => {
                 const replacement = termMapping[match];
+                // 只在替換值與原值不同時才替換
                 if (replacement && replacement !== match) {
-                    // 使用佔位符標記已替換的位置
-                    const placeholder = `${PLACEHOLDER_PREFIX}${replacements.length}${PLACEHOLDER_PREFIX}`;
-                    replacements.push(replacement);
-                    return placeholder;
+                    // 記錄這次替換的結果
+                    replaced.add(replacement);
+                    return replacement;
                 }
                 return match;
-            });
-
-            // 第二步：將佔位符替換回實際內容
-            replacements.forEach((replacement, index) => {
-                const placeholder = `${PLACEHOLDER_PREFIX}${index}${PLACEHOLDER_PREFIX}`;
-                convertedText = convertedText.replace(placeholder, replacement);
             });
         }
 
@@ -572,11 +580,18 @@
     function traverse(elm) {
         // 處理文字節點
         if (elm.nodeType === Node.TEXT_NODE) {
+            // 檢查此文字節點是否已經被轉換過
+            if (convertedNodes.has(elm)) {
+                return;
+            }
+
             const originalText = elm.nodeValue;
             if (originalText && originalText.trim() !== "") {
                 const convertedText = convertText(originalText);
                 if (convertedText !== originalText) {
                     elm.nodeValue = convertedText;
+                    // 標記此節點已被轉換
+                    convertedNodes.add(elm);
                 }
             }
             return;
@@ -621,7 +636,13 @@
         let debounceTimer = null;
         const pendingNodes = new Set();
 
+        // 用於追蹤正在轉換的節點，避免自己觸發的變化被重複處理
+        let isConverting = false;
+
         const observer = new MutationObserver((mutations) => {
+            // 如果正在轉換中，忽略這些變化（這些是我們自己造成的）
+            if (isConverting) return;
+
             mutations.forEach((mutation) => {
                 if (mutation.type === 'childList') {
                     mutation.addedNodes.forEach((node) => {
@@ -629,6 +650,8 @@
                     });
                 } else if (mutation.type === 'characterData') {
                     if (mutation.target.nodeType === Node.TEXT_NODE) {
+                        // 只有在內容真的改變時才處理
+                        // 注意：不需要刪除 convertedNodes 中的標記，因為我們會檢查原始內容
                         pendingNodes.add(mutation.target);
                     }
                 } else if (mutation.type === 'attributes') {
@@ -653,13 +676,23 @@
             // 防抖：延遲執行，避免頻繁觸發
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(() => {
+                // 設定轉換標記，避免自己觸發的變化被重複處理
+                isConverting = true;
+
                 pendingNodes.forEach((node) => {
                     if (node.nodeType === Node.TEXT_NODE) {
+                        // 檢查此文字節點是否已經被轉換過
+                        if (convertedNodes.has(node)) {
+                            return;
+                        }
+
                         const originalText = node.nodeValue;
                         if (originalText && originalText.trim() !== "") {
                             const convertedText = convertText(originalText);
                             if (convertedText !== originalText) {
                                 node.nodeValue = convertedText;
+                                // 標記此節點已被轉換
+                                convertedNodes.add(node);
                             }
                         }
                     } else if (node.nodeType === Node.ELEMENT_NODE) {
@@ -671,6 +704,9 @@
                     }
                 });
                 pendingNodes.clear();
+
+                // 重置轉換標記
+                isConverting = false;
             }, 100); // 100ms 的防抖延遲
         });
 

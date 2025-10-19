@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>測試簡繁轉換腳本</title>
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-case {
+            background: #f5f5f5;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #4CAF50;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            cursor: pointer;
+            background: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+        }
+        button:hover {
+            background: #0b7dda;
+        }
+        .result {
+            background: #fff3cd;
+            padding: 10px;
+            margin: 10px 0;
+            border-left: 4px solid #ffc107;
+        }
+    </style>
+</head>
+<body>
+    <h1>測試簡繁轉換腳本</h1>
+
+    <div class="test-case">
+        <h2>測試案例 1: 算法轉換</h2>
+        <p id="test1">这是一个算法示例</p>
+        <button onclick="updateTest1()">更新內容（模擬頁面更新）</button>
+    </div>
+
+    <div class="test-case">
+        <h2>測試案例 2: 多次更新</h2>
+        <p id="test2">算法很重要</p>
+        <button onclick="updateTest2Multiple()">連續更新 3 次</button>
+    </div>
+
+    <div class="test-case">
+        <h2>測試案例 3: 動態新增內容</h2>
+        <div id="test3"></div>
+        <button onclick="addContent()">新增簡體內容</button>
+    </div>
+
+    <div class="result">
+        <h3>預期結果：</h3>
+        <ul>
+            <li>「算法」應該轉換為「演算法」</li>
+            <li>多次更新時，不應該出現「演演算法」</li>
+            <li>動態新增的內容也應該正確轉換</li>
+        </ul>
+    </div>
+
+    <script>
+        let updateCount = 0;
+
+        function updateTest1() {
+            const elem = document.getElementById('test1');
+            elem.textContent = '更新后的算法内容 (更新次数: ' + (++updateCount) + ')';
+        }
+
+        function updateTest2Multiple() {
+            const elem = document.getElementById('test2');
+            for (let i = 0; i < 3; i++) {
+                setTimeout(() => {
+                    elem.textContent = '算法更新 ' + (i + 1) + ' 次';
+                }, i * 500);
+            }
+        }
+
+        let contentCount = 0;
+        function addContent() {
+            const container = document.getElementById('test3');
+            const newPara = document.createElement('p');
+            newPara.textContent = '新增的算法内容 ' + (++contentCount);
+            container.appendChild(newPara);
+        }
+    </script>
+
+    <!-- 載入 OpenCC 函式庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
+
+    <!-- 這裡應該載入你的 Tampermonkey 腳本，但在測試頁面中我們需要手動載入 -->
+    <script>
+        console.log('測試頁面已載入，請確保 Tampermonkey 腳本已啟用');
+    </script>
+</body>
+</html>

@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>詞彙轉換測試</title>
+    <style>
+        body {
+            font-family: 'Microsoft JhengHei', sans-serif;
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 20px;
+            line-height: 1.8;
+        }
+        .test-case {
+            background: #f8f9fa;
+            padding: 20px;
+            margin: 15px 0;
+            border-left: 5px solid #007bff;
+            border-radius: 4px;
+        }
+        .test-title {
+            color: #007bff;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .original {
+            background: #fff3cd;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+        }
+        .expected {
+            background: #d4edda;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+        }
+        .actual {
+            background: #cce5ff;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 3px;
+            font-weight: bold;
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 5px;
+            cursor: pointer;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+        }
+        button:hover {
+            background: #218838;
+        }
+        .warning {
+            background: #f8d7da;
+            border-left: 5px solid #dc3545;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+            color: #721c24;
+        }
+        h1 {
+            color: #343a40;
+            border-bottom: 3px solid #007bff;
+            padding-bottom: 10px;
+        }
+        .label {
+            font-weight: bold;
+            color: #495057;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔬 詞彙轉換循環測試</h1>
+
+    <div class="warning">
+        <strong>⚠️ 測試目的：</strong>
+        確保轉換後的詞彙（如「演算法」）不會被再次轉換成其他詞彙。
+    </div>
+
+    <div class="test-case">
+        <div class="test-title">測試 1：基本轉換 - 算法 → 演算法</div>
+        <div class="original"><span class="label">原始：</span><span id="test1-original">这是一个算法</span></div>
+        <div class="expected"><span class="label">預期：</span>這是一個演算法</div>
+        <div class="actual"><span class="label">實際：</span><span id="test1-actual"></span></div>
+        <button onclick="runTest1()">執行測試</button>
+    </div>
+
+    <div class="test-case">
+        <div class="test-title">測試 2：複合詞轉換 - 算法複雜度 → 演算法複雜度</div>
+        <div class="original"><span class="label">原始：</span><span id="test2-original">算法复杂度很高</span></div>
+        <div class="expected"><span class="label">預期：</span>演算法複雜度很高</div>
+        <div class="actual"><span class="label">實際：</span><span id="test2-actual"></span></div>
+        <button onclick="runTest2()">執行測試</button>
+    </div>
+
+    <div class="test-case">
+        <div class="test-title">測試 3：已轉換內容不應再次轉換</div>
+        <div class="original"><span class="label">原始：</span><span id="test3-original">演算法</span></div>
+        <div class="expected"><span class="label">預期：</span>演算法（不變）</div>
+        <div class="actual"><span class="label">實際：</span><span id="test3-actual"></span></div>
+        <button onclick="runTest3()">執行測試</button>
+    </div>
+
+    <div class="test-case">
+        <div class="test-title">測試 4：連續更新測試（最關鍵）</div>
+        <div class="original"><span class="label">原始：</span>算法</div>
+        <div class="expected"><span class="label">預期：</span>演算法（不應變成「演演算法」）</div>
+        <div class="actual"><span class="label">實際：</span><span id="test4-actual">算法</span></div>
+        <button onclick="updateTest4()">更新內容 (模擬 DOM 變化)</button>
+        <button onclick="checkTest4()">檢查當前內容</button>
+        <div style="margin-top: 10px; font-size: 14px; color: #6c757d;">
+            點擊「更新內容」按鈕多次，然後點擊「檢查當前內容」查看結果
+        </div>
+    </div>
+
+    <div class="test-case">
+        <div class="test-title">測試 5：動態新增已轉換內容</div>
+        <div id="test5-container"></div>
+        <button onclick="addConvertedContent()">新增「演算法」內容</button>
+        <div style="margin-top: 10px; font-size: 14px; color: #6c757d;">
+            新增的「演算法」不應該被再次轉換
+        </div>
+    </div>
+
+    <script>
+        function runTest1() {
+            const elem = document.getElementById('test1-actual');
+            const original = document.getElementById('test1-original');
+            elem.textContent = original.textContent;
+            setTimeout(() => {
+                document.getElementById('test1-actual').textContent =
+                    document.getElementById('test1-original').textContent;
+            }, 500);
+        }
+
+        function runTest2() {
+            const elem = document.getElementById('test2-actual');
+            const original = document.getElementById('test2-original');
+            elem.textContent = original.textContent;
+            setTimeout(() => {
+                document.getElementById('test2-actual').textContent =
+                    document.getElementById('test2-original').textContent;
+            }, 500);
+        }
+
+        function runTest3() {
+            const elem = document.getElementById('test3-actual');
+            const original = document.getElementById('test3-original');
+            elem.textContent = original.textContent;
+            setTimeout(() => {
+                document.getElementById('test3-actual').textContent =
+                    document.getElementById('test3-original').textContent;
+            }, 500);
+        }
+
+        let updateCount = 0;
+        function updateTest4() {
+            const elem = document.getElementById('test4-actual');
+            updateCount++;
+            elem.textContent = '算法 (更新次數: ' + updateCount + ')';
+        }
+
+        function checkTest4() {
+            const elem = document.getElementById('test4-actual');
+            alert('當前內容: ' + elem.textContent + '\n\n如果看到「演演算法」或更多重複，則測試失敗！');
+        }
+
+        let addCount = 0;
+        function addConvertedContent() {
+            const container = document.getElementById('test5-container');
+            const div = document.createElement('div');
+            div.style.cssText = 'background: #e7f3ff; padding: 10px; margin: 5px 0; border-radius: 3px;';
+            div.textContent = '新增內容 ' + (++addCount) + ': 演算法';
+            container.appendChild(div);
+
+            setTimeout(() => {
+                console.log('檢查新增內容:', div.textContent);
+            }, 1000);
+        }
+
+        // 頁面載入後執行自動測試
+        window.addEventListener('load', () => {
+            console.log('%c=== 自動測試開始 ===', 'color: blue; font-weight: bold; font-size: 16px;');
+            setTimeout(() => {
+                console.log('測試 1: 基本轉換');
+                runTest1();
+            }, 1000);
+
+            setTimeout(() => {
+                console.log('測試 2: 複合詞轉換');
+                runTest2();
+            }, 2000);
+
+            setTimeout(() => {
+                console.log('測試 3: 已轉換內容');
+                runTest3();
+            }, 3000);
+
+            setTimeout(() => {
+                console.log('%c=== 自動測試完成，請檢查結果 ===', 'color: green; font-weight: bold; font-size: 16px;');
+            }, 4000);
+        });
+    </script>
+
+    <!-- 載入 OpenCC 函式庫 -->
+    <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
+
+    <script>
+        console.log('🧪 測試頁面已載入');
+        console.log('請確保 Tampermonkey 腳本「多奇中文簡繁轉換大師」已啟用');
+        console.log('打開 DevTools Console 查看詳細測試結果');
+    </script>
+</body>
+</html>
