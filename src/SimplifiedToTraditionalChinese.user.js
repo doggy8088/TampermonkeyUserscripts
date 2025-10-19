@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      0.4.2
+// @version      0.5.0
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文,同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值),支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -93,6 +93,7 @@
         '字符': '字元',
         '字符串': '字串',
         '字符編碼': '字元編碼',
+        '編碼': '寫程式',
         '字節': '位元組',
         '字節碼': '位元組碼',
         '字面量': '字面量（Literal）',
@@ -243,10 +244,10 @@
         '算法複雜度': '演算法複雜度',
         '類加載器': '類別載入器',
         '索引': '索引',
-        '終端': '終端機',
         '組件': '元件',
         '組件化': '元件化',
         '綁定': '繫結',
+        '控制檯': '控制台',
         '網絡': '網路',
         '網絡請求': '網路請求',
         '編譯': '編譯',
@@ -464,9 +465,17 @@
         return false;
     }
 
-    // 轉換文本：簡體轉繁體 + 詞彙替換
+        // 檢測文字是否包含中文字元
+    function hasChinese(text) {
+        return /[\u4e00-\u9fa5]/.test(text);
+    }
+
+    // 轉換文本:簡體轉繁體 + 詞彙替換
     function convertText(text) {
         if (!text || text.trim() === '') return text;
+
+        // 如果文字中沒有中文字元,直接返回,避免不必要的轉換
+        if (!hasChinese(text)) return text;
 
         // 使用 OpenCC 進行簡體到繁體的轉換
         let convertedText = text;
@@ -474,12 +483,12 @@
             convertedText = converter(text);
         }
 
-        // 即使簡繁轉換後文字相同，仍需檢查是否有詞彙需要替換
+        // 即使簡繁轉換後文字相同,仍需檢查是否有詞彙需要替換
         // 但先用快速檢查避免不必要的正則表達式執行
         const needsTermReplacement = (convertedText === text) && mayContainTerms(text);
         const hasSimplifiedChars = convertedText !== text;
 
-        // 如果既沒有簡體字，也不可能包含需要替換的詞彙，直接返回
+        // 如果既沒有簡體字,也不可能包含需要替換的詞彙,直接返回
         if (!hasSimplifiedChars && !needsTermReplacement) return text;
 
         // 使用正規表達式一次性替換所有詞彙
