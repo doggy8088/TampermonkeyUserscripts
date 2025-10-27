@@ -1,0 +1,13 @@
+{
+  "github.copilot.chat.commitMessageGeneration.instructions": [
+    {
+      "text": "Use Conventional Commits 1.0.0 for commit messages."
+    },
+    {
+      "text": "Format: <type>(userscript-name): <description>\n\n<detailed description>"
+    },
+    {
+      "text": "Types: feat, fix, docs, style, refactor, perf, test, chore, revert, ci"
+    }
+  ]
+}

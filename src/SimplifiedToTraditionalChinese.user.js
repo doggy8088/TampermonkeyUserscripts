@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      0.6.1
+// @version      0.6.2
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -18,7 +18,28 @@
 (function () {
     'use strict';
 
-    // 詞庫對照表 (中國大陸用語 => 台灣用語)
+    /* global OpenCC */
+
+    // ===== 設定常數 =====
+
+    /* eslint-disable no-multi-spaces */
+
+    // OpenCC 函式庫載入檢查設定
+    const OPENCC_LOAD_CHECK_INTERVAL = 100;  // OpenCC 函式庫載入檢查間隔（毫秒）
+    const OPENCC_MAX_RETRY_COUNT = 20;       // OpenCC 函式庫載入最大重試次數
+
+    // MutationObserver 防抖設定
+    const MUTATION_DEBOUNCE_DELAY = 300;     // DOM 變化防抖延遲時間（毫秒），避免過於頻繁的轉換
+
+    // SPA 路由變化延遲設定
+    const SPA_ROUTE_CHANGE_DELAY = 300;      // SPA 路由變化後的轉換延遲時間（毫秒），等待新內容載入完成
+
+    // 簡繁體檢測閾值
+    const MIN_SIMPLIFIED_CHAR_COUNT = 1;     // 判定為簡體中文所需的最少簡體字數量
+
+    /* eslint-enable no-multi-spaces */
+
+    // ===== 詞庫對照表 (中國大陸用語 => 台灣用語) =====
     const termMapping = {
         '惰性加载': '延遲載入',
         '引用變數': '參考變數',
@@ -422,8 +443,8 @@
         // console.log('[簡轉繁] 簡體字數量 =', simplifiedCount, ', 繁體字數量 =', traditionalCount);
 
         // 如果簡體字明顯多於繁體字，則判定為簡體中文
-        // 設定閾值：簡體字數量要大於等於繁體字，且至少有 1 個簡體字
-        const result = simplifiedCount >= traditionalCount && simplifiedCount >= 1;
+        // 設定閾值：簡體字數量要大於等於繁體字，且至少有設定的最小簡體字數量
+        const result = simplifiedCount >= traditionalCount && simplifiedCount >= MIN_SIMPLIFIED_CHAR_COUNT;
         // console.log('[簡轉繁] 判定結果: 為簡體中文 =', result);
 
         return result;
@@ -463,8 +484,8 @@
 
             // 按照詞語長度從長到短排序，避免短詞覆蓋長詞
             const sortedTerms = sourceTerms
-                .sort((a, b) => b.length - a.length)
-                .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')); // 轉義特殊字元
+            .sort((a, b) => b.length - a.length)
+            .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')); // 轉義特殊字元
 
             // 建立一個大的正規表達式，一次匹配所有詞彙
             termRegex = new RegExp(sortedTerms.join('|'), 'g');
@@ -485,7 +506,7 @@
         return false;
     }
 
-        // 檢測文字是否包含中文字元
+    // 檢測文字是否包含中文字元
     function hasChinese(text) {
         return /[\u4e00-\u9fa5]/.test(text);
     }
@@ -712,7 +733,7 @@
 
                 // 重置轉換標記
                 isConverting = false;
-            }, 100); // 100ms 的防抖延遲
+            }, MUTATION_DEBOUNCE_DELAY);
         });
 
         // 設定監聽整個文件內容的變化（包含屬性變化）
@@ -741,7 +762,9 @@
 
             // 轉換頁面內容
             traverse(document.body);
-        }        // 監聽 pushState 和 replaceState
+        }
+
+        // 監聽 pushState 和 replaceState
         const originalPushState = history.pushState;
         const originalReplaceState = history.replaceState;
 
@@ -749,8 +772,8 @@
             originalPushState.apply(this, args);
             if (lastUrl !== location.href) {
                 lastUrl = location.href;
-                // 延遲轉換,等待新內容載入
-                setTimeout(convertPage, 300);
+                // 延遲轉換，等待新內容載入
+                setTimeout(convertPage, SPA_ROUTE_CHANGE_DELAY);
             }
         };
 
@@ -758,7 +781,7 @@
             originalReplaceState.apply(this, args);
             if (lastUrl !== location.href) {
                 lastUrl = location.href;
-                setTimeout(convertPage, 300);
+                setTimeout(convertPage, SPA_ROUTE_CHANGE_DELAY);
             }
         };
 
@@ -766,13 +789,13 @@
         window.addEventListener('popstate', () => {
             if (lastUrl !== location.href) {
                 lastUrl = location.href;
-                setTimeout(convertPage, 300);
+                setTimeout(convertPage, SPA_ROUTE_CHANGE_DELAY);
             }
         });
 
         // 監聽 hashchange 事件 (用於 hash 路由)
         window.addEventListener('hashchange', () => {
-            setTimeout(convertPage, 300);
+            setTimeout(convertPage, SPA_ROUTE_CHANGE_DELAY);
         });
 
         // 監聽標題變化
@@ -806,23 +829,22 @@
         }
     }
 
-    // 等待 OpenCC 庫載入完成後再執行
+    // 等待 OpenCC 函式庫載入完成後再執行
     if (typeof OpenCC !== 'undefined') {
         init();
     } else {
         // 如果 OpenCC 尚未載入，等待一下
         let retryCount = 0;
-        const maxRetries = 20;
         const checkInterval = setInterval(() => {
             retryCount++;
             if (typeof OpenCC !== 'undefined') {
                 clearInterval(checkInterval);
                 init();
-            } else if (retryCount >= maxRetries) {
+            } else if (retryCount >= OPENCC_MAX_RETRY_COUNT) {
                 clearInterval(checkInterval);
-                console.error('[簡轉繁] OpenCC 庫載入失敗');
+                console.error('[簡轉繁] OpenCC 函式庫載入失敗');
             }
-        }, 100);
+        }, OPENCC_LOAD_CHECK_INTERVAL);
     }
 
 })();
