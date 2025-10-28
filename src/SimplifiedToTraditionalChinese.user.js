@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      0.6.3
+// @version      0.6.4
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -420,7 +420,7 @@
         if (tagName === "NOSCRIPT") return true;
         if (tagName === "IFRAME") return true;
         if (tagName === "OBJECT") return true;
-        if (tagName === "CODE") return true;
+        if (tagName === "CODE" && elm.attributes.length > 0) return true;
         // if (tagName === "PRE") return true;
         if (tagName === "TEXTAREA") return true;
         if (tagName === "INPUT") return true;
