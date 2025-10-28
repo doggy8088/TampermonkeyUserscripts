@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      0.6.5
+// @version      0.6.6
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -41,6 +41,7 @@
 
     // ===== 詞庫對照表 (中國大陸用語 => 台灣用語) =====
     const termMapping = {
+        '竞品': '競品',
         '惰性加载': '延遲載入',
         '引用變數': '參考變數',
         '變量': '變數',
