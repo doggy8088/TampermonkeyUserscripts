@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         按下多次 Ctrl-C 就會自動複製網址
-// @version      0.13.1
+// @version      0.14.0
 // @description  按下多次 Ctrl-C 就會自動複製網址，為了方便自行實作複製網址的邏輯。
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -76,6 +76,10 @@
                 };
                 // 取得 Azure DevOps 儲存庫的 URL
                 url = await getAzureDevOpsUrl();
+
+                // 組合成 git clone 指令
+                url = `git clone ${url} && cd "${url.split('/').pop().replace('.git', '')}"`;
+
             }
 
             if (location.host === 'learn.microsoft.com') {
@@ -85,6 +89,8 @@
             if (location.host === 'github.com') {
                 url = await sanitizeGitHubUrl(url);
             }
+
+
 
             // 使用 Tampermonkey 內建 剪貼簿 函式
             GM_setClipboard(url);
