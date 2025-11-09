@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         GitHub: 快速切換 GitHub Copilot Coding Agent 防火牆開關
-// @version      0.1.0
+// @version      0.1.1
 // @description  在網頁上加入一個切換按鈕，可以快速切換 GitHub Copilot Coding Agent 防火牆的開啟與關閉狀態
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -21,6 +21,8 @@
     const GITHUB_ORIGIN = "https://github.com";
     const FIREWALL_SETTINGS_PATH = "/settings/copilot/coding_agent";
     const FIREWALL_API_PATH = FIREWALL_SETTINGS_PATH + "/firewall";
+    const FIREWALL_CACHE_KEY_PREFIX = "sweagentd-firewall-cache:";
+    const FIREWALL_CACHE_TTL_MS = 60 * 60 * 1000; // 1 小時
     const APP_HEADER_NAV_SELECTOR = "header div.AppHeader-localBar nav ul";
     const FIREWALL_EMOJI = "🔥";
     const FIREWALL_TOOLTIP_TEXT = "切換防火牆";
@@ -56,6 +58,98 @@
 
     function buildRepoUrl(repo, path = "") {
         return `${GITHUB_ORIGIN}/${repo}${path}`;
+    }
+
+    function getCacheStorageKey(repo) {
+        return `${FIREWALL_CACHE_KEY_PREFIX}${repo}`;
+    }
+
+    function readFirewallCache(repo) {
+        if (!repo) {
+            return null;
+        }
+
+        const storageKey = getCacheStorageKey(repo);
+
+        try {
+            const raw = localStorage.getItem(storageKey);
+
+            if (!raw) {
+                verboseLog("防火牆快取不存在", { repo });
+                return null;
+            }
+
+            const parsed = JSON.parse(raw);
+
+            if (!parsed || typeof parsed !== "object") {
+                verboseLog("防火牆快取資料格式不正確，將移除", { repo, raw });
+                localStorage.removeItem(storageKey);
+                return null;
+            }
+
+            const { value, timestamp } = parsed;
+
+            if (typeof timestamp !== "number" || Number.isNaN(timestamp)) {
+                verboseLog("防火牆快取缺少有效時間戳記，將移除", { repo, parsed });
+                localStorage.removeItem(storageKey);
+                return null;
+            }
+
+            const age = Date.now() - timestamp;
+
+            if (age > FIREWALL_CACHE_TTL_MS) {
+                verboseLog("防火牆快取逾期，將移除", { repo, age });
+                localStorage.removeItem(storageKey);
+                return null;
+            }
+
+            verboseLog("命中防火牆狀態快取", { repo, value, age });
+            return value;
+        } catch (error) {
+            verboseLog("讀取防火牆快取時發生例外，將清除", { repo, error });
+
+            try {
+                localStorage.removeItem(storageKey);
+            } catch (removeError) {
+                verboseLog("移除異常快取時再次失敗", { repo, removeError });
+            }
+
+            return null;
+        }
+    }
+
+    function writeFirewallCache(repo, value) {
+        if (!repo) {
+            return;
+        }
+
+        const storageKey = getCacheStorageKey(repo);
+        const payload = {
+            value: !!value,
+            timestamp: Date.now()
+        };
+
+        try {
+            localStorage.setItem(storageKey, JSON.stringify(payload));
+            verboseLog("已更新防火牆狀態快取", { repo, value: payload.value });
+        } catch (error) {
+            verboseLog("寫入防火牆快取時發生例外", { repo, error });
+        }
+    }
+
+    function clearFirewallCache(repo) {
+        if (!repo) {
+            return;
+        }
+
+        const storageKey = getCacheStorageKey(repo);
+
+        try {
+            localStorage.removeItem(storageKey);
+            verboseLog("已清除防火牆狀態快取", { repo });
+        } catch (error) {
+            verboseLog("清除防火牆快取時發生例外", { repo, error });
+        }
     }
 
     function findClosestElementByClassPrefix(element, prefix) {
@@ -277,6 +371,8 @@
 
                 verboseLog("防火牆狀態切換完成", { enabled: nextState });
 
+                writeFirewallCache(getRepoSlug(), nextState);
+
                 if (loadingLabel) {
                     loadingLabel.textContent = nextState ? "已開啟" : "已關閉";
                 }
@@ -390,6 +486,13 @@
         verboseLog("解析目前儲存庫資訊", { repo });
 
         try {
+            const cachedValue = readFirewallCache(repo);
+
+            if (cachedValue !== null) {
+                verboseLog("快取命中，直接回傳防火牆狀態", { repo, cachedValue });
+                return cachedValue;
+            }
+
             const response = await fetch(buildRepoUrl(repo, FIREWALL_SETTINGS_PATH), {
                 "headers": {
                     "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
@@ -460,9 +563,12 @@
 
             verboseLog("已解析 Enable firewall 當前狀態", { isEnabled });
 
+            writeFirewallCache(repo, isEnabled);
+
             return isEnabled;
         } catch (error) {
             verboseLog("呼叫取得防火牆狀態 API 時發生錯誤", error);
+            clearFirewallCache(repo);
             throw error;
         }
     }
