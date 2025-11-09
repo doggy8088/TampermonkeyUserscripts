@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         GitHub: 快速切換 GitHub Copilot Coding Agent 防火牆開關
-// @version      0.1.1
+// @version      0.1.2
 // @description  在網頁上加入一個切換按鈕，可以快速切換 GitHub Copilot Coding Agent 防火牆的開啟與關閉狀態
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -10,6 +10,9 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubCodingAgentFirewallSwitch.user.js
 // @author       Will Huang
 // @match        https://github.com/doggy8088/*
+// @grant        GM_getValue
+// @grant        GM_setValue
+// @grant        GM_deleteValue
 // @run-at       document-idle
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=github.com
 // ==/UserScript==
@@ -72,7 +75,7 @@
         const storageKey = getCacheStorageKey(repo);
 
         try {
-            const raw = localStorage.getItem(storageKey);
+            const raw = GM_getValue(storageKey, null);
 
             if (!raw) {
                 verboseLog("防火牆快取不存在", { repo });
@@ -83,7 +86,7 @@
 
             if (!parsed || typeof parsed !== "object") {
                 verboseLog("防火牆快取資料格式不正確，將移除", { repo, raw });
-                localStorage.removeItem(storageKey);
+                GM_deleteValue(storageKey);
                 return null;
             }
 
@@ -91,7 +94,7 @@
 
             if (typeof timestamp !== "number" || Number.isNaN(timestamp)) {
                 verboseLog("防火牆快取缺少有效時間戳記，將移除", { repo, parsed });
-                localStorage.removeItem(storageKey);
+                GM_deleteValue(storageKey);
                 return null;
             }
 
@@ -99,7 +102,7 @@
 
             if (age > FIREWALL_CACHE_TTL_MS) {
                 verboseLog("防火牆快取逾期，將移除", { repo, age });
-                localStorage.removeItem(storageKey);
+                GM_deleteValue(storageKey);
                 return null;
             }
 
@@ -109,7 +112,7 @@
             verboseLog("讀取防火牆快取時發生例外，將清除", { repo, error });
 
             try {
-                localStorage.removeItem(storageKey);
+                GM_deleteValue(storageKey);
             } catch (removeError) {
                 verboseLog("移除異常快取時再次失敗", { repo, removeError });
             }
@@ -130,7 +133,7 @@
         };
 
         try {
-            localStorage.setItem(storageKey, JSON.stringify(payload));
+            GM_setValue(storageKey, JSON.stringify(payload));
             verboseLog("已更新防火牆狀態快取", { repo, value: payload.value });
         } catch (error) {
             verboseLog("寫入防火牆快取時發生例外", { repo, error });
@@ -145,7 +148,7 @@
         const storageKey = getCacheStorageKey(repo);
 
         try {
-            localStorage.removeItem(storageKey);
+            GM_deleteValue(storageKey);
             verboseLog("已清除防火牆狀態快取", { repo });
         } catch (error) {
             verboseLog("清除防火牆快取時發生例外", { repo, error });
