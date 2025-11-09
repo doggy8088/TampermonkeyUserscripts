@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         GitHub: 快速切換 GitHub Copilot Coding Agent 防火牆開關
-// @version      0.1.2
+// @version      0.1.3
 // @description  在網頁上加入一個切換按鈕，可以快速切換 GitHub Copilot Coding Agent 防火牆的開啟與關閉狀態
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -196,6 +196,8 @@
             return;
         }
 
+        const repoSlug = getRepoSlug();
+
         const toggleMarkup = `
 <li>
   <div class="prc-ToggleSwitch-ToggleSwitch-E4lp0" data-status-label-position="start"><span
@@ -252,18 +254,25 @@
         const toggleSwitchContainer = querySelectorByClassPrefix(toggleLi, "div", "prc-ToggleSwitch-ToggleSwitch-");
 
         if (toggleSwitchContainer && !toggleSwitchContainer.querySelector(".swe-firewall-emoji")) {
-            const emojiSpan = document.createElement("span");
-            emojiSpan.className = "swe-firewall-emoji";
-            emojiSpan.textContent = FIREWALL_EMOJI;
-            emojiSpan.setAttribute("aria-hidden", "true");
-            emojiSpan.style.display = "inline-flex";
-            emojiSpan.style.alignItems = "center";
-            emojiSpan.style.justifyContent = "center";
-            emojiSpan.style.marginRight = "4px";
-            emojiSpan.style.fontSize = "16px";
+            const emojiNode = document.createElement(repoSlug ? "a" : "span");
+            emojiNode.className = "swe-firewall-emoji";
+            emojiNode.textContent = FIREWALL_EMOJI;
+            emojiNode.style.display = "inline-flex";
+            emojiNode.style.alignItems = "center";
+            emojiNode.style.justifyContent = "center";
+            emojiNode.style.marginRight = "4px";
+            emojiNode.style.fontSize = "16px";
+            emojiNode.style.textDecoration = "none";
+            emojiNode.style.color = "inherit";
 
-            toggleSwitchContainer.insertBefore(emojiSpan, button);
-            verboseLog("已在切換按鈕旁加入防火牆 Emoji", { emoji: FIREWALL_EMOJI });
+            if (emojiNode instanceof HTMLAnchorElement && repoSlug) {
+                emojiNode.href = buildRepoUrl(repoSlug, FIREWALL_SETTINGS_PATH);
+                emojiNode.target = "_self";
+                emojiNode.title = "開啟防火牆設定";
+            }
+
+            toggleSwitchContainer.insertBefore(emojiNode, button);
+            verboseLog("已在切換按鈕旁加入防火牆 Emoji", { emoji: FIREWALL_EMOJI, hasLink: emojiNode instanceof HTMLAnchorElement });
         }
 
         const statusItems = toggleLi.querySelectorAll(".prc-ToggleSwitch-StatusTextItem-fvvXa");
