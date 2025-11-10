@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         GitHub: 快速切換 GitHub Copilot Coding Agent 防火牆開關
-// @version      0.1.3
+// @version      0.1.4
 // @description  在網頁上加入一個切換按鈕，可以快速切換 GitHub Copilot Coding Agent 防火牆的開啟與關閉狀態
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -395,7 +395,9 @@
 
                 if (currentPath === targetPath) {
                     verboseLog("目前位於防火牆設定頁面，將於切換後重新整理頁面", { currentPath });
-                    window.location.reload();
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
                     return;
                 }
             } catch (error) {
