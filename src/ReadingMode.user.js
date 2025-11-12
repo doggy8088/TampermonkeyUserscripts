@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ReadingMode: 讓網頁更容易閱讀與翻譯的工具
-// @version      0.6.0
+// @version      0.7.0
 // @description  按下 ctrl-alt-shift-f 鍵可讓網頁僅顯示 main 元素的內容，按下 Esc 恢復原狀
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -39,7 +39,26 @@
                     container.style.display = 'none';
                     document.body.parentNode.appendChild(container);
                 }
-                let main = document.querySelector('main');
+                // 如果有多個 main 標籤，取得最內層的那一個
+                let main = null;
+                const mains = document.querySelectorAll('main');
+                if (mains.length > 0) {
+                    let deepestMain = mains[0];
+                    let maxDepth = 0;
+                    mains.forEach(m => {
+                        let depth = 0;
+                        let parent = m.parentElement;
+                        while (parent) {
+                            depth++;
+                            parent = parent.parentElement;
+                        }
+                        if (depth > maxDepth) {
+                            maxDepth = depth;
+                            deepestMain = m;
+                        }
+                    });
+                    main = deepestMain;
+                }
                 let nav = document.querySelector('nav');
                 let footer = document.querySelector('footer');
 
@@ -57,6 +76,7 @@
                 bodyStyle = {
                     display: document.body.style.display,
                     justifyContent: document.body.style.justifyContent,
+                    alignItems: document.body.style.alignItems,
                 };
 
                 // 將 document.body 底下的所有元素「搬移」到暫存容器中
@@ -80,10 +100,20 @@
                         el.style.maxWidth = '100%';
                     });
 
+                    // 只有在 code.visualstudio.com 網站的時候，才要特別隱藏 .feedback 元素
+                    if (location.hostname === 'code.visualstudio.com') {
+                        mainClone.querySelectorAll('.feedback').forEach(el => {
+                            el.style.display = 'none';
+                        });
+                        mainClone.querySelectorAll('.edit-github').forEach(el => {
+                            el.style.display = 'none';
+                        });
+                    }
+
                     // 設定 main 元素居中
-                    // set document.body to 'display: flex; justify-content: center;'
-                    // document.body.style.display = 'flex';
+                    document.body.style.display = 'flex';
                     document.body.style.justifyContent = 'center';
+                    document.body.style.alignItems = 'flex-start';
 
                     document.body.appendChild(mainClone);
                 } else {
@@ -105,6 +135,7 @@
                     // restore body style
                     document.body.style.display = bodyStyle.display;
                     document.body.style.justifyContent = bodyStyle.justifyContent;
+                    document.body.style.alignItems = bodyStyle.alignItems;
 
                     // 還原所有子元素
                     while (container.firstChild) {
