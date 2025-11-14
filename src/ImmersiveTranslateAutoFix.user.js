@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         沉浸式翻譯: 修正翻譯後樣式跑掉的問題
-// @version      0.1.0
+// @version      0.1.1
 // @description
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -9,7 +9,7 @@
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ImmersiveTranslateAutoFix.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ImmersiveTranslateAutoFix.user.js
 // @author       Will Huang
-// @match        https://code.visualstudio.com/*
+// @match        https://*/*
 // @run-at       document-idle
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=immersivetranslate.com
 // ==/UserScript==
@@ -164,6 +164,7 @@
      * 修正所有翻譯目標包裝器中的格式
      */
     function fixTranslationFormat() {
+        // 選取所有沉浸式翻譯的目標包裝器
         const wrappers = document.querySelectorAll('.notranslate.immersive-translate-target-wrapper');
 
         wrappers.forEach(wrapper => {
