@@ -2110,7 +2110,7 @@
   // GeminiTranslationE2TContextMenu.user.src.js
   var import_readability = __toESM(require_readability());
   function getHTMLfromSelectorOrContent() {
-    let selection = window.getSelection();
+    let selection = document.getSelection();
     let html2 = "";
     let container = document.createElement("div");
     if (selection.rangeCount > 0) {
