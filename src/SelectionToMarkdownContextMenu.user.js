@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         將網頁內容轉成 Markdown 格式並寫入剪貼簿
-// @version      1.8.0
+// @version      1.8.1
 // @description  在網頁選取文字範圍後，使用者按下滑鼠右鍵，就可以將選取範圍的 HTML 轉成 Markdown 格式並寫入剪貼簿
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -2926,6 +2926,11 @@
     });
     markdown = turndownService.turndown(html);
     if (!!markdown) {
+      markdown = markdown.replace(/^(#{1,6}\s+)(\s*)(.*?)(\s*)$/gm, "$1$3");
+      markdown = markdown.replace(/\[(\s*)(.*?)(\s*)\]/g, "[$2]");
+      markdown = markdown.replace(/^(\s*[-*+])[ \t]+/gm, "$1 ");
+      markdown = markdown.replace(/^(\s*[-*+])\s*\n\s+/gm, "$1 ");
+      markdown = markdown.replace(/^(\s*[-*+]\s+.*?)[ \t]+$/gm, "$1");
       GM_setClipboard(markdown, "text");
     } else {
       alert("\u7121\u6CD5\u5C07\u9078\u53D6\u7BC4\u570D\u7684 HTML \u8F49\u6210 Markdown \u683C\u5F0F");

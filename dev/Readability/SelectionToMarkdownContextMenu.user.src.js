@@ -117,6 +117,17 @@ if (!!html) {
     var markdown = turndownService.turndown(html)
 
     if (!!markdown) {
+        // 清除 H1~H6 標題列的文字開頭與結尾空白（包含換行）
+        markdown = markdown.replace(/^(#{1,6}\s+)(\s*)(.*?)(\s*)$/gm, '$1$3');
+
+        // 清除超連結文字的開頭與結尾空白（包含換行）
+        markdown = markdown.replace(/\[(\s*)(.*?)(\s*)\]/g, '[$2]');
+
+        // 清除項目清單的文字開頭與結尾空白（包含換行）
+        markdown = markdown.replace(/^(\s*[-*+])[ \t]+/gm, '$1 ');
+        markdown = markdown.replace(/^(\s*[-*+])\s*\n\s+/gm, '$1 ');
+        markdown = markdown.replace(/^(\s*[-*+]\s+.*?)[ \t]+$/gm, '$1');
+
         GM_setClipboard(markdown, 'text');
     } else {
         alert('無法將選取範圍的 HTML 轉成 Markdown 格式');
