@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         沉浸式翻譯: 修正翻譯後樣式跑掉的問題
-// @version      0.1.1
+// @version      0.1.2
 // @description
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -39,8 +39,8 @@
      */
     function processTextNodeBold(textNode) {
         const text = textNode.textContent;
-        // 匹配同一行中 ** 開頭和結尾的文字
-        const regex = /\*\*([^*\n]+?)\*\*/g;
+        // 匹配同一行中 ** 開頭和結尾的文字（不包含換行，使用非貪婪匹配避免跨區塊）
+        const regex = /\*\*([^\n]+?)\*\*/g;
 
         if (regex.test(text)) {
             const parent = textNode.parentNode;
@@ -138,13 +138,28 @@
             return;
         }
 
-        // 先處理 innerHTML，移除緊接著 <code> 標籤的反引號
+        // 先處理 innerHTML，處理跨越 HTML 標籤的格式標記
         // 這必須在處理文字節點之前執行，因為文字節點無法存取 HTML 標籤
         if (element.innerHTML) {
-            const originalHTML = element.innerHTML;
-            const cleanedHTML = originalHTML.replace(/`(<code>[^<]+<\/code>)`/g, '$1');
-            if (originalHTML !== cleanedHTML) {
-                element.innerHTML = cleanedHTML;
+            let html = element.innerHTML;
+            let modified = false;
+
+            // 移除緊接著 <code> 標籤的反引號
+            const cleanedHTML = html.replace(/`(<code>[^<]+<\/code>)`/g, '$1');
+            if (html !== cleanedHTML) {
+                html = cleanedHTML;
+                modified = true;
+            }
+
+            // 處理 **<標籤>...</標籤>** 格式，轉換為 <strong><標籤>...</標籤></strong>
+            const boldHTML = html.replace(/\*\*(<[^>]+>.*?<\/[^>]+>)\*\*/g, '<strong>$1</strong>');
+            if (html !== boldHTML) {
+                html = boldHTML;
+                modified = true;
+            }
+
+            if (modified) {
+                element.innerHTML = html;
             }
         }
 
