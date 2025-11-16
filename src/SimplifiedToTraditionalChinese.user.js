@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      0.6.8
+// @version      0.7.0
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -877,5 +877,163 @@
             }
         }, OPENCC_LOAD_CHECK_INTERVAL);
     }
+
+    // 加入 YouTube 字幕攔截和轉換功能
+    (function () {
+        'use strict';
+
+        /**
+         * 初始化攔截器
+         * @param {Object} options
+         *   - fetchInterceptor: async function({resource, init, responsePromise}) => Response | Promise<Response>
+         *   - xhrInterceptor: function(xhrInstance, method, url, async, user, password) => void
+         *   - xhrOnSend: function(xhrInstance, body) => void
+         *   - xhrOnReadyStateChange: function(xhrInstance) => void
+         */
+        function initInterceptor(options = {}) {
+            // --- Fetch 攔截 ---
+            const originalFetch = window.fetch;
+            window.fetch = async function (...args) {
+                const [resource, init] = args;
+                if (typeof options.fetchInterceptor === 'function') {
+                    try {
+                        const responsePromise = originalFetch.apply(this, args);
+                        const newResponse = await options.fetchInterceptor({ resource, init, responsePromise });
+                        return newResponse;
+                    } catch (err) {
+                        console.error('fetchInterceptor 錯誤', err);
+                        return originalFetch.apply(this, args);
+                    }
+                } else {
+                    return originalFetch.apply(this, args);
+                }
+            };
+
+            // --- XHR 攔截 ---
+            const originalOpen = XMLHttpRequest.prototype.open;
+            const originalSend = XMLHttpRequest.prototype.send;
+
+            XMLHttpRequest.prototype.open = function (method, url, async = true, user = null, password = null) {
+                this._intercept_method = method;
+                this._intercept_url = url;
+                if (typeof options.xhrInterceptor === 'function') {
+                    try {
+                        options.xhrInterceptor(this, method, url, async, user, password);
+                    } catch (err) {
+                        console.error('xhrInterceptor 錯誤', err);
+                    }
+                }
+                return originalOpen.apply(this, arguments);
+            };
+
+            XMLHttpRequest.prototype.send = function (body = null) {
+                if (typeof options.xhrOnSend === 'function') {
+                    try {
+                        options.xhrOnSend(this, body);
+                    } catch (err) {
+                        console.error('xhrOnSend 錯誤', err);
+                    }
+                }
+
+                this.addEventListener('readystatechange', () => {
+                    if (typeof options.xhrOnReadyStateChange === 'function') {
+                        try {
+                            options.xhrOnReadyStateChange(this);
+                        } catch (err) {
+                            console.error('xhrOnReadyStateChange 錯誤', err);
+                        }
+                    }
+                });
+
+                return originalSend.apply(this, arguments);
+            };
+        }
+
+        /**
+         * 轉換字幕文字的函式
+         * @param {string} text - 原始字幕文字
+         * @returns {string} - 轉換後的字幕文字
+         */
+        function transformSubtitleText(text) {
+            // 在這裡實作你的轉換邏輯
+            // 例如：簡體轉繁體、大小寫轉換等
+            return convertText(text); // 目前直接返回原文，請自行修改
+        }
+
+        /**
+         * 處理 timedtext JSON 資料
+         * @param {Object} data - timedtext JSON 物件
+         * @returns {Object} - 處理後的 JSON 物件
+         */
+        function processTimedtextData(data) {
+            if (data && Array.isArray(data.events)) {
+                data.events.forEach(event => {
+                    if (Array.isArray(event.segs)) {
+                        event.segs.forEach(seg => {
+                            if (seg.utf8) {
+                                seg.utf8 = transformSubtitleText(seg.utf8);
+                            }
+                        });
+                    }
+                });
+            }
+            return data;
+        }
+
+        // 安裝攔截器：攔截 YouTube timedtext API
+        initInterceptor({
+            fetchInterceptor: async ({ resource, init, responsePromise }) => {
+                const url = (typeof resource === 'string') ? resource : resource.url;
+                if (url.includes('https://www.youtube.com/api/timedtext')) {
+                    console.log('[Fetch 攔截] YouTube timedtext API:', url);
+                    const resp = await responsePromise;
+                    const cloned = resp.clone();
+                    const text = await cloned.text();
+                    console.log('[Fetch 回應] 原始內容:', text);
+
+                    try {
+                        const data = JSON.parse(text);
+                        const modifiedData = processTimedtextData(data);
+                        const modifiedText = JSON.stringify(modifiedData);
+                        console.log('[Fetch 回應] 修改後內容:', modifiedText);
+
+                        return new Response(modifiedText, {
+                            status: resp.status,
+                            statusText: resp.statusText,
+                            headers: resp.headers
+                        });
+                    } catch (err) {
+                        console.error('處理 JSON 錯誤，返回原始內容', err);
+                        return new Response(text, {
+                            status: resp.status,
+                            statusText: resp.statusText,
+                            headers: resp.headers
+                        });
+                    }
+                }
+                return responsePromise;
+            },
+            xhrOnReadyStateChange: (xhr) => {
+                if (xhr.readyState === 4 && xhr._intercept_url && xhr._intercept_url.includes('https://www.youtube.com/api/timedtext')) {
+                    console.log('[XHR 攔截] YouTube timedtext API:', xhr._intercept_url);
+                    try {
+                        const text = xhr.responseText;
+                        console.log('[XHR 回應] 原始內容:', text);
+
+                        const data = JSON.parse(text);
+                        const modifiedData = processTimedtextData(data);
+                        const modified = JSON.stringify(modifiedData);
+                        console.log('[XHR 回應] 修改後內容:', modified);
+
+                        Object.defineProperty(xhr, 'responseText', { value: modified, writable: false, configurable: true });
+                        Object.defineProperty(xhr, 'response', { value: modified, writable: false, configurable: true });
+                    } catch (err) {
+                        console.error('修改 xhr 回應錯誤', err);
+                    }
+                }
+            }
+        });
+
+    })();
 
 })();
