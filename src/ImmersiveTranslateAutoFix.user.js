@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         沉浸式翻譯: 修正翻譯後樣式跑掉的問題
-// @version      0.1.2
+// @version      0.1.3
 // @description
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -155,6 +155,14 @@
             const boldHTML = html.replace(/\*\*(<[^>]+>.*?<\/[^>]+>)\*\*/g, '<strong>$1</strong>');
             if (html !== boldHTML) {
                 html = boldHTML;
+                modified = true;
+            }
+
+            // 處理 **文字（<code>...</code>）** 格式，轉換為 <strong>文字（<code>...</code>）</strong>
+            // 針對包含全形括號且結尾為 ）** 的情況
+            const boldWithFullWidthParens = html.replace(/\*\*([^\*]+?（.*?）)\*\*/g, '<strong>$1</strong>');
+            if (html !== boldWithFullWidthParens) {
+                html = boldWithFullWidthParens;
                 modified = true;
             }
 
