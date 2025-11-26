@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         NotebookLM: 好用的鍵盤快速鍵集合
-// @version      0.1.0
+// @version      0.1.1
 // @description  按下 Ctrl+Alt+A 可以展開心智圖所有節點
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -171,8 +171,26 @@
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    function simulateMouseClick(element) {
-        if (!element) return;
+    async function waitForElement(getElement, retryInterval = 33, maxWait = 3000) {
+        const startTime = Date.now();
+
+        while (Date.now() - startTime < maxWait) {
+            const element = typeof getElement === 'function' ? getElement() : getElement;
+            if (element) {
+                return element;
+            }
+            await delay(retryInterval);
+        }
+
+        return null;
+    }
+
+    async function simulateMouseClick(getElement, retryInterval = 33, maxWait = 3000) {
+        const element = await waitForElement(getElement, retryInterval, maxWait);
+        if (!element) {
+            console.log('simulateMouseClick: element not found after max wait time');
+            return false;
+        }
 
         const mouseEvent = new MouseEvent('click', {
             bubbles: true,
@@ -180,12 +198,16 @@
         });
 
         console.log('simulateMouseClick', element);
-
         element.dispatchEvent(mouseEvent);
+        return true;
     }
 
-    function simulateKeyPress(element, key) {
-        if (!element) return;
+    async function simulateKeyPress(getElement, key, retryInterval = 33, maxWait = 3000) {
+        const element = await waitForElement(getElement, retryInterval, maxWait);
+        if (!element) {
+            console.log('simulateKeyPress: element not found after max wait time');
+            return false;
+        }
 
         const keyEvent = new KeyboardEvent('keydown', {
             bubbles: true,
@@ -194,8 +216,8 @@
         });
 
         console.log('simulateKeyPress', element);
-
         element.dispatchEvent(keyEvent);
+        return true;
     }
 
 })();

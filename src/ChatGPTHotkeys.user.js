@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.13.1
+// @version      0.14.0
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -36,43 +36,36 @@
             return;
         }
 
-        const optionButton = document.querySelector('button[data-testid="conversation-options-button"]');
-        if (!optionButton) return;
-        simulateKeyPress(optionButton, 'Enter');
-
-        await delay(50);
+        const optionButtonFound = await simulateKeyPress(
+            () => document.querySelector('button[data-testid="conversation-options-button"]'),
+            'Enter'
+        );
+        if (!optionButtonFound) return;
 
         const matchingPopperContentWrapper = [...document.querySelectorAll('div[data-radix-popper-content-wrapper]')];
         if (matchingPopperContentWrapper.length === 0) {
             return;
         }
 
-        let isDeleteButtonFound = false;
-        for (let i = 0; i < matchingPopperContentWrapper.length; i++) {
-            const popperWrapper = matchingPopperContentWrapper[i];
-            const deleteItem = popperWrapper.querySelector('div[role="menuitem"][data-testid="delete-chat-menu-item"]');
-            if (deleteItem) {
-                simulateMouseClick(deleteItem);
-                isDeleteButtonFound = true;
-                break;
+        const deleteItemFound = await simulateMouseClick(() => {
+            for (const popperWrapper of matchingPopperContentWrapper) {
+                const deleteItem = popperWrapper.querySelector('div[role="menuitem"][data-testid="delete-chat-menu-item"]');
+                if (deleteItem) return deleteItem;
             }
-        }
+            return null;
+        });
 
-        if (!isDeleteButtonFound) return;
+        if (!deleteItemFound) return;
 
-        await delay(50);
-
-        simulateMouseClick(
-            document.querySelector(`div[data-testid="modal-delete-conversation-confirmation"]`)
-                ?.querySelector(`button[data-testid="delete-conversation-confirm-button"]`));
+        await simulateMouseClick(() => document.querySelector('button[data-testid="delete-conversation-confirm-button"]'));
     }
 
-    function handleCtrlToggleSidebar(event) {
+    async function handleCtrlToggleSidebar(event) {
         // Check for close sidebar button first (when sidebar is open)
         const closeSidebarButton = document.querySelector('button[data-testid="close-sidebar-button"][aria-expanded="true"]');
         if (closeSidebarButton) {
             console.log('Clicking close sidebar button');
-            simulateMouseClick(closeSidebarButton);
+            await simulateMouseClick(() => document.querySelector('button[data-testid="close-sidebar-button"][aria-expanded="true"]'));
             return;
         }
 
@@ -80,7 +73,7 @@
         const openSidebarButton = document.querySelector('button[data-testid="open-sidebar-button"]');
         if (openSidebarButton) {
             console.log('Clicking open sidebar button');
-            simulateMouseClick(openSidebarButton);
+            await simulateMouseClick(() => document.querySelector('button[data-testid="open-sidebar-button"]'));
             return;
         }
 
@@ -89,7 +82,7 @@
         if (firstButton) {
             if (firstButton.parentElement && firstButton.parentElement.dataset['state'] === 'closed') {
                 console.log('Clicking first button (state closed)');
-                simulateMouseClick(firstButton);
+                await simulateMouseClick(() => document.querySelectorAll('button')[0]);
                 return;
             }
         }
@@ -98,7 +91,7 @@
         const sidebarButton = document.querySelector('button[data-testid="sidebar-button"]');
         if (sidebarButton) {
             console.log('Clicking sidebar button');
-            simulateMouseClick(sidebarButton);
+            await simulateMouseClick(() => document.querySelector('button[data-testid="sidebar-button"]'));
             return;
         }
     }
@@ -176,8 +169,26 @@
         return new Promise(resolve => setTimeout(resolve, ms));
     }
 
-    function simulateMouseClick(element) {
-        if (!element) return;
+    async function waitForElement(getElement, retryInterval = 33, maxWait = 3000) {
+        const startTime = Date.now();
+
+        while (Date.now() - startTime < maxWait) {
+            const element = typeof getElement === 'function' ? getElement() : getElement;
+            if (element) {
+                return element;
+            }
+            await delay(retryInterval);
+        }
+
+        return null;
+    }
+
+    async function simulateMouseClick(getElement, retryInterval = 33, maxWait = 3000) {
+        const element = await waitForElement(getElement, retryInterval, maxWait);
+        if (!element) {
+            console.log('simulateMouseClick: element not found after max wait time');
+            return false;
+        }
 
         const mouseEvent = new MouseEvent('click', {
             bubbles: true,
@@ -185,12 +196,16 @@
         });
 
         console.log('simulateMouseClick', element);
-
         element.dispatchEvent(mouseEvent);
+        return true;
     }
 
-    function simulateKeyPress(element, key) {
-        if (!element) return;
+    async function simulateKeyPress(getElement, key, retryInterval = 33, maxWait = 3000) {
+        const element = await waitForElement(getElement, retryInterval, maxWait);
+        if (!element) {
+            console.log('simulateKeyPress: element not found after max wait time');
+            return false;
+        }
 
         const keyEvent = new KeyboardEvent('keydown', {
             bubbles: true,
@@ -199,8 +214,8 @@
         });
 
         console.log('simulateKeyPress', element);
-
         element.dispatchEvent(keyEvent);
+        return true;
     }
 
 })();
