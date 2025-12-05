@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub: 佈景主題切換器
-// @version      0.2.2
-// @description  按下 alt+t 快速鍵就會自動切換目前網頁的 Dark/Light 模式，網頁右上角 Actions 按鈕列也會多一顆切換按鈕
+// @version      0.2.3
+// @description  按下 alt+t 快速鍵就會自動切換目前網頁的 Dark/Light 主題，網頁右上角 Actions 按鈕列也會多一顆切換按鈕
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -16,6 +16,8 @@
 
 (function () {
     'use strict';
+
+    // 按下 alt+t 快速鍵就會自動切換目前網頁的 Dark/Light 主題
     document.addEventListener('keydown', async (ev) => {
         if (ev.altKey && ev.key === 'T' && !/^(?:input|select|textarea|button)$/i.test(ev.target.nodeName)) {
             alert('你是不是不小心按到了 CAPSLOCK 鍵？');
@@ -26,6 +28,7 @@
         }
     });
 
+    // 網頁右上角 Actions 按鈕列會多一顆切換按鈕
     createIcon();
 
     function createGuid() {
