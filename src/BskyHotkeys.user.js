@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bluesky: 好用的鍵盤快速鍵集合
-// @version      0.1.0
-// @description  在 bsky.app 增加幾個好用的熱鍵
+// @version      0.2.0
+// @description  在 bsky.app 按下 gh 優先點擊 Profile，找不到再開啟 doggy8088 的個人頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -24,7 +24,7 @@
     let lastKeyTime = 0;
     let maxSequenceLength = 0;
 
-    registerSequenceHotkey(['g', 'h'], () => navigateTo(HOME_PROFILE_URL));
+    registerSequenceHotkey(['g', 'h'], () => goHome());
 
     document.addEventListener('keydown', (event) => {
         if (event.repeat) return;
@@ -95,8 +95,21 @@
         sequenceBuffer.length = 0;
     }
 
+    function goHome() {
+        const profileLink = findProfileLink();
+        if (profileLink) {
+            profileLink.click();
+            return;
+        }
+        navigateTo(HOME_PROFILE_URL);
+    }
+
     function navigateTo(url) {
         window.location.href = url;
+    }
+
+    function findProfileLink() {
+        return document.querySelector('a[aria-label="Profile"][role="link"]');
     }
 
 })();
