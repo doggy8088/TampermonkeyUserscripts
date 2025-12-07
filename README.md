@@ -68,7 +68,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BskyHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Bluesky: 好用的鍵盤快速鍵集合</td>
+      <td><a href="https://bsky.app/">Bluesky</a>: 好用的鍵盤快速鍵集合</td>
       <td>
         目前提供以下快速鍵：<br>
         <ol>
@@ -92,7 +92,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSLearnHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Microsoft Learn: 好用的鍵盤快速鍵集合</td>
+      <td><a href="https://learn.microsoft.com/">Microsoft Learn</a>: 好用的鍵盤快速鍵集合</td>
       <td>
         目前提供以下快速鍵：<br>
         <ol>
@@ -104,7 +104,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubDocsHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>GitHub Docs: 好用的鍵盤快速鍵集合</td>
+      <td><a href="https://docs.github.com/">GitHub Docs</a>: 好用的鍵盤快速鍵集合</td>
       <td>
         目前提供以下快速鍵：<br>
         <ol>
@@ -116,7 +116,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FeloSearchHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Felo Search: 好用的鍵盤快速鍵集合</td>
+      <td><a href="https://felo.ai/">Felo Search</a>: 好用的鍵盤快速鍵集合</td>
       <td>
         目前提供以下快速鍵：<br>
         <ol>
@@ -131,7 +131,7 @@
       <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>ChatGPT: 好用的鍵盤快速鍵集合</td>
+      <td><a href="https://chat.openai.com/">ChatGPT</a>: 好用的鍵盤快速鍵集合</td>
       <td>
         目前提供以下快速鍵：<br>
         <ol>
@@ -240,6 +240,15 @@
     </tr>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/JinaReader.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://jina.ai/reader/">Jina Reader</a>: 將現有網頁轉成 Markdown 格式 (alt+r)</td>
+      <td>
+        按下 <code>alt+r</code> 將目前頁面導向 Jina Reader 並轉成 Markdown
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GoogleAiStudioLightTheme.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://aistudio.google.com/">Google AI Studio</a>: Light Theme</td>
@@ -254,6 +263,15 @@
       <td><a href="https://github.com/">GitHub</a>: 佈景主題切換器</td>
       <td>
         按下 alt+s 快速鍵就會自動切換目前網頁的 Dark/Light 模式，網頁右上角 Actions 按鈕列也會多一顆切換按鈕
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubUxEnhancer.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://github.com/">GitHub</a>: 提升使用者體驗的小工具集合</td>
+      <td>
+        在 Repositories 分頁自動聚焦篩選框，偵測單頁導覽後也會自動回焦
       </td>
     </tr>
     <tr>
@@ -436,6 +454,13 @@
     </tr>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzurePortalMask.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://portal.azure.com/" target="_blank">Azure Portal</a>: 將所有敏感資料進行隱碼處理</td>
+      <td>在 Azure Portal 及相關服務中將可能的敏感資訊模糊處理，避免畫面外洩</td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 優化快速鍵操作</td>
@@ -593,9 +618,18 @@
     </tr>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/YouTubeDownloadSubtitle.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://www.youtube.com/">YouTube</a>: 自動下載影片字幕 (alt+s)</td>
+      <td>
+        按下 <code>alt+s</code> 或使用播放器旁的按鈕，自動帶到 downsub 下載當前影片的 RAW 字幕
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AccupassADRemover.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td>Accupass: 刪除活動頁面的漂浮廣告</td>
+      <td><a href="https://www.accupass.com/">Accupass</a>: 刪除活動頁面的漂浮廣告</td>
       <td>刪除 Accupass 前台活動頁的漂浮廣告</td>
     </tr>
     <tr>
@@ -604,6 +638,13 @@
       </td>
       <td>博客來: 刪除首頁的蓋版廣告</td>
       <td>刪除博客來首頁的蓋版廣告</td>
+    </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MediumRemoveAD.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://medium.com/">Medium</a>: 刪除要求註冊的蓋版廣告</td>
+      <td>移除 Medium 要求註冊的覆蓋層，不再遮住文章內容</td>
     </tr>
     <tr>
       <td>
