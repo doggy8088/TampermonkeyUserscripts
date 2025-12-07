@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AskPage 頁問 (Ctrl+I)
-// @version      0.6.0
+// @version      0.6.1
 // @description  (Ctrl+I) 使用 Gemini API 詢問關於目前頁面的問題，支援多模型選擇
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -23,6 +23,11 @@
 
 (function () {
     'use strict';
+
+    ////////////////////////////////////////////////////////////////////////////
+    // 本工具已經上架到 Chrome 線上應用程式商店
+    // https://chromewebstore.google.com/detail/lehmnfefdojedijepclonkbajnjonnji
+    ////////////////////////////////////////////////////////////////////////////
 
     /* --------------------------------------------------
         設定 / 變數
