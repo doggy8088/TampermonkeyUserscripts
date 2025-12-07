@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         NotebookLM: 好用的鍵盤快速鍵集合
-// @version      0.1.1
+// @version      0.1.2
 // @description  按下 Ctrl+Alt+A 可以展開心智圖所有節點
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -15,6 +15,11 @@
 
 (function () {
     'use strict';
+
+    ////////////////////////////////////////////////////////////////////////////
+    // 本工具已經上架到 Chrome 線上應用程式商店
+    // https://chromewebstore.google.com/detail/pnnmfocfjleojeflpcdmpkcbfchnkphk
+    ////////////////////////////////////////////////////////////////////////////
 
     function matchHotkey({ ctrl = false, alt = false }, keyCheck) {
         return e => (
