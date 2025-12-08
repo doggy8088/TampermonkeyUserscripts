@@ -12,7 +12,10 @@
     "GeminiSummarizeSelectionContextMenu:build:prod": "esbuild GeminiSummarizeSelectionContextMenu.user.src.js --bundle --minify --outfile=dist/out.js --platform=browser && cat GeminiSummarizeSelectionContextMenu.user.header.txt > dist/GeminiSummarizeSelectionContextMenu.user.js && cat dist/out.js >> dist/GeminiSummarizeSelectionContextMenu.user.js",
     "SelectionToMarkdownContextMenu:build": "esbuild SelectionToMarkdownContextMenu.user.src.js --bundle --outfile=dist/out.js --platform=browser && cat SelectionToMarkdownContextMenu.user.header.txt > dist/SelectionToMarkdownContextMenu.user.js && cat dist/out.js >> dist/SelectionToMarkdownContextMenu.user.js",
     "SelectionToMarkdownContextMenu:build:prod": "esbuild SelectionToMarkdownContextMenu.user.src.js --bundle --minify --outfile=dist/out.js --platform=browser && cat SelectionToMarkdownContextMenu.user.header.txt > dist/SelectionToMarkdownContextMenu.user.js && cat dist/out.js >> dist/SelectionToMarkdownContextMenu.user.js",
-    "build": "rimraf dist/ && npm run SelectionToMarkdownContextMenu:build && npm run GeminiSummarizeSelectionContextMenu:build && npm run GeminiTranslationE2TContextMenu:build && npm run GeminiTranslationT2EContextMenu:build && rimraf dist/out.js && copyfiles -f dist/*.user.js ../../src/"
+    "CopyToMarkdown:build": "esbuild CopyToMarkdown.user.src.js --bundle --outfile=dist/out.js --platform=browser && cat CopyToMarkdown.user.header.txt > dist/CopyToMarkdown.user.js && cat dist/out.js >> dist/CopyToMarkdown.user.js",
+    "CopyToMarkdown:build:prod": "esbuild CopyToMarkdown.user.src.js --bundle --minify --outfile=dist/out.js --platform=browser && cat CopyToMarkdown.user.header.txt > dist/CopyToMarkdown.user.js && cat dist/out.js >> dist/CopyToMarkdown.user.js",
+    "CopyToMarkdown:publish": "rimraf dist/ && npm run CopyToMarkdown:build && rimraf dist/out.js && copyfiles -f dist/*.user.js ../../src/",
+    "build": "rimraf dist/ && npm run CopyToMarkdown:build && npm run SelectionToMarkdownContextMenu:build && npm run GeminiSummarizeSelectionContextMenu:build && npm run GeminiTranslationE2TContextMenu:build && npm run GeminiTranslationT2EContextMenu:build && rimraf dist/out.js && copyfiles -f dist/*.user.js ../../src/"
   },
   "keywords": [],
   "author": "",
