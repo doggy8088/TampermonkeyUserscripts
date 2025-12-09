@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Medium: 刪除要求註冊的蓋版廣告
-// @version      0.1.0
+// @version      0.1.1
 // @description  按下 Ctrl+Delete 快速刪除 ChatGPT 聊天記錄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -9,7 +9,7 @@
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MediumRemoveAD.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MediumRemoveAD.user.js
 // @author       Will Huang
-// @match        https://*/*
+// @match        https://medium.com/*
 // @run-at       document-idle
 // ==/UserScript==
 
