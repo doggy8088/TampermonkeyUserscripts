@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         沉浸式翻譯: 修正翻譯後樣式跑掉的問題
-// @version      0.1.3
+// @version      0.1.4
 // @description
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -10,6 +10,7 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ImmersiveTranslateAutoFix.user.js
 // @author       Will Huang
 // @match        https://*/*
+// @match        file:///*/*
 // @run-at       document-idle
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=immersivetranslate.com
 // ==/UserScript==
