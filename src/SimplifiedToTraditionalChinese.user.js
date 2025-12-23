@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      0.8.1
+// @version      0.9.0
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -15,7 +15,7 @@
 // @exclude      *://*.github.com/*
 // @run-at       document-idle
 // @grant        none
-// @require      https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js
+// @require      https://cdn.jsdelivr.net/npm/@willh/opencc-js@1.0.5/dist/umd/full.js
 // ==/UserScript==
 
 (function () {
