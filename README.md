@@ -66,6 +66,15 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/NoWatermarkForNanoBananaPro.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://gemini.google.com/app">Gemini</a> 🍌 無"印"良品</td>
+      <td>
+        自動識別與移除 Gemini 網站透過 Nano Banana Pro 生圖的浮水印
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BskyHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://bsky.app/">Bluesky</a>: 好用的鍵盤快速鍵集合</td>
