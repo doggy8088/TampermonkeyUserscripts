@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini 🍌 無"印"良品
-// @version      0.1.1
+// @version      0.1.2
 // @description  自動識別與移除 Gemini 網站透過 Nano Banana Pro 生圖的浮水印
 // @author       TanShilongMario, Will Huang
 // @license      MIT
@@ -9,6 +9,8 @@
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/NoWatermarkForNanoBananaPro.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/NoWatermarkForNanoBananaPro.user.js
+// @match        https://gemini.google.com/gem*
+// @match        https://gemini.google.com/u/*/gem*
 // @match        https://gemini.google.com/app*
 // @match        https://gemini.google.com/u/*/app*
 // @grant        GM_xmlhttpRequest
