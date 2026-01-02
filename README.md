@@ -66,7 +66,16 @@
   <tbody>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/NoWatermarkForNanoBananaPro.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GoogleAppsScriptHideWarningBar.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://script.google.com/">Google Apps Script</a>: 隱藏警告列</td>
+      <td>
+        自動隱藏 Google Apps Script 執行頁面上的警告提示列
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/NoWatermarkForNanoBananaPro.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://gemini.google.com/app">Gemini</a> 🍌 無"印"良品</td>
       <td>
@@ -75,7 +84,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BskyHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BskyHotkeys.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://bsky.app/">Bluesky</a>: 好用的鍵盤快速鍵集合</td>
       <td>
@@ -87,7 +96,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ReadingMode.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ReadingMode.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>ReadingMode: 讓網頁更容易閱讀與翻譯的工具</td>
       <td>
@@ -99,7 +108,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSLearnHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSLearnHotkeys.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://learn.microsoft.com/">Microsoft Learn</a>: 好用的鍵盤快速鍵集合</td>
       <td>
@@ -111,7 +120,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubDocsHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubDocsHotkeys.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://docs.github.com/">GitHub Docs</a>: 好用的鍵盤快速鍵集合</td>
       <td>
@@ -123,7 +132,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FeloSearchHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FeloSearchHotkeys.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://felo.ai/">Felo Search</a>: 好用的鍵盤快速鍵集合</td>
       <td>
@@ -138,7 +147,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTHotkeys.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://chat.openai.com/">ChatGPT</a>: 好用的鍵盤快速鍵集合</td>
       <td>
@@ -151,7 +160,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/CozeShortcuts.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/CozeShortcuts.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://www.coze.com/">Coze</a>: 提供額外的快速鍵方便使用</td>
       <td>
@@ -172,7 +181,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ClaudeFixChinesePunctuationMarks.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ClaudeFixChinesePunctuationMarks.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://claude.ai/">Claude</a>: 自動校正 Claude AI 聊天介面上的標點符號</td>
       <td>
@@ -181,7 +190,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SimplifiedToTraditionalChinese.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SimplifiedToTraditionalChinese.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>簡體中文自動轉繁體中文</td>
       <td>
@@ -191,7 +200,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/CtrlCCtrlCCopyURL.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/CtrlCCtrlCCopyURL.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>按下多次 Ctrl-C 就會自動複製網址</td>
       <td>
@@ -204,7 +213,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiToggleAudioInput.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiToggleAudioInput.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://gemini.google.com/">Gemini</a>: 自動切換語音輸入模式 (alt+t)</td>
       <td>
@@ -213,7 +222,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiTranslationT2EContextMenu.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiTranslationT2EContextMenu.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://gemini.google.com/">Gemini</a>: 翻譯選取文字的內容 (中翻英)</td>
       <td>
@@ -222,7 +231,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiTranslationE2TContextMenu.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiTranslationE2TContextMenu.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://gemini.google.com/">Gemini</a>: 翻譯選取文字的內容 (英翻中)</td>
       <td>
@@ -231,7 +240,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiSummarizeSelectionContextMenu.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiSummarizeSelectionContextMenu.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://gemini.google.com/">Gemini</a>: 總結選取文字的內容</td>
       <td>
@@ -240,7 +249,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SelectionToMarkdownContextMenu.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SelectionToMarkdownContextMenu.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>將網頁內容轉成 Markdown 格式並寫入剪貼簿</td>
       <td>
@@ -249,7 +258,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/JinaReader.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/JinaReader.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://jina.ai/reader/">Jina Reader</a>: 將現有網頁轉成 Markdown 格式 (alt+r)</td>
       <td>
@@ -258,7 +267,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GoogleAiStudioLightTheme.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GoogleAiStudioLightTheme.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://aistudio.google.com/">Google AI Studio</a>: Light Theme</td>
       <td>
@@ -267,7 +276,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubDarkModeSwitcher.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubDarkModeSwitcher.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://github.com/">GitHub</a>: 佈景主題切換器</td>
       <td>
@@ -276,7 +285,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubUxEnhancer.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubUxEnhancer.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://github.com/">GitHub</a>: 提升使用者體驗的小工具集合</td>
       <td>
@@ -285,7 +294,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SinoBankMMASignIn.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SinoBankMMASignIn.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://mma.sinopac.com" target="_blank">SinoBank</a>: 永豐銀行 MMA 登入啟用密碼管理器機制</td>
       <td>
@@ -294,7 +303,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTDoubleClickEdit.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTDoubleClickEdit.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 滑鼠雙擊編輯提示文字</td>
       <td>
@@ -303,7 +312,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTOpenLinks.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTOpenLinks.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 開啟常用參考連結</td>
       <td>
@@ -312,7 +321,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTranslationT2E.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTranslationT2E.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 翻譯選取文字的內容 (中翻英)</td>
       <td>
@@ -321,7 +330,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTranslationE2T.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTranslationE2T.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 翻譯選取文字的內容 (英翻中)</td>
       <td>
@@ -330,7 +339,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTCommonPrompts.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTCommonPrompts.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 在回應結果的地方加入常見提示回應按鈕</td>
       <td>
@@ -339,7 +348,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTokenizerCalculator.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTokenizerCalculator.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 自動統計網頁中選取的文字範圍的 Token 數量</td>
       <td>
@@ -348,7 +357,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTSummaryPage.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTSummaryPage.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 自動總結網頁中的文章內容 (&lt;article&gt;)</td>
       <td>
@@ -357,7 +366,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTAutoFill.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTAutoFill.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 自動填入提示文字並自動送出</td>
       <td>
@@ -366,7 +375,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTVoiceInput.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTVoiceInput.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://chatgpt.com/" target="_blank">ChatGPT</a>: 語音輸入與語音合成功能 (支援中/英/日/韓語言)</td>
       <td>
@@ -415,21 +424,21 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/OpenAIHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/OpenAIHotkeys.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://platform.openai.com/">OpenAI Platform</a>: 好用的鍵盤快速鍵集合</td>
       <td>按下 <code>Ctrl+B</code>（或 <code>f</code>）切換文件頁面的側邊欄顯示</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/TrackingTokenStripper.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/TrackingTokenStripper.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>網站追蹤碼移除工具</td>
       <td>移除大多數網站附加在超連結上的 Query String 追蹤碼</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/LanguageSwitcher.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/LanguageSwitcher.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>中、英文網頁切換器</td>
       <td>
@@ -442,42 +451,42 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AvoidClosingTab.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AvoidClosingTab.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>防止避免意外關閉頁籤</td>
       <td>避免特定網站會被意外使用 <code>ctrl-w</code> 關閉頁籤</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsDarkModeSwitcher.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsDarkModeSwitcher.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 佈景主題切換器</td>
       <td>按下 <code>alt+s</code> 快速鍵就會自動切換目前網頁的 Dark/Light 模式</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsWikiTocFullDisplay.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsWikiTocFullDisplay.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 調整 Wiki 文件的 TOC 標題寬度</td>
       <td>讓 Azure Wikis 的 TOC 標題可以完整顯示</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzurePortalRemoveEllipsis.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzurePortalRemoveEllipsis.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://portal.azure.com/" target="_blank">Azure Portal</a>: 移除所有會出現 ... 的樣式</td>
       <td>移除在 Azure Portal 之中所有會出現 ... 的樣式，尤其是看帳單的時候不要顯示有 ... 的數字</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzurePortalMask.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzurePortalMask.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://portal.azure.com/" target="_blank">Azure Portal</a>: 將所有敏感資料進行隱碼處理</td>
       <td>在 Azure Portal 及相關服務中將可能的敏感資訊模糊處理，避免畫面外洩</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsHotkeys.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 優化快速鍵操作</td>
       <td>讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作</td>
@@ -534,21 +543,21 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsEnableKeyboardShortcuts.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsEnableKeyboardShortcuts.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 啟用鍵盤快速鍵</td>
       <td>讓 Azure DevOps Service 的鍵盤快速鍵一直都可以使用</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPageTitleModifier.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPageTitleModifier.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 調整工作項目頁面標題</td>
       <td>讓 Azure Boards 的 Work Item 顯示的「頁面標題」更加具有意義</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPipelinesLogEnlarger.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPipelinesLogEnlarger.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 調整 Pipeline Log 的顯示寬度</td>
       <td>
@@ -558,7 +567,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPipelinesScreenRecordingPlayer.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsPipelinesScreenRecordingPlayer.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 調整工作項目直接播放螢幕錄影影片</td>
       <td>
@@ -568,14 +577,14 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBFixWarnLink.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBFixWarnLink.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Facebook: FixWarnLink</td>
       <td>讓 Facebook 點擊「外部連結」時可以不用去點擊確認按鈕</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBPunycodeConverter.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBPunycodeConverter.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Facebook: PunycodeConverter</td>
       <td>
@@ -584,7 +593,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBRemoveShop.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBRemoveShop.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Facebook: 移除「商店」按鈕</td>
       <td>
@@ -593,7 +602,7 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FacebookHotkeys.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FacebookHotkeys.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Facebook: 好用的鍵盤快速鍵集合</td>
       <td>
@@ -606,35 +615,35 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSFormsShowLongerOption.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSFormsShowLongerOption.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Microsoft Forms: 調整回應頁面顯示較寬的選項內容</td>
       <td>按下 + 號就可以調寬，按下 - 號就可以調窄。</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSPowerAutomateNameWidth.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MSPowerAutomateNameWidth.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>Power Automate: 調整顯示名稱的欄位寬度</td>
       <td>將 Flows 的 Name 欄位調整到 750px 寬度，讓標題可以完整顯示在畫面上</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MVPDocsLearnChampionProgram.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MVPDocsLearnChampionProgram.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>MVP: Microsoft Docs & Learn Champion Program</td>
       <td>Add <code>WT.mc_id=DT-MVP-4015686</code> tracking code to the matched urls</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BypassNewYorkTimesPaywall.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BypassNewYorkTimesPaywall.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>NYTimes: 移除 New York Times 閱讀新聞時的付款提示畫面</td>
       <td>移除看 New York Times 新聞時的付款提示畫面</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/YouTubeDownloadSubtitle.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/YouTubeDownloadSubtitle.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://www.youtube.com/">YouTube</a>: 自動下載影片字幕 (alt+s)</td>
       <td>
@@ -643,28 +652,28 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AccupassADRemover.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AccupassADRemover.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://www.accupass.com/">Accupass</a>: 刪除活動頁面的漂浮廣告</td>
       <td>刪除 Accupass 前台活動頁的漂浮廣告</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BooksADRemover.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/BooksADRemover.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>博客來: 刪除首頁的蓋版廣告</td>
       <td>刪除博客來首頁的蓋版廣告</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MediumRemoveAD.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/MediumRemoveAD.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://medium.com/">Medium</a>: 刪除要求註冊的蓋版廣告</td>
       <td>移除 Medium 要求註冊的覆蓋層，不再遮住文章內容</td>
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ESUN_Add_Field_ID.user.js"><img src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ESUN_Add_Field_ID.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>玉山銀行: 添加遺失的表單欄位 id 屬性</td>
       <td>
