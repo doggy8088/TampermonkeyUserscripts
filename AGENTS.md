@@ -19,6 +19,50 @@
 - Prefer `const`/`let`, early returns, and small helpers over deep nesting; avoid introducing dependencies unless scoped to a `dev/` build.
 - Keep comments brief and practical, focusing on browser quirks, selectors, and shortcut mappings.
 
+## Script Style Guide (Observed in `src`)
+- Wrap each userscript in an IIFE and place `'use strict';` at the top of the wrapper.
+- Keep the metadata block intact; include only needed `@grant` entries, add `@run-at` when timing matters, and keep `@match` scopes tight.
+- Use 4-space indentation, semicolons, and blank lines between logical sections.
+- Prefer `const` for constants and DOM handles, `let` for mutable state; some legacy scripts use `var`, so stay consistent within a given file.
+- Keep helpers small and focused (`debounce`, `waitForElement`, `simulateClick`, `shouldIgnoreEvent`) and rely on early returns to avoid deep nesting.
+- Hotkey handlers should ignore typing contexts (`input`, `textarea`, `[contenteditable]`), avoid modifier collisions, and call `preventDefault()` when taking over shortcuts.
+- DOM queries should be defensive: check for null, use optional chaining, and short-circuit when elements are missing.
+- For SPA pages, use `MutationObserver` plus URL change checks (often with debounce) or dispatch custom `locationchange` events via `history` overrides.
+- When parsing DOM or JSON that might fail, wrap in `try/catch` and fail quietly; keep console logging purposeful or commented out.
+- CSS injection is typically done with `GM_addStyle` and template literals; keep class names/regexes as constants and toggle via a root class when needed.
+- If a `src` file is a bundled output (large wrapper/codegen), edit the matching `dev/` source and rebuild instead of formatting the bundle.
+
+## Userscript Header Pattern (Observed in `src`)
+- Every script includes these fields in order: `@name`, `@version`, `@description`, `@license`, `@homepage`, `@homepageURL`, `@website`, `@source`, `@namespace`, `@author`.
+- `@source` and `@namespace` both point to the raw GitHub URL for the same file under `src/`.
+- `@homepage`, `@homepageURL`, and `@website` are consistently set to the author’s sites; keep them unchanged unless ownership changes.
+- Add one or more `@match` lines (and `@exclude` when needed) after the core fields; keep patterns minimal and specific.
+- Optional lines appear after the match block: `@run-at` (when timing matters), then `@icon`, and then `@require`/`@grant` as needed; if no GM APIs are used, omit `@grant` or use `@grant        none`.
+- If a script does not need GM APIs, always include `@grant        none` to make the intent explicit.
+- Align header values to the same column using spaces for readability.
+
+Template:
+```js
+// ==UserScript==
+// @name         <Site>: <Short title>
+// @version      0.1.0
+// @description  <One-line summary of behavior>
+// @license      MIT
+// @homepage     https://blog.miniasp.com/
+// @homepageURL  https://blog.miniasp.com/
+// @website      https://www.facebook.com/will.fans
+// @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/<Script>.user.js
+// @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/<Script>.user.js
+// @author       Will Huang
+// @match        https://example.com/*
+// @exclude      https://example.com/ignore/*
+// @run-at       document-idle
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=example.com
+// @require      https://cdn.example.com/library.js
+// @grant        GM_setClipboard
+// ==/UserScript==
+```
+
 ## Testing Guidelines
 - No automated test suite; perform manual checks in the target site with the script enabled in Tampermonkey (Developer Mode on).
 - Validate hotkeys, DOM mutations, and content scripts in multiple pages/states; confirm console is clean of errors.
