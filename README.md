@@ -303,6 +303,15 @@
     </tr>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubPATQuickCreate.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://github.com/">GitHub</a>: 快速進入 Personal Access Token 的按鈕 (快捷鍵: Alt+P)</td>
+      <td>
+        在 GitHub 頂部工具列加入按鈕，快速開啟建立 Fine-grained Personal Access Tokens 的頁面（Alt+P 快捷鍵）
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SinoBankMMASignIn.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://mma.sinopac.com" target="_blank">SinoBank</a>: 永豐銀行 MMA 登入啟用密碼管理器機制</td>
