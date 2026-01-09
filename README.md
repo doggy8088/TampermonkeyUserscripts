@@ -481,6 +481,13 @@
     </tr>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsWikiFloatingTOC.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 強化 Wiki 的 TOC 為浮動側邊資訊卡</td>
+      <td>將使用 [[_TOC_]] 的頁面目錄，改為右側的深色/淺色浮動側邊資訊卡；可切換主題並儲存顯示偏好。</td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzurePortalRemoveEllipsis.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://portal.azure.com/" target="_blank">Azure Portal</a>: 移除所有會出現 ... 的樣式</td>
