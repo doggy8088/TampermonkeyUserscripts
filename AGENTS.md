@@ -19,6 +19,10 @@
 - Prefer `const`/`let`, early returns, and small helpers over deep nesting; avoid introducing dependencies unless scoped to a `dev/` build.
 - Keep comments brief and practical, focusing on browser quirks, selectors, and shortcut mappings.
 
+## Automated Intent & Commenting Policy
+- For all future code updates, automated tooling and contributors should ensure rich, detailed comments are included in the code to capture the developer's intent, rationale, and any design choices. Automated tools (pre-commit hooks or CI checks) should assist in inserting or validating these intent comments where appropriate.
+- 未來所有程式更新，都要自動幫我把我真正的意圖都寫成豐富且詳細的註解在程式碼中。
+
 ## Script Style Guide (Observed in `src`)
 - Wrap each userscript in an IIFE and place `'use strict';` at the top of the wrapper.
 - Keep the metadata block intact; include only needed `@grant` entries, add `@run-at` when timing matters, and keep `@match` scopes tight.
