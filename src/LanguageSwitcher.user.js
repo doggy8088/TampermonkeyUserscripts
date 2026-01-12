@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.19.0
+// @version      1.19.1
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -315,9 +315,17 @@
         () => replaceHref(/^https?:\/\/github\.com\/github\/spec-kit\/tree\/main\/?$/i, 'https://github.com/doggy8088/spec-kit/tree/zh-tw/'),
         () => replaceHref(/^https?:\/\/github\.com\/doggy8088\/spec-kit\/?$/i, 'https://github.com/github/spec-kit/tree/main/'),
         () => replaceHref(/^https?:\/\/github\.com\/doggy8088\/spec-kit\/tree\/zh-tw\/?$/i, 'https://github.com/github/spec-kit/tree/main/'),
-        // Blob pages (file view)
         () => replaceHref(/^https?:\/\/github\.com\/github\/spec-kit\/blob\/main\//i, 'https://github.com/doggy8088/spec-kit/blob/zh-tw/'),
         () => replaceHref(/^https?:\/\/github\.com\/doggy8088\/spec-kit\/blob\/zh-tw\//i, 'https://github.com/github/spec-kit/blob/main/'),
+
+        // GitHub https://github.com/github/copilot-cli/blob/main/changelog.md <-> https://github.com/doggy8088/copilot-cli/blob/zh-tw/changelog.md
+        () => replaceHref(/^https?:\/\/github\.com\/github\/copilot-cli\/?$/i, 'https://github.com/doggy8088/copilot-cli/tree/zh-tw/'),
+        () => replaceHref(/^https?:\/\/github\.com\/github\/copilot-cli\/tree\/main\/?$/i, 'https://github.com/doggy8088/copilot-cli/tree/zh-tw/'),
+        () => replaceHref(/^https?:\/\/github\.com\/doggy8088\/copilot-cli\/?$/i, 'https://github.com/github/copilot-cli/tree/main/'),
+        () => replaceHref(/^https?:\/\/github\.com\/doggy8088\/copilot-cli\/tree\/zh-tw\/?$/i, 'https://github.com/github/copilot-cli/tree/main/'),
+        // Blob pages (file view)
+        () => replaceHref(/^https?:\/\/github\.com\/github\/copilot-cli\/blob\/main\//i, 'https://github.com/doggy8088/copilot-cli/blob/zh-tw/'),
+        () => replaceHref(/^https?:\/\/github\.com\/doggy8088\/copilot-cli\/blob\/zh-tw\//i, 'https://github.com/github/copilot-cli/blob/main/'),
     ];
 
     function applyFirstMatch() {
