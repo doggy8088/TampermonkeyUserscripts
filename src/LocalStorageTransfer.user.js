@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         偵錯工具: localStorage 複製/貼上
-// @version      0.1.0
+// @version      0.2.0
 // @description  透過選單命令快速匯出/匯入目前網站的 localStorage（方便在不同電腦/網站之間交換，用於偵錯）
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -292,12 +292,42 @@
         }
     }
 
+    function onClearAll() {
+        // 意圖：提供一個「清空目前網站 localStorage」的工具，執行前要求使用者確認。
+        // 注意：localStorage 可能含敏感資訊（token 等），此操作不可復原。
+        if (!confirm('警告：這會清除「目前網站」的所有 localStorage 資料，這個操作無法復原。是否繼續？')) return;
+
+        try {
+            localStorage.clear();
+        } catch (err) {
+            console.warn('[LocalStorageTransfer] Failed to clear localStorage.', err);
+            alert('無法清空 localStorage（可能被瀏覽器/網站限制）。詳情請看 Console。');
+            return;
+        }
+
+        try {
+            if (typeof GM_notification === 'function') {
+                GM_notification({ text: '已清空 localStorage（目前網站）', highlight: true, timeout: 2000 });
+            } else {
+                alert('已清空 localStorage（目前網站）。');
+            }
+        } catch (err) {
+            console.warn('[LocalStorageTransfer] GM_notification failed.', err);
+            alert('已清空 localStorage（目前網站）。');
+        }
+
+        if (confirm('已清空 localStorage。是否立即重新載入頁面以讓變更生效？')) {
+            location.reload();
+        }
+    }
+
     function registerMenuCommands() {
         // 意圖：即使未來腳本在非 Tampermonkey 環境載入（例如直接貼到 Console），也能安全早退。
         if (typeof GM_registerMenuCommand !== 'function') return;
 
         GM_registerMenuCommand('複製', onCopy);
         GM_registerMenuCommand('貼上', onPaste);
+        GM_registerMenuCommand('清除所有資料', onClearAll);
     }
 
     registerMenuCommands();
