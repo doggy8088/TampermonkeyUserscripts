@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      0.9.2
+// @version      1.0.0
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -9,10 +9,9 @@
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SimplifiedToTraditionalChinese.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SimplifiedToTraditionalChinese.user.js
 // @author       Will Huang
-// @match        https://*.cn/*
-// @match        https://*.qq.com/*
+// @match        *://*/*
 // @run-at       document-idle
-// @grant        none
+// @grant        GM_registerMenuCommand
 // @require      https://cdn.jsdelivr.net/npm/@willh/opencc-js@1.1.0/dist/umd/full.js
 // ==/UserScript==
 
@@ -24,6 +23,17 @@
     // ===== 設定常數 =====
 
     /* eslint-disable no-multi-spaces */
+
+    // 允許進行簡繁轉換的網址模式（支援正規表達式）
+    // 若要全站啟用，可將此陣列留空或設為 [/^/] (匹配所有網址)
+    // 預設值為常見的中文網站，可根據需要修改
+    const ALLOWED_URL_PATTERNS = [
+        /https:\/\/[^\/]*\.cn\//,         // 中國網域 (.cn)
+        /https:\/\/[^\/]*\.qq\.com\//,    // 騰訊 (qq.com)
+        /https:\/\/[^\/]*\.baidu\.com\//, // 百度 (baidu.com)
+        /https:\/\/[^\/]*\.weibo\.com\//, // 微博 (weibo.com)
+        // 增加更多網址模式...
+    ];
 
     // OpenCC 函式庫載入檢查設定
     const OPENCC_LOAD_CHECK_INTERVAL = 100;  // OpenCC 函式庫載入檢查間隔（毫秒）
@@ -39,6 +49,17 @@
     const MIN_SIMPLIFIED_CHAR_COUNT = 1;     // 判定為簡體中文所需的最少簡體字數量
 
     /* eslint-enable no-multi-spaces */
+
+    // 檢查當前頁面是否應該進行轉換
+    function shouldConvertPage() {
+        // 如果允許清單為空或包含匹配所有的正規表達式，則轉換所有頁面
+        if (ALLOWED_URL_PATTERNS.length === 0) {
+            return true;
+        }
+
+        const currentUrl = window.location.href;
+        return ALLOWED_URL_PATTERNS.some(pattern => pattern.test(currentUrl));
+    }
 
     // ===== 詞庫對照表 (中國大陸用語 => 台灣用語) =====
     const termMapping = {
@@ -299,6 +320,12 @@
 
     // 主執行函數
     function init() {
+        // 檢查當前頁面是否應該進行轉換
+        if (!shouldConvertPage()) {
+            console.log('[簡轉繁] 此頁面不在轉換清單中，腳本已停用');
+            return;
+        }
+
         console.log('[簡轉繁] 腳本已啟動，開始監聽頁面變化...');
 
         // 初始化轉換器和正規表達式
@@ -485,24 +512,62 @@
                 subtree: true
             });
         }
+
+        // 註冊菜單命令：手動觸發頁面轉換
+        if (typeof GM_registerMenuCommand !== 'undefined') {
+            GM_registerMenuCommand('🔄 重新轉換此頁面 (簡→繁)', () => {
+                console.log('[簡轉繁] 使用者手動觸發轉換');
+                convertPage();
+                // alert('[簡轉繁] 頁面轉換完成！');
+            });
+        }
+    }
+
+    // 為不在清單中的頁面提供手動轉換選項
+    function initMenuForOtherPages() {
+        if (typeof GM_registerMenuCommand !== 'undefined') {
+            GM_registerMenuCommand('🔄 轉換此頁面 (簡→繁)', () => {
+                console.log('[簡轉繁] 使用者在非清單頁面手動觸發轉換');
+                initConverter();
+                initTermRegex();
+
+                // 轉換頁面標題
+                if (document.title) {
+                    const convertedTitle = convertText(document.title);
+                    if (convertedTitle !== document.title) {
+                        document.title = convertedTitle;
+                    }
+                }
+
+                // 轉換頁面內容
+                traverse(document.body);
+                // alert('[簡轉繁] 頁面轉換完成！');
+            });
+        }
     }
 
     // 等待 OpenCC 函式庫載入完成後再執行
-    if (typeof OpenCC !== 'undefined') {
-        init();
+    if (shouldConvertPage()) {
+        // 檢查是否應該啟用完整功能
+        if (typeof OpenCC !== 'undefined') {
+            init();
+        } else {
+            // 如果 OpenCC 尚未載入，等待一下
+            let retryCount = 0;
+            const checkInterval = setInterval(() => {
+                retryCount++;
+                if (typeof OpenCC !== 'undefined') {
+                    clearInterval(checkInterval);
+                    init();
+                } else if (retryCount >= OPENCC_MAX_RETRY_COUNT) {
+                    clearInterval(checkInterval);
+                    console.error('[簡轉繁] OpenCC 函式庫載入失敗');
+                }
+            }, OPENCC_LOAD_CHECK_INTERVAL);
+        }
     } else {
-        // 如果 OpenCC 尚未載入，等待一下
-        let retryCount = 0;
-        const checkInterval = setInterval(() => {
-            retryCount++;
-            if (typeof OpenCC !== 'undefined') {
-                clearInterval(checkInterval);
-                init();
-            } else if (retryCount >= OPENCC_MAX_RETRY_COUNT) {
-                clearInterval(checkInterval);
-                console.error('[簡轉繁] OpenCC 函式庫載入失敗');
-            }
-        }, OPENCC_LOAD_CHECK_INTERVAL);
+        // 對於不在清單中的頁面，只提供手動轉換菜單
+        initMenuForOtherPages();
     }
 
     // 加入 YouTube 字幕攔截和轉換功能
