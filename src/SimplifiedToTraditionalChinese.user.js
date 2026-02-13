@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      1.0.0
+// @version      1.0.1
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -165,6 +165,13 @@
             const sortedTerms = sourceTerms
                 .sort((a, b) => b.length - a.length)
                 .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')); // 轉義特殊字元
+
+            // 若沒有任何可替換詞彙，避免建立空正規表達式（會匹配每個字元間隙）
+            if (sortedTerms.length === 0) {
+                termRegex = null;
+                termFirstChars = null;
+                return;
+            }
 
             // 建立一個大的正規表達式，一次匹配所有詞彙
             termRegex = new RegExp(sortedTerms.join('|'), 'g');
@@ -647,9 +654,16 @@
          * @returns {string} - 轉換後的字幕文字
          */
         function transformSubtitleText(text) {
-            // 在這裡實作你的轉換邏輯
-            // 例如：簡體轉繁體、大小寫轉換等
-            return convertText(text); // 目前直接返回原文，請自行修改
+            // YouTube 通常不在自動轉換白名單內，這裡要自行確保轉換器可用
+            initConverter();
+            initTermRegex();
+
+            // OpenCC 若未成功載入，保留原文避免破壞字幕流程
+            if (!converter) {
+                return text;
+            }
+
+            return convertText(text);
         }
 
         /**
