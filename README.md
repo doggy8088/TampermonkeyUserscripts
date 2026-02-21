@@ -276,11 +276,11 @@
     </tr>
     <tr>
       <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubDarkModeSwitcher.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubTopBarActions.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
-      <td><a href="https://github.com/">GitHub</a>: 佈景主題切換器</td>
+      <td><a href="https://github.com/">GitHub</a>: Top Bar Actions（Alt+T / Alt+P）</td>
       <td>
-        按下 alt+s 快速鍵就會自動切換目前網頁的 Dark/Light 模式，網頁右上角 Actions 按鈕列也會多一顆切換按鈕
+        在 GitHub 頂部工具列加入兩個按鈕：Alt+T 可切換 Dark/Light 模式，Alt+P 可快速開啟 Fine-grained Personal Access Token 建立頁面
       </td>
     </tr>
     <tr>
@@ -299,15 +299,6 @@
       <td><a href="https://deepwiki.com/" target="_blank">DeepWiki</a>: 在 GitHub Repo 新增 DeepWiki 按鈕</td>
       <td>
         在 Repo 右上按鈕列新增「DeepWiki」按鈕，點擊會在新分頁打開對應的 DeepWiki 文件。例如： https://deepwiki.com/anthropics/skills
-      </td>
-    </tr>
-    <tr>
-      <td>
-        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GitHubPATQuickCreate.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
-      </td>
-      <td><a href="https://github.com/">GitHub</a>: 快速進入 Personal Access Token 的按鈕 (快捷鍵: Alt+P)</td>
-      <td>
-        在 GitHub 頂部工具列加入按鈕，快速開啟建立 Fine-grained Personal Access Tokens 的頁面（Alt+P 快捷鍵）
       </td>
     </tr>
     <tr>
