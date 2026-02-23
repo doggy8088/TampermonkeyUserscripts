@@ -34,6 +34,8 @@
 - For SPA pages, use `MutationObserver` plus URL change checks (often with debounce) or dispatch custom `locationchange` events via `history` overrides.
 - When parsing DOM or JSON that might fail, wrap in `try/catch` and fail quietly; keep console logging purposeful or commented out.
 - CSS injection is typically done with `GM_addStyle` and template literals; keep class names/regexes as constants and toggle via a root class when needed.
+- When opening new tabs/windows from async flows, prefer `GM_openInTab()` with an explicit `@grant` so popup blockers do not block the navigation.
+- Use `window.open()` only for synchronous user-gesture calls; if you must open after async work, document the fallback behavior when the browser blocks it.
 - If a `src` file is a bundled output (large wrapper/codegen), edit the matching `dev/` source and rebuild instead of formatting the bundle.
 
 ## Userscript Header Pattern (Observed in `src`)
