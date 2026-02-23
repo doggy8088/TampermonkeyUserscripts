@@ -563,6 +563,36 @@
             }
         }
 
+        // ── 在快照頁面左下角加入「原始頁面」連結（僅影響快照，不影響原頁）──
+        // 設計意圖與取捨說明：
+        //   - 讓快照頁面永遠保留一條回到來源頁的低干擾入口，避免使用者無法追溯原始內容。
+        //   - 使用 fixed 定位與高 z-index，確保無論捲動或頁面佈局如何都固定在左下角可點擊。
+        //   - 以單一「🔗」字元 + 低透明度呈現，視覺存在感低，不影響閱讀主體。
+        //   - 透過 inline style + !important 降低被站點 CSS 覆寫的機率，確保「無底線」與「指標手勢」一致。
+        const body = root.querySelector('body');
+        if (body) {
+            const sourceLink = document.createElement('a');
+            sourceLink.id = '__snapshot_source_link__';
+            sourceLink.textContent = '🔗';
+            sourceLink.setAttribute('href', pageUrl);
+            sourceLink.setAttribute('target', '_blank');
+            sourceLink.setAttribute('rel', 'noopener noreferrer');
+            sourceLink.setAttribute('title', pageUrl);
+            sourceLink.setAttribute('style', [
+                'position: fixed',
+                'left: 8px',
+                'bottom: 8px',
+                'z-index: 2147483647',
+                'font-size: 14px',
+                'line-height: 1',
+                'opacity: 0.25',
+                'text-decoration: none !important',
+                'cursor: pointer',
+                'user-select: none'
+            ].join('; '));
+            body.appendChild(sourceLink);
+        }
+
         // ── 組合最終 HTML 字串，並補充 <!DOCTYPE html> / <meta charset> ──
 
         const head = root.querySelector('head');
