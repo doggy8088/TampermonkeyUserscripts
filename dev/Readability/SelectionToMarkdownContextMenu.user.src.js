@@ -97,7 +97,7 @@ function b64DecodeUnicode(str) {
 }
 
 let html = getHTMLfromSelectorOrContent();
-
+console.log('html', html);
 if (!!html) {
 
     var turndownService = new TurndownService({
