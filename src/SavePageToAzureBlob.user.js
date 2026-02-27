@@ -1,6 +1,6 @@
 // ==UserScript==
-// @name         網頁快照上傳至 Azure Blob
-// @version      0.1.0
+// @name         網頁快照上傳至 Azure Blob Storage
+// @version      0.1.1
 // @description  透過 Tampermonkey 選單將目前網頁製作成完全獨立的 HTML 快照（所有 CSS、圖片、字型均轉為 Data URI），並上傳至指定的 Azure Blob Storage，最後在新頁籤開啟純淨快照 URL
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -96,6 +96,14 @@
 
     // Tampermonkey 儲存鍵名，用於安全保存 SAS URL
     const SAS_URL_STORAGE_KEY = 'azureContainerSasUrl';
+
+    // 由「右鍵 context-menu 觸發腳本」送出的事件名稱。
+    // 透過 DOM CustomEvent 做跨 userscript 溝通，可避免複製整份快照邏輯。
+    const CONTEXT_MENU_TRIGGER_EVENT = 'save-page-to-azure-blob:trigger';
+
+    // 主腳本收到觸發事件後，會立即回送 ACK，
+    // 讓 context-menu 腳本可判斷主腳本是否存在且可正常接手執行。
+    const CONTEXT_MENU_ACK_EVENT = 'save-page-to-azure-blob:ack';
 
     // 單一資源超過此大小（位元組）時略過內嵌，改保留原始 URL，預設 10MB
     const MAX_INLINE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -886,6 +894,36 @@
         alert('✅ Azure Blob SAS URL 已儲存成功！\n現在可以使用「📸 儲存網頁快照」功能了。');
     }
 
+    /**
+     * 註冊「context-menu 觸發橋接器」。
+     *
+     * 設計意圖：
+     *   - 讓本腳本維持 document-idle 常駐能力（可保留既有選單與狀態提示邏輯）。
+     *   - 同時提供另一個 @run-at context-menu 的輕量腳本作為觸發入口。
+     *   - 主邏輯只保留一份在本檔案，避免雙份實作造成版本漂移與維護成本上升。
+     */
+    function registerContextMenuBridge() {
+        document.addEventListener(CONTEXT_MENU_TRIGGER_EVENT, (event) => {
+            const detail = event?.detail || {};
+
+            // 僅接受本功能對應的事件，避免未來擴充時彼此誤觸。
+            if (detail.feature !== 'save-page-to-azure-blob') {
+                return;
+            }
+
+            // 先回 ACK，讓觸發端可快速得知主腳本已接手。
+            document.dispatchEvent(new CustomEvent(CONTEXT_MENU_ACK_EVENT, {
+                detail: {
+                    handledBy: 'SavePageToAzureBlob.user.js',
+                    timestamp: Date.now()
+                }
+            }));
+
+            // 實際執行快照儲存流程。
+            void savePageToAzureBlob();
+        });
+    }
+
     // ===== 向 Tampermonkey 選單註冊兩個指令 =====
 
     // 先設定 SAS URL（依賴此設定才能上傳），故放在第一個位置讓使用者容易找到
@@ -893,5 +931,8 @@
 
     // 主要功能：擷取快照並上傳
     GM_registerMenuCommand('📸 儲存網頁快照', savePageToAzureBlob);
+
+    // 支援由 Tampermonkey context-menu 腳本直接觸發同一套主流程。
+    registerContextMenuBridge();
 
 })();
