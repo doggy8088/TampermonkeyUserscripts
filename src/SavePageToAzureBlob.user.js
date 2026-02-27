@@ -71,7 +71,7 @@
 //   請勿將 SAS URL 分享給他人，並建議定期更換 SAS Token 以降低風險。
 //
 // 【使用方式】
-//   在任意網頁點開 Tampermonkey 選單，選擇「📸 儲存網頁快照至 Azure Blob」，
+//   在任意網頁點開 Tampermonkey 選單，選擇「📸 儲存網頁快照」，
 //   腳本將依序執行：
 //     1. 擷取目前頁面的完整渲染後 DOM 狀態
 //     2. 將所有外部 CSS、字型、圖片、SVG 等資源轉換為 Data URI（內嵌進 HTML）
@@ -770,7 +770,7 @@
         return newTab;
     }
 
-    // ===== 主流程：「📸 儲存網頁快照至 Azure Blob」選單功能 =====
+    // ===== 主流程：「📸 儲存網頁快照」選單功能 =====
 
     /**
      * 主要執行流程，依序完成以下工作：
@@ -883,7 +883,7 @@
 
         // 驗證通過，使用 GM_setValue 安全儲存
         GM_setValue(SAS_URL_STORAGE_KEY, trimmed);
-        alert('✅ Azure Blob SAS URL 已儲存成功！\n現在可以使用「📸 儲存網頁快照至 Azure Blob」功能了。');
+        alert('✅ Azure Blob SAS URL 已儲存成功！\n現在可以使用「📸 儲存網頁快照」功能了。');
     }
 
     // ===== 向 Tampermonkey 選單註冊兩個指令 =====
@@ -892,6 +892,6 @@
     GM_registerMenuCommand('⚙️ 設定 Azure Blob SAS URL', configureSasUrl);
 
     // 主要功能：擷取快照並上傳
-    GM_registerMenuCommand('📸 儲存網頁快照至 Azure Blob', savePageToAzureBlob);
+    GM_registerMenuCommand('📸 儲存網頁快照', savePageToAzureBlob);
 
 })();
