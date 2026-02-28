@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         GitHub: Top Bar Actions（Alt+T / Alt+P）
-// @version      0.1.0
-// @description  在 GitHub 頂部工具列加入主題切換與 PAT 快速建立按鈕，並支援 Alt+T、Alt+P 快捷鍵
+// @version      0.1.1
+// @description  在 GitHub 頂部工具列加入主題切換、PRU 用量查看與 PAT 快速建立按鈕，並支援 Alt+T、Alt+P 快捷鍵
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -22,6 +22,7 @@
     const BUTTON_SELECTOR_PREFIX = 'data-tm-script';
     const THEME_SETTINGS_URL = 'https://github.com/settings/appearance';
     const COLOR_MODE_SUBMIT_URL = 'https://github.com/settings/appearance/color_mode';
+    const PRU_USAGE_URL = 'https://github.com/settings/billing/premium_requests_usage';
     const PAT_URL = 'https://github.com/settings/personal-access-tokens';
 
     // 統一所有 Top Bar 動作設定，
@@ -36,6 +37,16 @@
             onClick: toggleColorMode,
             createIconPath: createThemeIconPath,
             viewBox: '0 -960 960 960'
+        },
+        {
+            id: 'github-pru-usage',
+            label: '查看當月 PRU 用量',
+            href: PRU_USAGE_URL,
+            // 設計意圖：此按鈕是快速導頁用途，
+            // 目前先不綁定快捷鍵，避免與其他腳本熱鍵衝突。
+            onClick: openPRUUsagePage,
+            createIconPath: createPRUUsageIconPath,
+            viewBox: '0 0 24 24'
         },
         {
             id: 'github-pat-quick-create',
@@ -166,6 +177,12 @@
         path.setAttribute('d', 'M7 7a5 5 0 1 0 0 10a5 5 0 0 0 0-10zM7 10a2 2 0 1 1 0 4a2 2 0 0 1 0-4zM12 11H22V13H20V15H18V17H16V15H12Z');
     }
 
+    function createPRUUsageIconPath(path) {
+        path.setAttribute('fill-rule', 'evenodd');
+        path.setAttribute('clip-rule', 'evenodd');
+        path.setAttribute('d', 'M3 4a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V4zm3 12h2V9H6v7zm5 0h2V6h-2v10zm5 0h2v-4h-2v4z');
+    }
+
     function createGuid() {
         return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
             var random = Math.random() * 16 | 0;
@@ -176,6 +193,10 @@
 
     async function openPATPage() {
         window.open(PAT_URL, '_blank');
+    }
+
+    async function openPRUUsagePage() {
+        window.open(PRU_USAGE_URL, '_blank');
     }
 
     async function toggleColorMode() {
