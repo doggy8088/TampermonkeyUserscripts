@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      1.0.1
+// @version      1.0.2
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -35,6 +35,23 @@
         // 增加更多網址模式...
     ];
 
+    // 指定要自動翻譯的 GitHub ID（owner）清單
+    // 設為空陣列時表示停用此條件，僅使用 ALLOWED_URL_PATTERNS
+    // 設定範例：['doggy8088', 'microsoft']，會套用到對應 owner 底下所有 Repo 頁面
+    const ALLOWED_GITHUB_IDS = [
+        // https://github.com/duanyytop/agents-radar/issues/28
+        'duanyytop',
+    ];
+
+    // 預先正規化 GitHub ID 清單，避免每次判斷都重複轉換大小寫與空白
+    // 設計意圖：提升頻繁路由變化與 DOM 觀察時的判斷效率，並讓設定值更寬容
+    const normalizedAllowedGitHubIds = new Set(
+        ALLOWED_GITHUB_IDS
+            .filter(id => typeof id === 'string')
+            .map(id => id.trim().toLowerCase())
+            .filter(Boolean)
+    );
+
     // OpenCC 函式庫載入檢查設定
     const OPENCC_LOAD_CHECK_INTERVAL = 100;  // OpenCC 函式庫載入檢查間隔（毫秒）
     const OPENCC_MAX_RETRY_COUNT = 20;       // OpenCC 函式庫載入最大重試次數
@@ -50,15 +67,43 @@
 
     /* eslint-enable no-multi-spaces */
 
+    // 檢查是否為「指定 GitHub ID 清單底下的 Repo 頁面」
+    // 設計意圖：讓你只要維護一個帳號陣列，就能自動涵蓋多個 owner 的所有 Repo 頁面
+    function shouldConvertGitHubRepoById() {
+        if (normalizedAllowedGitHubIds.size === 0) {
+            return false;
+        }
+
+        const hostname = window.location.hostname.toLowerCase();
+        if (hostname !== 'github.com' && hostname !== 'www.github.com') {
+            return false;
+        }
+
+        // Repo 路徑至少會是 /owner/repo，若不足兩段表示不是特定 Repo 範圍
+        const pathSegments = window.location.pathname.split('/').filter(Boolean);
+        if (pathSegments.length < 2) {
+            return false;
+        }
+
+        const owner = pathSegments[0].toLowerCase();
+        return normalizedAllowedGitHubIds.has(owner);
+    }
+
     // 檢查當前頁面是否應該進行轉換
     function shouldConvertPage() {
-        // 如果允許清單為空或包含匹配所有的正規表達式，則轉換所有頁面
-        if (ALLOWED_URL_PATTERNS.length === 0) {
+        const currentUrl = window.location.href;
+
+        // 第一優先：沿用既有網址白名單規則
+        const matchedByUrlPatterns =
+            ALLOWED_URL_PATTERNS.length === 0 ||
+            ALLOWED_URL_PATTERNS.some(pattern => pattern.test(currentUrl));
+
+        if (matchedByUrlPatterns) {
             return true;
         }
 
-        const currentUrl = window.location.href;
-        return ALLOWED_URL_PATTERNS.some(pattern => pattern.test(currentUrl));
+        // 第二優先：指定 GitHub ID（owner）清單底下所有 Repo 頁面
+        return shouldConvertGitHubRepoById();
     }
 
     // ===== 詞庫對照表 (中國大陸用語 => 台灣用語) =====
@@ -111,10 +156,10 @@
 
         // 只檢測明確的簡體字特徵字符（排除台灣常用的簡化字）
         // 這些字在繁體中文環境中幾乎不會使用
-        const simplifiedChars = /[竞顶订阅圆译码并变东报边们么门马风发对动当点电带达单体题头条统来两乐难连个国过关观开会后还话经进间将机见几记结计旧紧气区强亲学现选许写这种着张长场车产处传时说实数书声师设术认让总资从样业应义养银为问无万于与员运爱儿办备标笔满妈飞费负丰复饭导读断队听图团态谈农脑论类离联领历罗泪该规够广课华欢号还护觉节较举级军极据际积济讲净请轻确线兴习响续系显转战质装专争只众制称创视书识树试双热则参虽岁议阳艺亚游医烟务湾温远约语园帮宝补邮卖妇待独担灯党弹讨铁龙练丽劳陆楼绿录兰礼脸乱构馆顾刚贵挂况块获换怀划剧尽绝继静简渐脚坚击仅惊权须乡戏协险终证织职钟针庄陈厂谁势适伤属顺术胜软责错采财词赛伞欧优叶营严压药亿维闻围网鱼云愿预扑朴]/g;
+        const simplifiedChars = /[览键诉破归调纳评阶闭盖层冲扩稳测馈异竞顶订阅圆译码并变东报边们么门马风发对动当点电带达单体题头条统来两乐难连个过关观开会后还话经进间将机见几记结计旧紧气区强亲学现选许写这种着张长场车产处传时说实数书声师设术认让总资从样业应义养银为问无万于与员运爱儿办备标笔满妈飞费负丰复饭导读断队听图团态谈农脑论类离联领历罗泪该规够广课华欢号还护觉节较举级军极据际积济讲净请轻确线兴习响续系显转战质装专争只众制称创视书识树试双热则参虽岁议阳艺亚游医烟务湾温远约语园帮宝补邮卖妇待独担灯党弹讨铁龙练丽劳陆楼绿录兰礼脸乱构馆顾刚贵挂况块获换怀划剧尽绝继静简渐脚坚击仅惊权须乡戏协险终证织职钟针庄陈厂谁势适伤属顺术胜软责错采财词赛伞欧优叶营严压药亿维闻围网鱼云愿预扑朴]/g;
 
         // 一些常見的繁體字特徵字符
-        const traditionalChars = /[競頂訂閱圓譯碼並變東報邊們麼門馬風發對動當點電帶達單體題頭條統來兩樂難連個國過關觀開會後還話經進間將機見幾記結計舊緊氣區強親學現選許寫這種著張長場車產處傳時說實數書聲師設術認讓總資從樣業應義養銀為問無萬於與員運愛兒辦備標筆滿媽飛費負豐復飯導讀斷隊聽圖團態談農腦論類離聯領歷羅淚該規夠廣課華歡號還護覺節較舉級軍極據際積濟講淨請輕確線興習響續係顯轉戰質裝專爭隻眾製稱創視書識樹試雙熱則參雖歲議陽藝亞遊醫煙務灣溫遠約語園幫寶補郵賣婦待獨擔燈黨彈討鐵龍練麗勞陸樓綠錄蘭禮臉亂構館顧剛貴掛況塊獲換懷劃劇盡絕繼靜簡漸腳堅擊僅驚權須鄉戲協險終證織職鐘針莊陳廠誰勢適傷屬順術勝軟責錯採財詞賽傘歐優葉營嚴壓藥億維聞圍網魚雲願預撲樸]/g;
+        const traditionalChars = /[覽鍵訴壞歸調納評階閉蓋層衝擴穩測饋異競頂訂閱圓譯碼並變東報邊們麼門馬風發對動當點電帶達單體題頭條統來兩樂難連個國過關觀開會後還話經進間將機見幾記結計舊緊氣區強親學現選許寫這種著張長場車產處傳時說實數書聲師設術認讓總資從樣業應義養銀為問無萬於與員運愛兒辦備標筆滿媽飛費負豐復飯導讀斷隊聽圖團態談農腦論類離聯領歷羅淚該規夠廣課華歡號還護覺節較舉級軍極據際積濟講淨請輕確線興習響續係顯轉戰質裝專爭隻眾製稱創視書識樹試雙熱則參雖歲議陽藝亞遊醫煙務灣溫遠約語園幫寶補郵賣婦待獨擔燈黨彈討鐵龍練麗勞陸樓綠錄蘭禮臉亂構館顧剛貴掛況塊獲換懷劃劇盡絕繼靜簡漸腳堅擊僅驚權須鄉戲協險終證織職鐘針莊陳廠誰勢適傷屬順術勝軟責錯採財詞賽傘歐優葉營嚴壓藥億維聞圍網魚雲願預撲樸]/g;
 
         const simplifiedCount = (text.match(simplifiedChars) || []).length;
         const traditionalCount = (text.match(traditionalChars) || []).length;
