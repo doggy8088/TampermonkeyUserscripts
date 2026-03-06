@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         表單快照與人類模擬回填
-// @version      0.1.0
+// @version      0.2.0
 // @description  透過選單命令儲存目前頁面表單快照，可人類化回填，並支援匯出/匯入全部快照資料以跨電腦移轉
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -20,20 +20,6 @@
 (function () {
     'use strict';
 
-    /**
-     * 設計目標（高層摘要）：
-        * 1. 提供多個選單命令（快照、回填、匯出、匯入）：
-        *    - 快照目前頁面的表單欄位（依「完整 URL」分桶）
-        *    - 回填該 URL 先前的快照
-        *    - 匯出/匯入全部快照資料（跨電腦移轉）
-    * 2. 回填時盡量模擬真人互動：focus、鍵盤、beforeinput、input、change、blur、滑鼠事件。
-    * 3. 回填過程支援 Esc 中止，並逐欄高亮閃爍，全部完成後顯示可手動關閉且 3 秒自動消失的 toast。
-     *
-     * 重要限制（刻意設計）：
-     * - 這一版只保留「單一版本快照」，同一網址再次快照會覆蓋舊資料。
-     * - key 以 location.href 作為分桶依據，確保「依目前網址區分」的要求。
-     */
-
     const SCRIPT_SCOPE = 'FormSnapshotHumanLikeRefill';
     const SNAPSHOT_SCHEMA_VERSION = 1;
     const EXPORT_SCHEMA_VERSION = 1;
@@ -47,7 +33,28 @@
     const HIGHLIGHT_CLASS = 'tm-form-snapshot-highlight';
     const TOAST_ID = 'tm-form-snapshot-toast';
 
-    const FORM_FIELD_SELECTOR = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+    const BASE_FORM_FIELD_SELECTOR = 'input, textarea, select, [contenteditable]:not([contenteditable="false"])';
+    const CUSTOM_SELECT_FIELD_SELECTOR = '[role="combobox"], [aria-haspopup="listbox"], [role="listbox"]';
+    const FORM_FIELD_SELECTOR = `${BASE_FORM_FIELD_SELECTOR}, ${CUSTOM_SELECT_FIELD_SELECTOR}`;
+
+    const CUSTOM_SELECT_LISTBOX_SELECTOR = [
+        '[role="listbox"]',
+        '.mat-mdc-select-panel',
+        '.mat-select-panel',
+        '.ng-dropdown-panel',
+        '.ant-select-dropdown',
+        '[id*="listbox"]'
+    ].join(', ');
+
+    const CUSTOM_SELECT_OPTION_SELECTOR = [
+        '[role="option"]',
+        '.mat-mdc-option',
+        '.mat-option',
+        '.ng-option',
+        '.ant-select-item-option',
+        '[data-value]'
+    ].join(', ');
+
     const INPUT_TYPES_TO_SKIP = new Set(['hidden', 'submit', 'reset', 'button', 'image', 'file']);
     const TEXT_LIKE_INPUT_TYPES = new Set([
         'text', 'search', 'url', 'tel', 'email', 'password',
@@ -55,10 +62,15 @@
     ]);
 
     const FIELD_TYPING_DELAY = { min: 18, max: 56 };
-    const FIELD_GAP_DELAY = { min: 45, max: 120 };
-    const FIELD_GAP_DELAY_FAST = { min: 8, max: 28 };
-    const FIELD_FINALIZE_DELAY = { min: 70, max: 120 };
-    const FIELD_FINALIZE_DELAY_FAST = { min: 16, max: 40 };
+    const FIELD_GAP_DELAY = { min: 350, max: 900 };
+    const FIELD_GAP_DELAY_FAST = { min: 150, max: 400 };
+    const FIELD_FINALIZE_DELAY = { min: 160, max: 420 };
+    const FIELD_FINALIZE_DELAY_FAST = { min: 80, max: 220 };
+    const APPLY_POST_CHECK_TOAST_DURATION_MS = 60000;
+
+    const CUSTOM_SELECT_OPEN_TIMEOUT_MS = 4000;
+    const CUSTOM_SELECT_OPTION_TIMEOUT_MS = 6000;
+
     const APPLY_ABORT_ERROR_NAME = 'FormSnapshotApplyAbortedError';
     const APPLY_ABORT_ERROR_MESSAGE = '[FormSnapshot] 回填已由使用者中止';
     const APPLY_ABORT_KEY = 'Escape';
@@ -71,7 +83,6 @@
     registerMenuCommands();
 
     function registerMenuCommands() {
-        // 意圖：在不支援 userscript API 的環境安全退場，避免 throw 影響頁面。
         if (typeof GM_registerMenuCommand !== 'function') {
             console.warn('[FormSnapshot] GM_registerMenuCommand 不可用，已略過選單註冊。');
             return;
@@ -138,6 +149,32 @@
             applied: 0,
             skipped: 0,
             ignoredErrors: 0,
+            retried: 0,
+            readonlySynced: 0,
+        };
+
+        const FIRST_PASS_FIELD_WAIT_MS = 7000;
+        const RETRY_PASS_FIELD_WAIT_MS = 15000;
+        const RETRY_PASS_START_DELAY_MS = 220;
+
+        const retryQueue = [];
+
+        const applySingleField = async (fieldSnapshot, waitTimeoutMs) => {
+            const element = await waitForTruthy(() => {
+                const candidate = findElementByLocator(fieldSnapshot.locator);
+                return candidate && canFillElement(candidate) ? candidate : null;
+            }, { timeoutMs: waitTimeoutMs, intervalMs: 120 });
+
+            if (!element) {
+                return { status: 'not-found' };
+            }
+
+            if (isFieldAlreadyMatchingSnapshot(element, fieldSnapshot)) {
+                return { status: 'already-matched' };
+            }
+
+            const applied = await applyFieldSnapshot(element, fieldSnapshot);
+            return { status: applied ? 'applied' : 'not-applied' };
         };
 
         try {
@@ -150,50 +187,107 @@
                         continue;
                     }
 
-                    // 相容舊版快照：過去可能會把「未選取 radio」也存進來，
-                    // 這些資料不需要動作，直接略過可明顯縮短大量選項頁面的回填時間。
                     if (fieldSnapshot.kind === 'radio' && !fieldSnapshot.checked) {
                         continue;
                     }
 
-                    const element = findElementByLocator(fieldSnapshot.locator);
-                    if (!element || !canFillElement(element)) {
-                        stats.skipped++;
+                    const firstPass = await applySingleField(fieldSnapshot, FIRST_PASS_FIELD_WAIT_MS);
+                    if (firstPass.status === 'not-found' || firstPass.status === 'not-applied') {
+                        retryQueue.push({ fieldIndex, fieldSnapshot });
                         continue;
                     }
 
-                    // 如果欄位目前值已經和快照一致，不需要再模擬事件，
-                    // 可以省下 focus/click/keydown 與 delay 成本。
-                    if (isFieldAlreadyMatchingSnapshot(element, fieldSnapshot)) {
+                    if (firstPass.status === 'already-matched') {
                         continue;
                     }
 
-                    const applied = await applyFieldSnapshot(element, fieldSnapshot);
-                    if (applied) {
+                    if (firstPass.status === 'applied') {
                         stats.applied++;
                         const gapDelay = getGapDelayRangeByFieldKind(fieldSnapshot.kind);
                         await sleep(randomInt(gapDelay.min, gapDelay.max));
                         throwIfApplyAbortRequested();
-                    } else {
-                        stats.skipped++;
                     }
                 } catch (error) {
                     if (isApplyAbortError(error)) {
                         throw error;
                     }
 
-                    // 容錯目標：單一欄位找不到或回填失敗時，不中斷整批流程。
                     stats.skipped++;
                     stats.ignoredErrors++;
                     console.warn(`[FormSnapshot] 第 ${fieldIndex + 1} 欄回填失敗，已自動略過。`, error, fieldSnapshot);
                 }
             }
 
-            // 依需求：全部完成時顯示 3 秒 toast，且可手動關閉。
+            const shouldRunReadonlySync = hasReadonlySyncProbeTargets(snapshot.fields);
+
+            if (retryQueue.length > 0 || shouldRunReadonlySync) {
+                showApplyCheckingToast({
+                    retryCount: retryQueue.length,
+                    willRunReadonlySync: shouldRunReadonlySync,
+                });
+            }
+
+            if (retryQueue.length > 0) {
+                stats.retried = retryQueue.length;
+                await sleep(RETRY_PASS_START_DELAY_MS);
+            }
+
+            for (const { fieldIndex, fieldSnapshot } of retryQueue) {
+                throwIfApplyAbortRequested();
+
+                try {
+                    if (!fieldSnapshot || typeof fieldSnapshot !== 'object') {
+                        stats.skipped++;
+                        continue;
+                    }
+
+                    const retryPass = await applySingleField(fieldSnapshot, RETRY_PASS_FIELD_WAIT_MS);
+                    if (retryPass.status === 'applied') {
+                        stats.applied++;
+                        const gapDelay = getGapDelayRangeByFieldKind(fieldSnapshot.kind);
+                        await sleep(randomInt(gapDelay.min, gapDelay.max));
+                        throwIfApplyAbortRequested();
+                        continue;
+                    }
+
+                    if (retryPass.status === 'already-matched') {
+                        continue;
+                    }
+
+                    stats.skipped++;
+                } catch (error) {
+                    if (isApplyAbortError(error)) {
+                        throw error;
+                    }
+
+                    stats.skipped++;
+                    stats.ignoredErrors++;
+                    console.warn(`[FormSnapshot] 第 ${fieldIndex + 1} 欄重試回填失敗，已自動略過。`, error, fieldSnapshot);
+                }
+            }
+
+            const readonlySynced = shouldRunReadonlySync
+                ? await syncReadonlySnapshotFields(snapshot.fields)
+                : 0;
+            if (readonlySynced > 0) {
+                stats.readonlySynced = readonlySynced;
+                stats.applied += readonlySynced;
+                stats.skipped = Math.max(0, stats.skipped - readonlySynced);
+            }
+
             const ignoredErrorHint = stats.ignoredErrors > 0
                 ? `（容錯略過 ${stats.ignoredErrors} 次錯誤）`
                 : '';
-            showToast(`🎉 回填完成：成功 ${stats.applied} 欄，略過 ${stats.skipped} 欄${ignoredErrorHint}。`, {
+
+            const retryHint = stats.retried > 0
+                ? `（重試 ${stats.retried} 欄）`
+                : '';
+
+            const readonlyHint = stats.readonlySynced > 0
+                ? `（readonly 後補 ${stats.readonlySynced} 欄）`
+                : '';
+
+            showToast(`🎉 回填完成：成功 ${stats.applied} 欄，略過 ${stats.skipped} 欄${retryHint}${readonlyHint}${ignoredErrorHint}。`, {
                 duration: 3000,
                 closable: true,
             });
@@ -294,7 +388,6 @@
             return;
         }
 
-        // 兩者都失敗時，仍提供手動備援，避免功能完全不可用。
         prompt('無法自動下載/複製，請手動複製以下 JSON：', jsonText);
         showToast('⚠️ 已提供手動複製視窗，請自行保存 JSON。', { duration: 3200, closable: true });
     }
@@ -357,7 +450,6 @@
             }
         }
 
-        // 匯入後重建索引，確保舊版資料或手動編輯 JSON 後仍能被完整列舉與匯出。
         refreshSnapshotIndexFromStorage();
 
         showToast(`✅ 匯入完成：成功 ${successCount} 筆，失敗 ${failedCount} 筆。`, {
@@ -377,12 +469,20 @@
             tagName: element.tagName.toLowerCase(),
         };
 
+        if (kind === 'custom-select-one') {
+            const value = getCustomSelectCurrentValue(element);
+            const displayText = getCustomSelectCurrentDisplayText(element);
+            base.role = element.getAttribute('role') || '';
+            base.value = value;
+            base.displayText = displayText;
+            base.searchText = displayText || value;
+            return base;
+        }
+
         if (element instanceof HTMLInputElement) {
             const inputType = (element.type || 'text').toLowerCase();
             base.inputType = inputType;
 
-            // 效能優化：radio 只保留「被選取」的那一顆。
-            // 未選取項目在回填時不會產生有效動作，保留只會拖慢流程。
             if (inputType === 'radio') {
                 if (!element.checked) return null;
                 base.checked = true;
@@ -407,14 +507,13 @@
 
         if (element instanceof HTMLSelectElement) {
             if (element.multiple) {
-                base.selectedValues = Array.from(element.selectedOptions).map(option => option.value);
+                base.selectedValues = Array.from(element.selectedOptions).map((option) => option.value);
             } else {
                 base.value = element.value ?? '';
             }
             return base;
         }
 
-        // contenteditable
         base.value = element.textContent ?? '';
         return base;
     }
@@ -432,12 +531,15 @@
             cssPath: buildCssPath(element),
             placeholder: element.getAttribute('placeholder') || '',
             ariaLabel: element.getAttribute('aria-label') || '',
+            role: (element.getAttribute('role') || '').toLowerCase(),
+            dataTestId: element.getAttribute('data-testid') || element.getAttribute('data-test-id') || '',
         };
     }
 
     function getSameNameIndex(target, tagName, name) {
         const sameNameElements = queryElementsByTagName(tagName)
-            .filter(node => node.getAttribute('name') === name);
+            .filter((node) => node.getAttribute('name') === name)
+            .filter((node) => isElementInVisibleTree(node));
         return sameNameElements.indexOf(target);
     }
 
@@ -451,6 +553,9 @@
             globalIndex: normalizeNonNegativeInteger(locator.globalIndex, -1),
             sameNameIndex: normalizeNonNegativeInteger(locator.sameNameIndex, -1),
             cssPath: normalizeLocatorString(locator.cssPath, 4096),
+            role: normalizeLocatorString(locator.role, 128).toLowerCase(),
+            ariaLabel: normalizeLocatorString(locator.ariaLabel, 512),
+            dataTestId: normalizeLocatorString(locator.dataTestId, 512),
         };
     }
 
@@ -467,7 +572,6 @@
         const normalized = normalizeLocatorString(tagName, 64).toLowerCase();
         if (!normalized) return '';
 
-        // 只接受 HTML tag 命名可接受字元，避免 query API 因非法 selector 拋錯。
         if (!/^[a-z][a-z0-9-]*$/.test(normalized)) {
             return '';
         }
@@ -490,7 +594,21 @@
 
         try {
             return Array.from(document.getElementsByTagName(normalizedTagName))
-                .filter(node => node instanceof HTMLElement);
+                .filter((node) => node instanceof HTMLElement);
+        } catch (error) {
+            return [];
+        }
+    }
+
+    function queryElementsByAttribute(attribute, value) {
+        const safeAttribute = normalizeLocatorString(attribute, 128);
+        const safeValue = normalizeLocatorString(value, 512);
+        if (!safeAttribute || !safeValue) return [];
+
+        try {
+            const selector = `[${safeAttribute}="${safeCssEscape(safeValue)}"]`;
+            return Array.from(document.querySelectorAll(selector))
+                .filter((node) => node instanceof HTMLElement);
         } catch (error) {
             return [];
         }
@@ -500,16 +618,15 @@
         const normalizedLocator = normalizeLocator(locator);
         if (!normalizedLocator) return null;
 
-        // 1) 優先用 id（通常最穩定）。
         if (normalizedLocator.id) {
             const byId = document.getElementById(normalizedLocator.id);
             if (isLocatorMatchedElement(byId, normalizedLocator)) return byId;
         }
 
-        // 2) 再用同 tag + name + index。
         if (normalizedLocator.name && normalizedLocator.tagName) {
             const byName = queryElementsByTagName(normalizedLocator.tagName)
-                .filter(node => node.getAttribute('name') === normalizedLocator.name);
+                .filter((node) => node.getAttribute('name') === normalizedLocator.name)
+                .filter((node) => isElementInVisibleTree(node));
 
             if (normalizedLocator.sameNameIndex >= 0 && normalizedLocator.sameNameIndex < byName.length) {
                 const exact = byName[normalizedLocator.sameNameIndex];
@@ -522,20 +639,64 @@
             }
         }
 
-        // 3) 再嘗試 cssPath。
+        const roleAriaCandidate = findElementByRoleAriaLocator(normalizedLocator);
+        if (roleAriaCandidate) return roleAriaCandidate;
+
         if (normalizedLocator.cssPath) {
             try {
                 const byPath = document.querySelector(normalizedLocator.cssPath);
                 if (isLocatorMatchedElement(byPath, normalizedLocator, true)) return byPath;
             } catch (error) {
-                // cssPath 可能因 DOM 變動而失效，這裡刻意吞掉，改走後續 fallback。
+                // ignore
             }
         }
 
-        // 4) 最後 fallback：用快照時的全域索引。
         const fields = getFormFields();
         if (normalizedLocator.globalIndex >= 0 && normalizedLocator.globalIndex < fields.length) {
             return fields[normalizedLocator.globalIndex];
+        }
+
+        return null;
+    }
+
+    function findElementByRoleAriaLocator(locator) {
+        if (!locator || typeof locator !== 'object') return null;
+        if (!locator.role && !locator.ariaLabel && !locator.dataTestId) return null;
+
+        const candidates = [];
+        const seen = new Set();
+        const append = (items) => {
+            items.forEach((item) => {
+                if (!(item instanceof HTMLElement)) return;
+                if (seen.has(item)) return;
+                seen.add(item);
+                candidates.push(item);
+            });
+        };
+
+        if (locator.dataTestId) {
+            append(queryElementsByAttribute('data-testid', locator.dataTestId));
+            append(queryElementsByAttribute('data-test-id', locator.dataTestId));
+        }
+
+        if (locator.role) {
+            append(queryElementsByAttribute('role', locator.role));
+        }
+
+        if (locator.ariaLabel) {
+            append(queryElementsByAttribute('aria-label', locator.ariaLabel));
+        }
+
+        for (const candidate of candidates) {
+            if (isLocatorMatchedElement(candidate, locator, true) && isElementInVisibleTree(candidate)) {
+                return candidate;
+            }
+        }
+
+        for (const candidate of candidates) {
+            if (isLocatorMatchedElement(candidate, locator, true)) {
+                return candidate;
+            }
         }
 
         return null;
@@ -547,10 +708,37 @@
         const tagMatches = !locator.tagName || element.tagName.toLowerCase() === locator.tagName;
         if (!tagMatches) return false;
 
-        if (!loose && locator.id && element.id && locator.id !== element.id) return false;
-        if (!loose && locator.name) {
-            const name = element.getAttribute('name') || '';
-            if (name !== locator.name) return false;
+        const elementName = element.getAttribute('name') || '';
+        const elementRole = (element.getAttribute('role') || '').toLowerCase();
+        const elementAriaLabel = element.getAttribute('aria-label') || '';
+        const elementDataTestId = element.getAttribute('data-testid') || element.getAttribute('data-test-id') || '';
+
+        if (locator.id && element.id && locator.id !== element.id) return false;
+
+        if (!loose && locator.name && elementName !== locator.name) return false;
+
+        if (locator.role) {
+            if (!elementRole) {
+                if (!loose) return false;
+            } else if (elementRole !== locator.role) {
+                return false;
+            }
+        }
+
+        if (locator.ariaLabel) {
+            if (!elementAriaLabel) {
+                if (!loose) return false;
+            } else if (elementAriaLabel !== locator.ariaLabel) {
+                return false;
+            }
+        }
+
+        if (locator.dataTestId) {
+            if (!elementDataTestId) {
+                if (!loose) return false;
+            } else if (elementDataTestId !== locator.dataTestId) {
+                return false;
+            }
         }
 
         return true;
@@ -558,39 +746,95 @@
 
     function getFormFields() {
         const all = Array.from(document.querySelectorAll(FORM_FIELD_SELECTOR));
-        return all.filter(isSupportedField);
+        const unique = [];
+        const seen = new Set();
+
+        all.forEach((node) => {
+            if (!(node instanceof HTMLElement)) return;
+            const candidate = normalizeFieldCandidate(node);
+            if (!(candidate instanceof HTMLElement)) return;
+            if (seen.has(candidate)) return;
+            if (!isSupportedField(candidate)) return;
+            seen.add(candidate);
+            unique.push(candidate);
+        });
+
+        return unique;
+    }
+
+    function normalizeFieldCandidate(element) {
+        if (!(element instanceof HTMLElement)) return null;
+
+        const customTrigger = resolveCustomSelectTrigger(element);
+        if (customTrigger) return customTrigger;
+
+        return element;
+    }
+
+    function resolveCustomSelectTrigger(element) {
+        if (!(element instanceof HTMLElement)) return null;
+
+        const direct = isCustomSelectElement(element) ? element : null;
+        if (direct) {
+            const parentCombobox = element.closest('[role="combobox"]');
+            if (parentCombobox instanceof HTMLElement && isCustomSelectElement(parentCombobox)) {
+                return parentCombobox;
+            }
+            return direct;
+        }
+
+        const closestCombobox = element.closest('[role="combobox"]');
+        if (closestCombobox instanceof HTMLElement && isCustomSelectElement(closestCombobox)) {
+            return closestCombobox;
+        }
+
+        const closestListboxTrigger = element.closest('[aria-haspopup="listbox"]');
+        if (closestListboxTrigger instanceof HTMLElement && isCustomSelectElement(closestListboxTrigger)) {
+            return closestListboxTrigger;
+        }
+
+        return null;
     }
 
     function isSupportedField(element) {
         if (!(element instanceof HTMLElement)) return false;
 
-        // 避免腳本自己的 UI 被掃進快照。
         if (element.id === TOAST_ID || element.closest(`#${TOAST_ID}`)) return false;
+        if (!isElementInVisibleTree(element)) return false;
 
         if (element instanceof HTMLInputElement) {
             const type = (element.type || 'text').toLowerCase();
             if (INPUT_TYPES_TO_SKIP.has(type)) return false;
         }
 
-        // contenteditable 僅處理最外層，避免父子節點重複快照。
         if (element.isContentEditable) {
             const parentEditable = element.parentElement?.closest('[contenteditable]:not([contenteditable="false"])');
             if (parentEditable && parentEditable !== element) return false;
         }
 
-        return true;
+        return !!getFieldKind(element);
     }
 
     function canFillElement(element) {
         if (!isSupportedField(element)) return false;
         if (!element.isConnected) return false;
+        if (!isElementInVisibleTree(element)) return false;
 
         if (element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
             if (element.disabled) return false;
         }
 
-        // 文字欄位若 readonly，視為不可安全回填（避免觸發不預期錯誤）。
+        if (isCustomSelectElement(element)) {
+            if (element.getAttribute('aria-disabled') === 'true') return false;
+            if (element.matches('[disabled], .disabled, .is-disabled')) return false;
+            if (element.getAttribute('aria-hidden') === 'true') return false;
+        }
+
         if ((element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement) && element.readOnly) {
+            if (isProgrammaticallyFillableReadonlyField(element)) {
+                return true;
+            }
+
             const type = element instanceof HTMLInputElement ? (element.type || 'text').toLowerCase() : 'textarea';
             if (type !== 'checkbox' && type !== 'radio') {
                 return false;
@@ -598,6 +842,24 @@
         }
 
         return true;
+    }
+
+    function isProgrammaticallyFillableReadonlyField(element) {
+        if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) return false;
+        if (!element.readOnly) return false;
+
+        if (element instanceof HTMLInputElement) {
+            const type = (element.type || 'text').toLowerCase();
+            if (type === 'date' || type === 'datetime-local' || type === 'month' || type === 'week' || type === 'time') {
+                return true;
+            }
+        }
+
+        if (element.hasAttribute('data-mat-calendar')) return true;
+        if ((element.getAttribute('aria-haspopup') || '').toLowerCase() === 'dialog') return true;
+        if (element.classList.contains('mat-datepicker-input')) return true;
+
+        return false;
     }
 
     function getFieldKind(element) {
@@ -610,9 +872,63 @@
 
         if (element instanceof HTMLTextAreaElement) return 'textarea';
         if (element instanceof HTMLSelectElement) return element.multiple ? 'select-multiple' : 'select-one';
+        if (isCustomSelectElement(element)) return 'custom-select-one';
         if (element.isContentEditable) return 'contenteditable';
 
         return null;
+    }
+
+    function isCustomSelectElement(element) {
+        if (!(element instanceof HTMLElement)) return false;
+        if (element instanceof HTMLSelectElement) return false;
+
+        const role = (element.getAttribute('role') || '').toLowerCase();
+        const hasListboxPopup = (element.getAttribute('aria-haspopup') || '').toLowerCase() === 'listbox';
+
+        if (role === 'combobox') return true;
+        if (role === 'listbox') {
+            return isLikelyCustomSelectTriggerListbox(element);
+        }
+        if (!hasListboxPopup) return false;
+
+        if (role === 'option') return false;
+        if (element.closest('[role="option"]')) return false;
+
+        return true;
+    }
+
+    function isLikelyCustomSelectTriggerListbox(element) {
+        if (!(element instanceof HTMLElement)) return false;
+        if ((element.getAttribute('role') || '').toLowerCase() !== 'listbox') return false;
+        if (element.closest('[role="option"]')) return false;
+        if (element.matches(CUSTOM_SELECT_OPTION_SELECTOR)) return false;
+        if (isInsideCustomSelectOverlay(element)) return false;
+
+        const hasFocusable = element.hasAttribute('tabindex') || element.tabIndex >= 0;
+        const hasTriggerAria = (
+            element.hasAttribute('aria-haspopup') ||
+            element.hasAttribute('aria-expanded') ||
+            element.hasAttribute('aria-controls') ||
+            element.hasAttribute('aria-owns')
+        );
+        if (hasFocusable || hasTriggerAria) return true;
+
+        // 某些網站的 trigger 會是 listbox，且只渲染「目前選項」一個 option。
+        const optionCount = element.querySelectorAll('[role="option"]').length;
+        return optionCount <= 1;
+    }
+
+    function isInsideCustomSelectOverlay(element) {
+        if (!(element instanceof HTMLElement)) return false;
+
+        return !!element.closest([
+            '.mat-mdc-select-panel',
+            '.mat-select-panel',
+            '.ng-dropdown-panel',
+            '.ant-select-dropdown',
+            '[data-popper-placement]',
+            '.cdk-overlay-pane'
+        ].join(', '));
     }
 
     async function applyFieldSnapshot(element, fieldSnapshot) {
@@ -628,7 +944,6 @@
             await sleep(randomInt(60, 130));
             throwIfApplyAbortRequested();
 
-            // SPA 或動態表單在等待期間可能重繪欄位，若元素已脫離 DOM 就直接略過。
             if (!element.isConnected) {
                 return false;
             }
@@ -638,14 +953,15 @@
                     return await applyCheckboxValue(element, !!fieldSnapshot.checked);
 
                 case 'radio':
-                    // radio 的 false 狀態無法用「使用者點擊」直接設定，
-                    // 只對 true 的項目執行選取，維持接近真實互動的行為。
                     if (!fieldSnapshot.checked) return true;
                     return await applyRadioValue(element, true);
 
                 case 'select-one':
                 case 'select-multiple':
                     return await applySelectValue(element, fieldSnapshot);
+
+                case 'custom-select-one':
+                    return await applyCustomSelectOneValue(element, fieldSnapshot);
 
                 case 'contenteditable':
                     return await applyContentEditableValue(element, String(fieldSnapshot.value ?? ''));
@@ -670,7 +986,9 @@
         throwIfApplyAbortRequested();
 
         const inputType = element instanceof HTMLInputElement ? (element.type || 'text').toLowerCase() : 'textarea';
-        const shouldTypeCharByChar = element instanceof HTMLTextAreaElement || TEXT_LIKE_INPUT_TYPES.has(inputType);
+        const shouldTypeCharByChar = !element.readOnly && (
+            element instanceof HTMLTextAreaElement || TEXT_LIKE_INPUT_TYPES.has(inputType)
+        );
 
         simulatePointerHoverSequence(element);
         simulatePointerClickSequence(element, { invokeNativeClick: false });
@@ -681,23 +999,8 @@
             await clearTextLikeValue(element);
             throwIfApplyAbortRequested();
 
-            for (const char of targetValue) {
-                throwIfApplyAbortRequested();
-                dispatchKeyboardEvent(element, 'keydown', char);
-                dispatchKeyboardEvent(element, 'keypress', char);
-                dispatchBeforeInputEvent(element, char, 'insertText');
-
-                const nextValue = `${getTextLikeValue(element)}${char}`;
-                setTextLikeValue(element, nextValue);
-
-                dispatchInputEvent(element, char, 'insertText');
-                dispatchKeyboardEvent(element, 'keyup', char);
-
-                await sleep(randomInt(FIELD_TYPING_DELAY.min, FIELD_TYPING_DELAY.max));
-                throwIfApplyAbortRequested();
-            }
+            await typeTextLikeCharacters(element, targetValue);
         } else {
-            // 例如 color、range 等欄位，直接設定值並補齊 input/change 事件。
             setTextLikeValue(element, targetValue);
             dispatchInputEvent(element, null, 'insertReplacementText');
         }
@@ -709,6 +1012,24 @@
         return true;
     }
 
+    async function typeTextLikeCharacters(element, targetValue) {
+        for (const char of targetValue) {
+            throwIfApplyAbortRequested();
+            dispatchKeyboardEvent(element, 'keydown', char);
+            dispatchKeyboardEvent(element, 'keypress', char);
+            dispatchBeforeInputEvent(element, char, 'insertText');
+
+            const nextValue = `${getTextLikeValue(element)}${char}`;
+            setTextLikeValue(element, nextValue);
+
+            dispatchInputEvent(element, char, 'insertText');
+            dispatchKeyboardEvent(element, 'keyup', char);
+
+            await sleep(randomInt(FIELD_TYPING_DELAY.min, FIELD_TYPING_DELAY.max));
+            throwIfApplyAbortRequested();
+        }
+    }
+
     async function clearTextLikeValue(element) {
         if (!element.isConnected) return;
 
@@ -716,7 +1037,6 @@
         const current = getTextLikeValue(element);
         if (!current) return;
 
-        // 盡量模擬「Ctrl+A + Delete」的語意事件，再做實際清空。
         dispatchKeyboardEvent(element, 'keydown', 'a', { ctrlKey: true });
         dispatchKeyboardEvent(element, 'keyup', 'a', { ctrlKey: true });
         dispatchKeyboardEvent(element, 'keydown', 'Delete');
@@ -784,7 +1104,6 @@
         if (element.checked !== targetChecked) {
             simulatePointerClickSequence(element);
 
-            // 若頁面攔截 click 導致狀態沒變，fallback 為原生 checked setter。
             if (element.checked !== targetChecked) {
                 setNativeChecked(element, targetChecked);
                 dispatchInputEvent(element, null, 'insertReplacementText');
@@ -831,7 +1150,6 @@
 
         throwIfApplyAbortRequested();
 
-        // select 若已經是目標值，直接略過互動與事件派發。
         if (isFieldAlreadyMatchingSnapshot(element, fieldSnapshot)) {
             return true;
         }
@@ -843,7 +1161,7 @@
 
         if (fieldSnapshot.kind === 'select-multiple') {
             const selected = new Set(Array.isArray(fieldSnapshot.selectedValues) ? fieldSnapshot.selectedValues : []);
-            Array.from(element.options).forEach(option => {
+            Array.from(element.options).forEach((option) => {
                 option.selected = selected.has(option.value);
             });
         } else {
@@ -861,6 +1179,409 @@
         return true;
     }
 
+    async function applyCustomSelectOneValue(element, fieldSnapshot) {
+        if (!(element instanceof HTMLElement) || !isCustomSelectElement(element) || !element.isConnected) {
+            return false;
+        }
+
+        throwIfApplyAbortRequested();
+
+        const targetValue = normalizeComparableText(String(fieldSnapshot.value ?? ''));
+        const targetDisplayText = normalizeComparableText(
+            String(fieldSnapshot.displayText ?? fieldSnapshot.searchText ?? fieldSnapshot.value ?? '')
+        );
+
+        if (!targetValue && !targetDisplayText) {
+            return true;
+        }
+
+        simulatePointerHoverSequence(element);
+        simulatePointerClickSequence(element, { invokeNativeClick: true });
+        safeFocusElement(element);
+        dispatchSimpleEvent(element, 'focusin');
+
+        const opened = await openCustomSelectPanel(element);
+        if (!opened) {
+            dispatchSimpleEvent(element, 'blur');
+            safeBlurElement(element);
+            return false;
+        }
+
+        const targetSearchText = normalizeComparableText(String(fieldSnapshot.searchText ?? targetDisplayText));
+        if (targetSearchText) {
+            const searchInput = findCustomSelectSearchInput(element);
+            if (searchInput instanceof HTMLInputElement || searchInput instanceof HTMLTextAreaElement) {
+                await clearTextLikeValue(searchInput);
+                await typeTextLikeCharacters(searchInput, targetSearchText);
+            }
+        }
+
+        const matchingOption = await waitForTruthy(
+            () => pickMatchingCustomSelectOption(getVisibleCustomSelectOptions(element), fieldSnapshot),
+            { timeoutMs: CUSTOM_SELECT_OPTION_TIMEOUT_MS, intervalMs: 80 }
+        );
+
+        if (!(matchingOption instanceof HTMLElement)) {
+            dispatchKeyboardEvent(element, 'keydown', 'Escape');
+            dispatchKeyboardEvent(element, 'keyup', 'Escape');
+            dispatchSimpleEvent(element, 'blur');
+            safeBlurElement(element);
+            return false;
+        }
+
+        simulatePointerHoverSequence(matchingOption);
+        simulatePointerClickSequence(matchingOption, { invokeNativeClick: true });
+
+        await sleep(randomInt(50, 120));
+        throwIfApplyAbortRequested();
+
+        dispatchInputEvent(element, null, 'insertReplacementText');
+        dispatchSimpleEvent(element, 'change');
+        dispatchSimpleEvent(element, 'blur');
+        safeBlurElement(element);
+
+        const matched = await waitForTruthy(
+            () => isCustomSelectElementMatchingSnapshot(element, fieldSnapshot),
+            { timeoutMs: 900, intervalMs: 70 }
+        );
+
+        return !!matched;
+    }
+
+    async function openCustomSelectPanel(element) {
+        const baselineOptionKeys = getCustomSelectOptionKeys(getVisibleCustomSelectOptions(element));
+        const baselineListboxCount = getVisibleCustomSelectListboxes(element).length;
+        const hasOpened = () => {
+            if (!element.isConnected) return false;
+            if (isCustomSelectExpanded(element)) return true;
+
+            const currentListboxCount = getVisibleCustomSelectListboxes(element).length;
+            if (currentListboxCount > baselineListboxCount) return true;
+
+            const currentOptionKeys = getCustomSelectOptionKeys(getVisibleCustomSelectOptions(element));
+            if (currentOptionKeys.length === 0) return false;
+            if (currentOptionKeys.length !== baselineOptionKeys.length) return true;
+
+            const baselineKeySet = new Set(baselineOptionKeys);
+            for (const key of currentOptionKeys) {
+                if (!baselineKeySet.has(key)) {
+                    return true;
+                }
+            }
+
+            return false;
+        };
+
+        const openedQuickly = await waitForTruthy(hasOpened, { timeoutMs: 220, intervalMs: 40 });
+        if (openedQuickly) return true;
+
+        simulatePointerClickSequence(element, { invokeNativeClick: true });
+        const openedByClick = await waitForTruthy(hasOpened, { timeoutMs: CUSTOM_SELECT_OPEN_TIMEOUT_MS, intervalMs: 60 });
+        if (openedByClick) return true;
+
+        safeFocusElement(element);
+        dispatchKeyboardEvent(element, 'keydown', 'ArrowDown');
+        dispatchKeyboardEvent(element, 'keyup', 'ArrowDown');
+
+        const keyboardOpened = await waitForTruthy(
+            hasOpened,
+            { timeoutMs: Math.max(900, Math.floor(CUSTOM_SELECT_OPEN_TIMEOUT_MS / 2)), intervalMs: 60 }
+        );
+        return !!keyboardOpened;
+    }
+
+    function isCustomSelectExpanded(element) {
+        if (!(element instanceof HTMLElement)) return false;
+        const ariaExpanded = (element.getAttribute('aria-expanded') || '').toLowerCase();
+        return ariaExpanded === 'true';
+    }
+
+    function findCustomSelectSearchInput(element) {
+        if (!(element instanceof HTMLElement)) return null;
+
+        const active = document.activeElement;
+        if ((active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement) && isElementVisible(active)) {
+            return active;
+        }
+
+        const listboxes = getVisibleCustomSelectListboxes(element);
+        for (const listbox of listboxes) {
+            const inside = listbox.querySelector('input[type="search"], input, textarea, [role="searchbox"]');
+            if ((inside instanceof HTMLInputElement || inside instanceof HTMLTextAreaElement) && isElementVisible(inside)) {
+                return inside;
+            }
+        }
+
+        const globalSearch = document.querySelector('input[type="search"]');
+        if ((globalSearch instanceof HTMLInputElement) && isElementVisible(globalSearch)) {
+            return globalSearch;
+        }
+
+        return null;
+    }
+
+    function getVisibleCustomSelectListboxes(triggerElement) {
+        const candidates = new Set();
+
+        const appendNode = (node) => {
+            if (!(node instanceof HTMLElement)) return;
+            if (!isElementVisible(node)) return;
+            candidates.add(node);
+        };
+
+        const bySelector = Array.from(document.querySelectorAll(CUSTOM_SELECT_LISTBOX_SELECTOR));
+        bySelector.forEach(appendNode);
+
+        if (triggerElement instanceof HTMLElement) {
+            const controlledIds = `${triggerElement.getAttribute('aria-controls') || ''} ${triggerElement.getAttribute('aria-owns') || ''}`
+                .trim()
+                .split(/\s+/)
+                .filter(Boolean);
+            controlledIds.forEach((id) => {
+                const node = document.getElementById(id);
+                if (node) appendNode(node);
+            });
+        }
+
+        return Array.from(candidates);
+    }
+
+    function getVisibleCustomSelectOptions(triggerElement) {
+        const options = [];
+        const seen = new Set();
+
+        const appendOption = (node) => {
+            if (!(node instanceof HTMLElement)) return;
+            if (seen.has(node)) return;
+            if (!isElementVisible(node)) return;
+            if (!isLikelyCustomSelectOption(node)) return;
+            if (node.matches('[aria-disabled="true"], .disabled, .is-disabled, [disabled]')) return;
+            const text = normalizeComparableText(getElementPrimaryText(node));
+            if (!text) return;
+
+            seen.add(node);
+            options.push(node);
+        };
+
+        const listboxes = getVisibleCustomSelectListboxes(triggerElement);
+        listboxes.forEach((listbox) => {
+            const found = Array.from(listbox.querySelectorAll(CUSTOM_SELECT_OPTION_SELECTOR));
+            found.forEach(appendOption);
+        });
+
+        if (options.length === 0) {
+            const globalOptions = Array.from(document.querySelectorAll(CUSTOM_SELECT_OPTION_SELECTOR));
+            globalOptions.forEach(appendOption);
+        }
+
+        return options;
+    }
+
+    function getCustomSelectOptionKeys(options) {
+        if (!Array.isArray(options)) return [];
+
+        const keys = new Set();
+        options.forEach((option) => {
+            if (!(option instanceof HTMLElement)) return;
+
+            const key = normalizeComparableText(
+                `${getCustomSelectOptionValue(option)}|${getElementPrimaryText(option)}`
+            );
+            if (key) {
+                keys.add(key);
+            }
+        });
+
+        return Array.from(keys).sort();
+    }
+
+    function isLikelyCustomSelectOption(element) {
+        if (!(element instanceof HTMLElement)) return false;
+
+        const role = (element.getAttribute('role') || '').toLowerCase();
+        if (role === 'option') return true;
+
+        if (
+            element.classList.contains('mat-mdc-option') ||
+            element.classList.contains('mat-option') ||
+            element.classList.contains('ng-option') ||
+            element.classList.contains('ant-select-item-option')
+        ) {
+            return true;
+        }
+
+        if (element.hasAttribute('data-value')) {
+            return true;
+        }
+
+        return false;
+    }
+
+    function pickMatchingCustomSelectOption(options, fieldSnapshot) {
+        if (!Array.isArray(options) || options.length === 0 || !fieldSnapshot || typeof fieldSnapshot !== 'object') {
+            return null;
+        }
+
+        const targetValue = normalizeComparableText(String(fieldSnapshot.value ?? ''));
+        const targetTextExact = normalizeComparableText(String(fieldSnapshot.displayText ?? fieldSnapshot.searchText ?? fieldSnapshot.value ?? ''));
+
+        if (targetValue) {
+            const byValue = options.find((option) => {
+                const optionValue = normalizeComparableText(getCustomSelectOptionValue(option));
+                return optionValue && optionValue === targetValue;
+            });
+            if (byValue) return byValue;
+        }
+
+        if (targetTextExact) {
+            const byTextExact = options.find((option) => normalizeComparableText(getElementPrimaryText(option)) === targetTextExact);
+            if (byTextExact) return byTextExact;
+
+            const byTextContains = options.find((option) => normalizeComparableText(getElementPrimaryText(option)).includes(targetTextExact));
+            if (byTextContains) return byTextContains;
+        }
+
+        return null;
+    }
+
+    function isCustomSelectElementMatchingSnapshot(element, fieldSnapshot) {
+        if (!(element instanceof HTMLElement) || !isCustomSelectElement(element)) return false;
+        if (!fieldSnapshot || typeof fieldSnapshot !== 'object') return false;
+
+        const targetValue = normalizeComparableText(String(fieldSnapshot.value ?? ''));
+        const currentValue = normalizeComparableText(getCustomSelectCurrentValue(element));
+        if (targetValue && currentValue && targetValue === currentValue) {
+            return true;
+        }
+
+        const targetText = normalizeComparableText(String(fieldSnapshot.displayText ?? fieldSnapshot.searchText ?? fieldSnapshot.value ?? ''));
+        const currentText = normalizeComparableText(getCustomSelectCurrentDisplayText(element));
+        if (targetText && currentText && targetText === currentText) {
+            return true;
+        }
+
+        if (!targetValue && !targetText) {
+            return !currentValue && !currentText;
+        }
+
+        return false;
+    }
+
+    function getCustomSelectCurrentValue(element) {
+        if (!(element instanceof HTMLElement)) return '';
+
+        const directValue = element.getAttribute('value') || element.getAttribute('data-value') || element.getAttribute('aria-valuenow') || '';
+        if (normalizeComparableText(directValue)) {
+            return String(directValue);
+        }
+
+        const hiddenInput = element.querySelector('input[type="hidden"], input[hidden], input[aria-hidden="true"]');
+        if (hiddenInput instanceof HTMLInputElement && normalizeComparableText(hiddenInput.value)) {
+            return hiddenInput.value;
+        }
+
+        const activeDescendant = getCustomSelectActiveDescendant(element);
+        if (activeDescendant) {
+            const activeValue = getCustomSelectOptionValue(activeDescendant);
+            if (normalizeComparableText(activeValue)) {
+                return String(activeValue);
+            }
+        }
+
+        return '';
+    }
+
+    function getCustomSelectCurrentDisplayText(element) {
+        if (!(element instanceof HTMLElement)) return '';
+
+        const ariaValueText = element.getAttribute('aria-valuetext') || '';
+        if (normalizeComparableText(ariaValueText)) {
+            return ariaValueText;
+        }
+
+        const input = element.querySelector('input:not([type="hidden"]), textarea');
+        if ((input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) && normalizeComparableText(input.value)) {
+            return input.value;
+        }
+
+        const activeDescendant = getCustomSelectActiveDescendant(element);
+        if (activeDescendant) {
+            const activeText = getElementPrimaryText(activeDescendant);
+            if (normalizeComparableText(activeText)) {
+                return activeText;
+            }
+        }
+
+        return getElementPrimaryText(element);
+    }
+
+    function getCustomSelectActiveDescendant(element) {
+        if (!(element instanceof HTMLElement)) return null;
+        const id = element.getAttribute('aria-activedescendant');
+        if (!id) return null;
+        const node = document.getElementById(id);
+        return node instanceof HTMLElement ? node : null;
+    }
+
+    function getCustomSelectOptionValue(optionElement) {
+        if (!(optionElement instanceof HTMLElement)) return '';
+
+        return String(
+            optionElement.getAttribute('value') ||
+            optionElement.getAttribute('data-value') ||
+            optionElement.getAttribute('data-id') ||
+            optionElement.getAttribute('aria-label') ||
+            getElementPrimaryText(optionElement)
+        );
+    }
+
+    function getElementPrimaryText(element) {
+        if (!(element instanceof HTMLElement)) return '';
+
+        const visibleText = normalizeComparableText(element.textContent ?? '');
+        if (visibleText) {
+            return visibleText;
+        }
+
+        return normalizeComparableText(element.getAttribute('aria-label') || '');
+    }
+
+    function isElementVisible(element) {
+        if (!(element instanceof HTMLElement)) return false;
+
+        const style = window.getComputedStyle(element);
+        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity) === 0) {
+            return false;
+        }
+
+        const rect = element.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) {
+            return false;
+        }
+
+        return true;
+    }
+
+    function isElementInVisibleTree(element) {
+        if (!(element instanceof HTMLElement)) return false;
+        if (!element.isConnected) return false;
+
+        let current = element;
+        while (current && current instanceof HTMLElement) {
+            if (current.hidden) return false;
+            if (current.getAttribute('aria-hidden') === 'true') return false;
+
+            const style = window.getComputedStyle(current);
+            if (style.display === 'none' || style.visibility === 'hidden') {
+                return false;
+            }
+
+            current = current.parentElement;
+        }
+
+        return true;
+    }
+
     function safeFocusElement(element) {
         if (!(element instanceof HTMLElement) || !element.isConnected) return false;
 
@@ -868,7 +1589,6 @@
             element.focus({ preventScroll: true });
             return true;
         } catch (error) {
-            // 某些客製元件會覆寫 focus 造成參數不相容，退回最基本呼叫。
             try {
                 element.focus();
                 return true;
@@ -921,10 +1641,10 @@
 
                 const targetValues = new Set(
                     (Array.isArray(fieldSnapshot.selectedValues) ? fieldSnapshot.selectedValues : [])
-                        .map(value => String(value))
+                        .map((value) => String(value))
                 );
                 const currentValues = new Set(
-                    Array.from(element.selectedOptions).map(option => option.value)
+                    Array.from(element.selectedOptions).map((option) => option.value)
                 );
 
                 if (targetValues.size !== currentValues.size) return false;
@@ -932,6 +1652,10 @@
                     if (!currentValues.has(value)) return false;
                 }
                 return true;
+            }
+
+            case 'custom-select-one': {
+                return isCustomSelectElementMatchingSnapshot(element, fieldSnapshot);
             }
 
             case 'contenteditable': {
@@ -965,7 +1689,6 @@
             }
         }
 
-        // fallback
         element.value = value;
     }
 
@@ -1004,7 +1727,6 @@
         dispatchPointerEvent(target, 'pointerup');
         dispatchMouseEvent(target, 'mouseup');
 
-        // click() 會觸發目標元素的原生 click 流程，通常可帶動框架層監聽器。
         if (invokeNativeClick && typeof target.click === 'function') {
             target.click();
         } else {
@@ -1023,7 +1745,6 @@
             });
             target.dispatchEvent(event);
         } catch (error) {
-            // 舊環境沒有 PointerEvent 時退回一般 Event，至少保留事件名稱。
             dispatchSimpleEvent(target, type);
         }
     }
@@ -1101,6 +1822,18 @@
             return { key: 'Enter', code: 'Enter', keyCode: 13 };
         }
 
+        if (key === 'Escape') {
+            return { key: 'Escape', code: 'Escape', keyCode: 27 };
+        }
+
+        if (key === 'ArrowDown') {
+            return { key: 'ArrowDown', code: 'ArrowDown', keyCode: 40 };
+        }
+
+        if (key === 'ArrowUp') {
+            return { key: 'ArrowUp', code: 'ArrowUp', keyCode: 38 };
+        }
+
         if (typeof key === 'string' && key.length === 1) {
             const isLetter = /^[a-z]$/i.test(key);
             const keyCode = isLetter ? key.toUpperCase().charCodeAt(0) : key.charCodeAt(0);
@@ -1125,11 +1858,10 @@
         try {
             element.scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'smooth' });
         } catch (error) {
-            // 某些舊瀏覽器不支援 smooth 參數，退回基本模式。
             try {
                 element.scrollIntoView(true);
             } catch (ignored) {
-                // 完全失敗就忽略，不阻斷回填流程。
+                // ignore
             }
         }
     }
@@ -1179,6 +1911,23 @@
         });
 
         timer = window.setTimeout(close, duration);
+    }
+
+    function showApplyCheckingToast({ retryCount = 0, willRunReadonlySync = false } = {}) {
+        let detail = '';
+
+        if (retryCount > 0 && willRunReadonlySync) {
+            detail = `（第 2 輪 ${retryCount} 欄 + readonly 後補）`;
+        } else if (retryCount > 0) {
+            detail = `（第 2 輪 ${retryCount} 欄）`;
+        } else if (willRunReadonlySync) {
+            detail = '（readonly 後補）';
+        }
+
+        showToast(`🔎 主要欄位已填完，正在進行後續檢查${detail}，請稍候...`, {
+            duration: APPLY_POST_CHECK_TOAST_DURATION_MS,
+            closable: false,
+        });
     }
 
     function injectStyles() {
@@ -1271,7 +2020,6 @@
             return `${SNAPSHOT_STORAGE_KEY_PREFIX}${encodeURIComponent(location.href)}`;
         }
 
-        // 依需求：用完整 URL（含 query 與 hash）分桶。
         return `${SNAPSHOT_STORAGE_KEY_PREFIX}${encodeURIComponent(url)}`;
     }
 
@@ -1304,11 +2052,6 @@
         return raw;
     }
 
-    /**
-     * 生成完整匯出 payload：
-     * - 只匯出本腳本自己的儲存鍵（SCRIPT_SCOPE 前綴）
-     * - 包含索引鍵與所有快照鍵，便於在其他電腦完整還原
-     */
     function buildAllSettingsExportPayload() {
         refreshSnapshotIndexFromStorage();
 
@@ -1350,7 +2093,6 @@
 
         const entries = [];
 
-        // 主要格式：本腳本匯出 payload（payloadType + storage）
         if (payload.storage && typeof payload.storage === 'object' && !Array.isArray(payload.storage)) {
             Object.entries(payload.storage).forEach(([key, value]) => {
                 if (!isScriptStorageKey(key)) return;
@@ -1358,8 +2100,6 @@
             });
         }
 
-        // 相容格式：{ snapshots: [{ url, snapshot }] }
-        // 允許使用者或舊工具輸出的精簡資料仍可匯入。
         if (Array.isArray(payload.snapshots)) {
             payload.snapshots.forEach((item) => {
                 if (!item || typeof item !== 'object') return;
@@ -1386,7 +2126,6 @@
             });
         }
 
-        // 去重：若同 key 出現多次，後者覆蓋前者。
         const deduped = new Map();
         entries.forEach((entry) => {
             deduped.set(entry.key, entry.value);
@@ -1398,21 +2137,18 @@
     function listScriptStorageKeys() {
         const keySet = new Set();
 
-        // 1) 後端儲存列舉（優先，最完整）
         listBackendStorageKeys().forEach((key) => {
             if (isScriptStorageKey(key)) {
                 keySet.add(key);
             }
         });
 
-        // 2) 索引回補（當環境不支援列舉 API 時，仍可用索引找回快照鍵）
         getSnapshotStorageIndex().forEach((key) => {
             if (isSnapshotStorageKey(key)) {
                 keySet.add(key);
             }
         });
 
-        // 3) 索引鍵本身一併納入匯出
         if (keySet.size > 0 || hasStoredValue(SNAPSHOT_INDEX_STORAGE_KEY)) {
             keySet.add(SNAPSHOT_INDEX_STORAGE_KEY);
         }
@@ -1421,19 +2157,17 @@
     }
 
     function listBackendStorageKeys() {
-        // Tampermonkey/Userscript 正規路徑：GM_listValues 可取得腳本所有儲存鍵。
         if (typeof GM_listValues === 'function') {
             try {
                 const keys = GM_listValues();
                 if (Array.isArray(keys)) {
-                    return keys.filter(key => typeof key === 'string');
+                    return keys.filter((key) => typeof key === 'string');
                 }
             } catch (error) {
                 console.warn('[FormSnapshot] GM_listValues 失敗，改用 localStorage 掃描。', error);
             }
         }
 
-        // 後備：localStorage（僅在沒有 GM_* 或測試情境下使用）
         try {
             const keys = [];
             for (let i = 0; i < localStorage.length; i++) {
@@ -1526,7 +2260,6 @@
             try {
                 return JSON.parse(raw);
             } catch (error) {
-                // localStorage 內若是純字串（非 JSON），仍保留原值回傳。
                 return raw;
             }
         } catch (error) {
@@ -1632,7 +2365,7 @@
             const parent = current.parentElement;
             if (parent) {
                 const siblings = Array.from(parent.children)
-                    .filter(node => node.tagName === current.tagName);
+                    .filter((node) => node.tagName === current.tagName);
                 if (siblings.length > 1) {
                     const nth = siblings.indexOf(current) + 1;
                     segment += `:nth-of-type(${nth})`;
@@ -1652,6 +2385,118 @@
         }
 
         return String(value).replace(/([ !"#$%&'()*+,./:;<=>?@[\\\]^`{|}~])/g, '\\$1');
+    }
+
+    function normalizeComparableText(value) {
+        return String(value ?? '')
+            .replace(/\s+/g, ' ')
+            .trim();
+    }
+
+    async function waitForTruthy(factory, { timeoutMs = 1000, intervalMs = 60 } = {}) {
+        const startedAt = Date.now();
+
+        while (Date.now() - startedAt <= timeoutMs) {
+            throwIfApplyAbortRequested();
+
+            let result = null;
+            try {
+                result = factory();
+            } catch (error) {
+                result = null;
+            }
+
+            if (result) return result;
+            await sleep(intervalMs);
+        }
+
+        return null;
+    }
+
+    function hasReadonlySyncProbeTargets(fieldSnapshots) {
+        if (!Array.isArray(fieldSnapshots) || fieldSnapshots.length === 0) return false;
+
+        return fieldSnapshots.some((fieldSnapshot) => {
+            if (!fieldSnapshot || typeof fieldSnapshot !== 'object') return false;
+            if (fieldSnapshot.kind !== 'input' && fieldSnapshot.kind !== 'textarea') return false;
+            return String(fieldSnapshot.value ?? '') !== '';
+        });
+    }
+
+    async function syncReadonlySnapshotFields(fieldSnapshots) {
+        if (!Array.isArray(fieldSnapshots) || fieldSnapshots.length === 0) return 0;
+
+        let syncedCount = 0;
+
+        for (const fieldSnapshot of fieldSnapshots) {
+            throwIfApplyAbortRequested();
+
+            if (!fieldSnapshot || typeof fieldSnapshot !== 'object') continue;
+            if (fieldSnapshot.kind !== 'input' && fieldSnapshot.kind !== 'textarea') continue;
+
+            const targetValue = String(fieldSnapshot.value ?? '');
+            if (!targetValue) continue;
+
+            const synced = await syncSingleReadonlyFieldSnapshot(fieldSnapshot, targetValue);
+            if (synced) {
+                syncedCount++;
+            }
+        }
+
+        return syncedCount;
+    }
+
+    async function syncSingleReadonlyFieldSnapshot(fieldSnapshot, targetValue) {
+        const MAX_ATTEMPTS = 3;
+
+        for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            throwIfApplyAbortRequested();
+
+            let element = null;
+            const immediateCandidate = findElementByLocator(fieldSnapshot.locator);
+
+            if (immediateCandidate instanceof HTMLInputElement || immediateCandidate instanceof HTMLTextAreaElement) {
+                if (!canFillElement(immediateCandidate)) {
+                    return false;
+                }
+
+                if (!immediateCandidate.readOnly || !isProgrammaticallyFillableReadonlyField(immediateCandidate)) {
+                    return false;
+                }
+
+                element = immediateCandidate;
+            } else {
+                element = await waitForTruthy(() => {
+                    const candidate = findElementByLocator(fieldSnapshot.locator);
+                    if (!(candidate instanceof HTMLInputElement || candidate instanceof HTMLTextAreaElement)) return null;
+                    if (!canFillElement(candidate)) return null;
+                    if (!candidate.readOnly) return null;
+                    if (!isProgrammaticallyFillableReadonlyField(candidate)) return null;
+                    return candidate;
+                }, { timeoutMs: 2200, intervalMs: 100 });
+            }
+
+            if (!(element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement)) {
+                return false;
+            }
+
+            if (getTextLikeValue(element) === targetValue) {
+                return true;
+            }
+
+            setTextLikeValue(element, targetValue);
+            dispatchSimpleEvent(element, 'input');
+            dispatchSimpleEvent(element, 'change');
+
+            await sleep(120);
+            throwIfApplyAbortRequested();
+
+            if (getTextLikeValue(element) === targetValue) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     function randomInt(min, max) {
