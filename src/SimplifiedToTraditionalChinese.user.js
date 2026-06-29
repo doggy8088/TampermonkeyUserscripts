@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      1.0.4
+// @version      1.0.5
 // @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -10,6 +10,8 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SimplifiedToTraditionalChinese.user.js
 // @author       Will Huang
 // @match        *://*/*
+// @exclude      https://www.youtube.com/*
+// @exclude      https://m.youtube.com/*
 // @run-at       document-idle
 // @grant        GM_registerMenuCommand
 // @require      https://cdn.jsdelivr.net/npm/@willh/opencc-js@1.1.0/dist/umd/full.js
@@ -17,6 +19,18 @@
 
 (function () {
     'use strict';
+
+    // 這支腳本原本附帶了一段 YouTube timedtext 攔截邏輯，歷史上方便直接把字幕做簡轉繁。
+    // 但目前 repo 已經有專責的 `YouTubeSubtitleGeminiTranslator.user.js` 來處理 YouTube 字幕翻譯，
+    // 若兩支腳本同時在 YouTube 啟用，會造成雙重攔截、重複改寫字幕、Console 爆量輸出，
+    // 甚至在 readystatechange 階段對大型字幕 JSON 做 parse/stringify 而觸發效能警告。
+    // 因此這裡除了在 metadata 用 @exclude 排除 YouTube 之外，也在執行期加一道保險，
+    // 即便使用者尚未重新整理腳本設定或 userscript manager 對舊版本快取行為較積極，
+    // 只要頁面位於 YouTube，就直接退出，不再註冊任何轉換、觀察器或字幕攔截器。
+    const hostname = window.location.hostname.toLowerCase();
+    if (hostname === 'www.youtube.com' || hostname === 'm.youtube.com' || hostname === 'youtube.com') {
+        return;
+    }
 
     /* global OpenCC */
 
