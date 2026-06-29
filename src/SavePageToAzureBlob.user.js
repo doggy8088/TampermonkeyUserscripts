@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         網頁快照上傳至 Azure Blob Storage
-// @version      0.2.0
-// @description  透過 Tampermonkey 選單將目前網頁製作成完全獨立的 HTML 快照（所有 CSS、圖片、字型均轉為 Data URI），並上傳至指定的 Azure Blob Storage，最後在新頁籤開啟純淨快照 URL
+// @name         網頁狀態與任意內容發佈到 Infinitybin
+// @version      0.3.0
+// @description  透過 Tampermonkey 選單將目前網頁狀態或任意文字內容發佈到 Azure Blob Storage-backed Infinitybin，並設定正確檔名與 Content-Type
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -24,7 +24,7 @@
 // ============================================================
 //
 // 本腳本需要預先設定 Azure Blob Storage 的 Container SAS URL，
-// 腳本才能將網頁快照上傳至您的 Azure Blob 容器。
+// 腳本才能將網頁快照或任意文字內容上傳至您的 Azure Blob 容器。
 //
 // 【步驟一】建立 Azure Storage Account 與 Container
 //   1. 登入 Azure Portal（https://portal.azure.com）
@@ -71,13 +71,19 @@
 //   請勿將 SAS URL 分享給他人，並建議定期更換 SAS Token 以降低風險。
 //
 // 【使用方式】
-//   在任意網頁點開 Tampermonkey 選單，選擇「📸 儲存網頁快照」，
+//   在任意網頁點開 Tampermonkey 選單，選擇「📸 將目前網頁狀態發佈到 Infinitybin」，
 //   腳本將依序執行：
 //     1. 擷取目前頁面的完整渲染後 DOM 狀態
 //     2. 將所有外部 CSS、字型、圖片、SVG 等資源轉換為 Data URI（內嵌進 HTML）
 //     3. 組成一份完全獨立、無任何外部依賴的 HTML 文件
-//     4. 使用 PUT 方式上傳至您的 Azure Blob Storage Container
+//     4. 使用 PUT 方式發佈到 Infinitybin 使用的 Azure Blob Storage Container
 //     5. 在新頁籤開啟上傳後的純淨 Blob URL（不含 SAS Token）
+//
+//   或選擇「📋 將任意內容發佈到 Infinitybin」：
+//     1. 顯示頁面內文字對話框，等待使用者貼上任意文字
+//     2. 貼上後自動依內容推測 HTML、Markdown、CSV、JSON、XML、純文字等格式
+//     3. 使用推測後的副檔名與 Content-Type 發佈到 Infinitybin
+//     4. 圖片與二進位內容不處理，也不顯示錯誤
 //
 // 【注意事項】
 //   - 若頁面資源非常多（如大量圖片），序列化過程可能需要數十秒，請耐心等待
@@ -111,11 +117,68 @@
     // GM_xmlhttpRequest 請求逾時（毫秒），預設 30 秒
     const REQUEST_TIMEOUT_MS = 30000;
 
-    // 防止同一頁面上的多個觸發來源在短時間內同時執行快照流程。
+    // 文字格式的副檔名對應表，集中維護可避免「副檔名推測」與
+    // 「Azure Blob Content-Type」兩套邏輯日後彼此漂移。
+    const TEXT_EXTENSION_TO_CONTENT_TYPE = {
+        txt:  'text/plain; charset=utf-8',
+        html: 'text/html; charset=utf-8',
+        md:   'text/markdown; charset=utf-8',
+        csv:  'text/csv; charset=utf-8',
+        tsv:  'text/tab-separated-values; charset=utf-8',
+        json: 'application/json; charset=utf-8',
+        xml:  'application/xml; charset=utf-8',
+        yaml: 'application/yaml; charset=utf-8',
+        css:  'text/css; charset=utf-8',
+        js:   'text/javascript; charset=utf-8',
+        sql:  'application/sql; charset=utf-8',
+        svg:  'image/svg+xml; charset=utf-8'
+    };
+
+    // 來源 MIME type 比純內容猜測更可靠；此表只處理常見文字型別。
+    // 未列出的 text/* 仍會回退為 .txt。
+    const TEXT_MIME_TYPE_TO_EXTENSION = {
+        'text/plain':                   'txt',
+        'text/html':                    'html',
+        'text/markdown':                'md',
+        'text/x-markdown':              'md',
+        'text/csv':                     'csv',
+        'text/tab-separated-values':    'tsv',
+        'application/json':             'json',
+        'text/json':                    'json',
+        'application/xml':              'xml',
+        'text/xml':                     'xml',
+        'application/yaml':             'yaml',
+        'application/x-yaml':           'yaml',
+        'text/yaml':                    'yaml',
+        'text/x-yaml':                  'yaml',
+        'text/css':                     'css',
+        'text/javascript':              'js',
+        'application/javascript':       'js',
+        'application/x-javascript':     'js',
+        'application/sql':              'sql',
+        'text/x-sql':                   'sql',
+        'image/svg+xml':                'svg'
+    };
+
+    // 圖片 MIME type 對應表保留給通用副檔名推斷使用。
+    const IMAGE_MIME_TYPE_TO_EXTENSION = {
+        'image/png':     'png',
+        'image/jpeg':    'jpg',
+        'image/jpg':     'jpg',
+        'image/webp':    'webp',
+        'image/gif':     'gif',
+        'image/bmp':     'bmp',
+        'image/svg+xml': 'svg',
+        'image/tiff':    'tiff',
+        'image/avif':    'avif',
+        'image/x-icon':  'ico'
+    };
+
+    // 防止同一頁面上的多個觸發來源在短時間內同時執行發佈流程。
     // 這個腳本同時支援 Tampermonkey 選單與 context-menu 橋接事件，
     // 若瀏覽器或擴充套件在某些頁面上重複派發觸發，就可能造成多次上傳、
     // 多個成功訊息，以及多個新頁籤被連續開啟。
-    // 透過「單一進行中作業鎖」可確保整個頁面在任一時間只會有一份快照作業。
+    // 透過「單一進行中作業鎖」可確保整個頁面在任一時間只會有一份發佈作業。
     let activeSaveOperation = null;
     let activeStatusBar = null;
 
@@ -183,6 +246,16 @@
         return value.split(';')[0].trim();
     }
 
+    /**
+     * 將 MIME type 正規化為不含 charset 等參數的小寫字串。
+     *
+     * @param {string} mimeType - 原始 MIME type
+     * @returns {string} 正規化後的 MIME type
+     */
+    function normalizeMimeType(mimeType) {
+        return (mimeType || '').split(';')[0].trim().toLowerCase();
+    }
+
     // ===== 工具：依副檔名猜測 MIME type（作為 Content-Type 解析失敗時的後備）=====
 
     /**
@@ -204,11 +277,362 @@
             ttf: 'font/ttf', otf: 'font/otf', eot: 'application/vnd.ms-fontobject',
             // 樣式與文件
             css: 'text/css', js: 'application/javascript',
-            json: 'application/json', html: 'text/html', xml: 'text/xml',
+            json: 'application/json', html: 'text/html', htm: 'text/html',
+            xml: 'text/xml', md: 'text/markdown', markdown: 'text/markdown',
+            csv: 'text/csv', tsv: 'text/tab-separated-values',
+            txt: 'text/plain', yaml: 'application/yaml', yml: 'application/yaml',
+            sql: 'application/sql',
             // 其他
             pdf: 'application/pdf', mp4: 'video/mp4', webm: 'video/webm'
         };
         return map[ext] || 'application/octet-stream';
+    }
+
+    /**
+     * 建立可排序、可讀、且檔名安全的時間戳記。
+     *
+     * @returns {string} YYYYMMDD-HHmmss 格式時間戳
+     */
+    function createTimestamp() {
+        const now = new Date();
+        return now.getFullYear().toString() +
+            String(now.getMonth() + 1).padStart(2, '0') +
+            String(now.getDate()).padStart(2, '0') + '-' +
+            String(now.getHours()).padStart(2, '0') +
+            String(now.getMinutes()).padStart(2, '0') +
+            String(now.getSeconds()).padStart(2, '0');
+    }
+
+    /**
+     * 將檔名片段限制在 Azure Blob URL 友善的字元集合。
+     *
+     * @param {string} value - 原始檔名片段
+     * @param {string} fallback - 清理後為空時使用的後備值
+     * @returns {string} 清理後檔名片段
+     */
+    function sanitizeBlobNamePart(value, fallback) {
+        const sanitized = String(value || '')
+            .trim()
+            .replace(/[^a-zA-Z0-9.-]+/g, '_')
+            .replace(/^_+|_+$/g, '');
+        return sanitized || fallback;
+    }
+
+    /**
+     * 標準化副檔名，確保後續組 Blob name 時不會出現雙點或特殊字元。
+     *
+     * @param {string} extension - 原始副檔名，可含或不含開頭的 "."
+     * @returns {string} 不含 "." 的安全副檔名
+     */
+    function normalizeExtension(extension) {
+        const normalized = String(extension || '')
+            .trim()
+            .replace(/^\.+/, '')
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '');
+        return normalized || 'bin';
+    }
+
+    /**
+     * 依照固定命名規則產生 Blob 檔名。
+     *
+     * @param {string} prefix - 檔名前綴，例如 snapshot 或 content
+     * @param {string} extension - 副檔名
+     * @returns {string} Blob 檔名
+     */
+    function buildBlobName(prefix, extension) {
+        const safePrefix = sanitizeBlobNamePart(prefix, 'upload');
+        const hostname = sanitizeBlobNamePart(location.hostname, 'unknown');
+        return `${safePrefix}-${hostname}-${createTimestamp()}.${normalizeExtension(extension)}`;
+    }
+
+    /**
+     * 將文字副檔名轉換成 Azure Blob 應設定的 Content-Type。
+     *
+     * @param {string} extension - 不含 "." 的副檔名
+     * @returns {string} Content-Type 標頭值
+     */
+    function getTextContentType(extension) {
+        return TEXT_EXTENSION_TO_CONTENT_TYPE[normalizeExtension(extension)] || TEXT_EXTENSION_TO_CONTENT_TYPE.txt;
+    }
+
+    /**
+     * 從已知 MIME type 推出副檔名。
+     *
+     * @param {string} mimeType - 原始 MIME type
+     * @returns {string} 副檔名；未知時回傳空字串
+     */
+    function getExtensionFromMimeType(mimeType) {
+        const normalized = normalizeMimeType(mimeType);
+
+        if (TEXT_MIME_TYPE_TO_EXTENSION[normalized]) {
+            return TEXT_MIME_TYPE_TO_EXTENSION[normalized];
+        }
+
+        if (IMAGE_MIME_TYPE_TO_EXTENSION[normalized]) {
+            return IMAGE_MIME_TYPE_TO_EXTENSION[normalized];
+        }
+
+        if (normalized.startsWith('image/')) {
+            return normalizeExtension(normalized.replace(/^image\//, '')) || 'img';
+        }
+
+        return '';
+    }
+
+    /**
+     * 判斷文字是否像 HTML 文件或 HTML 片段。
+     *
+     * @param {string} text - 已 trim 的文字
+     * @returns {boolean} 是否像 HTML
+     */
+    function looksLikeHtml(text) {
+        return /^<!doctype\s+html/i.test(text) ||
+            /^<html[\s>]/i.test(text) ||
+            /<\/(?:html|head|body|main|article|section|div|p|span|table|ul|ol|li|h[1-6])>/i.test(text) ||
+            /<(?:html|head|body|main|article|section|div|p|span|table|ul|ol|li|h[1-6]|br|img|a)\b[^>]*>/i.test(text);
+    }
+
+    /**
+     * 判斷文字是否像 SVG；SVG 是文字格式，但正確 Content-Type 應屬 image/svg+xml。
+     *
+     * @param {string} text - 已 trim 的文字
+     * @returns {boolean} 是否像 SVG
+     */
+    function looksLikeSvg(text) {
+        return /^<svg[\s>]/i.test(text) || /^<\?xml[\s\S]*<svg[\s>]/i.test(text);
+    }
+
+    /**
+     * 判斷文字是否為可解析的 JSON。
+     *
+     * @param {string} text - 已 trim 的文字
+     * @returns {boolean} 是否像 JSON
+     */
+    function looksLikeJson(text) {
+        if (!/^[{[]/.test(text)) return false;
+
+        try {
+            JSON.parse(text);
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
+    /**
+     * 判斷文字是否像 XML 文件。
+     *
+     * @param {string} text - 已 trim 的文字
+     * @returns {boolean} 是否像 XML
+     */
+    function looksLikeXml(text) {
+        return /^<\?xml\b/i.test(text) ||
+            /^<(?:rss|feed|urlset|sitemapindex|configuration|project)\b[\s\S]*<\/(?:rss|feed|urlset|sitemapindex|configuration|project)>$/i.test(text);
+    }
+
+    /**
+     * 依指定分隔符計算一行中大致的欄位數，簡單支援 CSV 雙引號跳脫。
+     *
+     * @param {string} line - 單行文字
+     * @param {string} delimiter - 分隔符
+     * @returns {number} 欄位數
+     */
+    function countDelimitedFields(line, delimiter) {
+        let count = 1;
+        let inQuotes = false;
+
+        for (let i = 0; i < line.length; i++) {
+            const char = line[i];
+            const nextChar = line[i + 1];
+
+            if (char === '"') {
+                if (inQuotes && nextChar === '"') {
+                    i++;
+                } else {
+                    inQuotes = !inQuotes;
+                }
+            } else if (!inQuotes && char === delimiter) {
+                count++;
+            }
+        }
+
+        return count;
+    }
+
+    /**
+     * 偵測逗號、分號或 tab 分隔文字；tab 會輸出 .tsv，其餘輸出 .csv。
+     *
+     * @param {string} text - 原始文字
+     * @returns {{extension: string}|null} 偵測結果
+     */
+    function detectDelimitedText(text) {
+        const lines = text
+            .replace(/\r\n?/g, '\n')
+            .split('\n')
+            .map(line => line.trim())
+            .filter(Boolean)
+            .slice(0, 20);
+
+        if (lines.length < 2) return null;
+
+        for (const delimiter of [',', '\t', ';']) {
+            const counts = lines.map(line => countDelimitedFields(line, delimiter));
+            const usefulCounts = counts.filter(count => count >= 2);
+
+            if (usefulCounts.length < Math.min(2, lines.length)) {
+                continue;
+            }
+
+            const firstCount = usefulCounts[0];
+            const matchingCount = usefulCounts.filter(count => count === firstCount).length;
+
+            if (matchingCount / usefulCounts.length >= 0.8) {
+                return { extension: delimiter === '\t' ? 'tsv' : 'csv' };
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * 判斷文字是否像 Markdown。
+     *
+     * @param {string} text - 原始文字
+     * @returns {boolean} 是否像 Markdown
+     */
+    function looksLikeMarkdown(text) {
+        return /^#{1,6}\s+\S/m.test(text) ||
+            /^```[\s\S]*```/m.test(text) ||
+            /^~~~[\s\S]*~~~/m.test(text) ||
+            /^\s{0,3}>\s+\S/m.test(text) ||
+            /^\s{0,3}(?:[-*+]|\d+\.)\s+\S/m.test(text) ||
+            /\[[^\]\n]+\]\([^)]+\)/.test(text) ||
+            /^\|?.+\|.+\n\|?\s*:?-{3,}:?\s*\|/m.test(text);
+    }
+
+    /**
+     * 判斷文字是否像 YAML。
+     *
+     * @param {string} text - 原始文字
+     * @returns {boolean} 是否像 YAML
+     */
+    function looksLikeYaml(text) {
+        const lines = text
+            .replace(/\r\n?/g, '\n')
+            .split('\n')
+            .map(line => line.trim())
+            .filter(line => line && !line.startsWith('#'))
+            .slice(0, 20);
+
+        if (!lines.length) return false;
+        if (lines[0] === '---') return true;
+
+        const keyValueLines = lines.filter(line => /^[a-zA-Z0-9_.-]+:\s+.+$/.test(line));
+        return keyValueLines.length >= 2 && keyValueLines.length / lines.length >= 0.5;
+    }
+
+    /**
+     * 判斷文字是否像 CSS。
+     *
+     * @param {string} text - 已 trim 的文字
+     * @returns {boolean} 是否像 CSS
+     */
+    function looksLikeCss(text) {
+        return /^[^{]+\{[\s\S]*:[\s\S]*\}/.test(text);
+    }
+
+    /**
+     * 判斷文字是否像 JavaScript。
+     *
+     * @param {string} text - 已 trim 的文字
+     * @returns {boolean} 是否像 JavaScript
+     */
+    function looksLikeJavaScript(text) {
+        return /^(?:import|export)\s/m.test(text) ||
+            (/\b(?:const|let|var|function|class)\s+[a-zA-Z_$][\w$]*/.test(text) && /[;{}]/.test(text));
+    }
+
+    /**
+     * 判斷文字是否像 SQL。
+     *
+     * @param {string} text - 已 trim 的文字
+     * @returns {boolean} 是否像 SQL
+     */
+    function looksLikeSql(text) {
+        return /^(?:select|with|insert|update|delete|create|alter|drop)\b/i.test(text) &&
+            /\b(?:from|into|table|set|where|values|as)\b/i.test(text);
+    }
+
+    /**
+     * 依文字內容與來源 MIME type 推斷發佈格式。
+     *
+     * @param {string} text - 待發佈文字
+     * @param {string} sourceMimeType - 來源 MIME type
+     * @returns {{extension: string, contentType: string, label: string}} 格式描述
+     */
+    function inferTextFormat(text, sourceMimeType) {
+        const normalizedSourceMimeType = normalizeMimeType(sourceMimeType);
+
+        if (normalizedSourceMimeType && normalizedSourceMimeType !== 'text/plain') {
+            const extensionFromMime = getExtensionFromMimeType(normalizedSourceMimeType);
+            if (extensionFromMime) {
+                return {
+                    extension: extensionFromMime,
+                    contentType: getTextContentType(extensionFromMime),
+                    label: normalizedSourceMimeType
+                };
+            }
+        }
+
+        const trimmed = text.trim();
+
+        if (looksLikeSvg(trimmed)) {
+            return { extension: 'svg', contentType: getTextContentType('svg'), label: 'SVG' };
+        }
+
+        if (looksLikeHtml(trimmed)) {
+            return { extension: 'html', contentType: getTextContentType('html'), label: 'HTML' };
+        }
+
+        if (looksLikeJson(trimmed)) {
+            return { extension: 'json', contentType: getTextContentType('json'), label: 'JSON' };
+        }
+
+        if (looksLikeXml(trimmed)) {
+            return { extension: 'xml', contentType: getTextContentType('xml'), label: 'XML' };
+        }
+
+        const delimitedText = detectDelimitedText(text);
+        if (delimitedText) {
+            return {
+                extension: delimitedText.extension,
+                contentType: getTextContentType(delimitedText.extension),
+                label: delimitedText.extension.toUpperCase()
+            };
+        }
+
+        if (looksLikeMarkdown(text)) {
+            return { extension: 'md', contentType: getTextContentType('md'), label: 'Markdown' };
+        }
+
+        if (looksLikeYaml(text)) {
+            return { extension: 'yaml', contentType: getTextContentType('yaml'), label: 'YAML' };
+        }
+
+        if (looksLikeCss(trimmed)) {
+            return { extension: 'css', contentType: getTextContentType('css'), label: 'CSS' };
+        }
+
+        if (looksLikeJavaScript(trimmed)) {
+            return { extension: 'js', contentType: getTextContentType('js'), label: 'JavaScript' };
+        }
+
+        if (looksLikeSql(trimmed)) {
+            return { extension: 'sql', contentType: getTextContentType('sql'), label: 'SQL' };
+        }
+
+        return { extension: 'txt', contentType: getTextContentType('txt'), label: '純文字' };
     }
 
     // ===== 核心：將外部 URL 資源轉換為 base64 Data URI =====
@@ -656,24 +1080,56 @@
         return `<!DOCTYPE html>\n${root.outerHTML}`;
     }
 
-    // ===== 核心：將 HTML 字串上傳至 Azure Blob Storage =====
+    // ===== 核心：將任意內容上傳至 Azure Blob Storage =====
 
     /**
-     * 使用 Azure Blob Storage REST API（PUT Blob）將 HTML 文件上傳至指定容器，
+     * 將字串、Blob、ArrayBuffer 或 TypedArray 轉成可精確計算 Content-Length 的 ArrayBuffer。
+     *
+     * 設計意圖：
+     *   - 文字內容統一以 UTF-8 送出，對應 Content-Type 會由呼叫端帶上 charset。
+     *   - 圖片 Blob 不做任何轉碼，避免破壞原始格式或造成副檔名與實際內容不一致。
+     *   - TypedArray 可能只是較大 ArrayBuffer 的視窗，因此要 slice 出精確範圍。
+     *
+     * @param {string|Blob|ArrayBuffer|ArrayBufferView} content - 待上傳內容
+     * @returns {Promise<ArrayBuffer>} 可直接交給 GM_xmlhttpRequest 的 ArrayBuffer
+     */
+    async function toUploadArrayBuffer(content) {
+        if (typeof content === 'string') {
+            return new TextEncoder().encode(content).buffer;
+        }
+
+        if (typeof Blob !== 'undefined' && content instanceof Blob) {
+            return content.arrayBuffer();
+        }
+
+        if (content instanceof ArrayBuffer) {
+            return content;
+        }
+
+        if (ArrayBuffer.isView(content)) {
+            return content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength);
+        }
+
+        throw new Error('不支援的上傳內容型別。');
+    }
+
+    /**
+     * 使用 Azure Blob Storage REST API（PUT Blob）將內容上傳至指定容器，
      * 並回傳上傳後的純淨 Blob URL（不含 SAS Token 參數）。
      *
      * 上傳流程：
      *   1. 解析 Container SAS URL，分離出基礎 URL 與 SAS Token 查詢字串
-     *   2. 依據當前網站 hostname 與時間戳記產生唯一的 Blob 檔案名稱
+     *   2. 依呼叫端指定的 prefix / extension 產生唯一 Blob 檔案名稱
      *   3. 組合完整的 Blob PUT URL（含 SAS Token）
-     *   4. 透過 GM_xmlhttpRequest 以 PUT 方式上傳 HTML 內容
+     *   4. 透過 GM_xmlhttpRequest 以 PUT 方式上傳內容並設定 Content-Type
      *   5. 回傳不含 SAS Token 的純淨 Blob URL
      *
-     * @param {string} htmlContent  - 待上傳的 HTML 字串
-     * @param {string} sasUrl       - Container 層級的 Azure Blob SAS URL
+     * @param {string|Blob|ArrayBuffer|ArrayBufferView} content - 待上傳內容
+     * @param {string} sasUrl - Container 層級的 Azure Blob SAS URL
+     * @param {{blobNamePrefix: string, extension: string, contentType: string}} options - 上傳描述
      * @returns {Promise<string>} 純淨的 Blob URL（不含 SAS Token 查詢參數）
      */
-    async function uploadToAzureBlob(htmlContent, sasUrl) {
+    async function uploadToAzureBlob(content, sasUrl, options) {
         // 解析 SAS URL，分離 origin+pathname（容器路徑）與 search（SAS Token 參數）
         let parsedSasUrl;
         try {
@@ -686,29 +1142,19 @@
         const containerPath = parsedSasUrl.origin + parsedSasUrl.pathname.replace(/\/+$/, '');
         const sasQueryString = parsedSasUrl.search; // 包含 ? 的查詢字串，例如 ?sv=...&sig=...
 
-        // 產生唯一的 Blob 檔案名稱：snapshot-{hostname}-{YYYYMMDD-HHmmss}.html
-        const now = new Date();
-        const timestamp = now.getFullYear().toString() +
-            String(now.getMonth() + 1).padStart(2, '0') +
-            String(now.getDate()).padStart(2, '0') + '-' +
-            String(now.getHours()).padStart(2, '0') +
-            String(now.getMinutes()).padStart(2, '0') +
-            String(now.getSeconds()).padStart(2, '0');
-        const hostname = location.hostname.replace(/[^a-zA-Z0-9.-]/g, '_') || 'unknown';
-        const blobName = `snapshot-${hostname}-${timestamp}.html`;
+        const blobName = buildBlobName(options?.blobNamePrefix, options?.extension);
+        const contentType = options?.contentType || 'application/octet-stream';
 
         // 組合上傳用 URL（含 SAS Token）與純淨 URL（不含 SAS Token）
         const uploadUrl = `${containerPath}/${blobName}${sasQueryString}`;
         const cleanUrl  = `${containerPath}/${blobName}`;
 
-        // 將 HTML 字串轉為 Uint8Array，取得精確 Content-Length（UTF-8 位元組數）
-        const encoder = new TextEncoder();
-        const htmlBytes = encoder.encode(htmlContent);
+        const uploadBytes = await toUploadArrayBuffer(content);
 
         // 使用 Azure Blob Storage REST API PUT Blob
         // 必要 Header：
         //   x-ms-blob-type: BlockBlob  → 指定 Blob 類型（必需）
-        //   Content-Type               → 讓瀏覽器正確解析下載的 Blob
+        //   Content-Type               → 讓瀏覽器與 Azure Blob 屬性正確識別內容
         //   x-ms-date                  → RFC1123 格式的請求時間（部分 SAS 設定需要）
         await gmFetch({
             method: 'PUT',
@@ -716,16 +1162,195 @@
             responseType: 'text',
             headers: {
                 'x-ms-blob-type': 'BlockBlob',
-                'Content-Type':   'text/html; charset=utf-8',
+                'Content-Type':   contentType,
                 'x-ms-version':   '2020-08-04',
                 'x-ms-date':      new Date().toUTCString(),
-                'Content-Length': String(htmlBytes.byteLength)
+                'Content-Length': String(uploadBytes.byteLength)
             },
-            // GM_xmlhttpRequest 傳送 ArrayBuffer 以確保 UTF-8 字元正確傳輸
-            data: htmlBytes.buffer
+            // GM_xmlhttpRequest 傳送 ArrayBuffer，以同一條路徑支援 UTF-8 文字與圖片二進位內容。
+            data: uploadBytes
         });
 
         return cleanUrl;
+    }
+
+    // ===== 核心：接收任意文字並轉換為可發佈內容 =====
+
+    /**
+     * 將文字與推斷出的格式轉成發佈描述。
+     *
+     * @param {string} text - 使用者貼上的文字
+     * @param {string} sourceMimeType - 文字 MIME type
+     * @returns {{content: string, extension: string, contentType: string, label: string, byteLength: number}} 發佈描述
+     */
+    function createTextUpload(text, sourceMimeType) {
+        if (!text) {
+            throw new Error('沒有可發佈的文字內容。');
+        }
+
+        const format = inferTextFormat(text, sourceMimeType);
+        return {
+            content: text,
+            extension: format.extension,
+            contentType: format.contentType,
+            label: format.label,
+            byteLength: new TextEncoder().encode(text).byteLength
+        };
+    }
+
+    /**
+     * 在頁面上建立一個臨時文字對話框，等待使用者貼上內容。
+     *
+     * 設計意圖：
+     *   - 不直接讀取剪貼簿，避免 Tampermonkey 與瀏覽器 Clipboard API 的相容性問題。
+     *   - 使用者貼上時，瀏覽器會透過 paste 事件提供文字；腳本只取 text/plain，
+     *     避免 rich-copy 內容被當成 HTML 包裝後發佈。
+     *   - 貼上成功即 resolve，呼叫端可立即接續發佈。
+     *
+     * @returns {Promise<string|null>} 使用者貼上的純文字；取消時回傳 null
+     */
+    function waitForPastedText() {
+        return new Promise((resolve) => {
+            const overlay = document.createElement('div');
+            const panel = document.createElement('div');
+            const title = document.createElement('div');
+            const message = document.createElement('div');
+            const target = document.createElement('textarea');
+            const hint = document.createElement('div');
+            const cancelButton = document.createElement('button');
+            let isSettled = false;
+
+            overlay.id = '__save_azure_content_paste_overlay__';
+            Object.assign(overlay.style, {
+                position: 'fixed',
+                inset: '0',
+                zIndex: '2147483647',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                background: 'rgba(0, 0, 0, 0.48)',
+                fontFamily: 'system-ui, sans-serif'
+            });
+
+            Object.assign(panel.style, {
+                width: 'min(560px, calc(100vw - 32px))',
+                padding: '18px',
+                borderRadius: '8px',
+                background: '#fff',
+                color: '#1f2937',
+                boxShadow: '0 18px 48px rgba(0, 0, 0, 0.34)',
+                boxSizing: 'border-box'
+            });
+
+            title.textContent = '貼上要發佈的內容';
+            Object.assign(title.style, {
+                fontSize: '18px',
+                fontWeight: '700',
+                marginBottom: '8px'
+            });
+
+            message.textContent = '請在下方文字框貼上任意文字，貼上後會自動發佈到 Infinitybin。';
+            Object.assign(message.style, {
+                fontSize: '14px',
+                lineHeight: '1.6',
+                marginBottom: '12px'
+            });
+
+            target.setAttribute('aria-label', '貼上要發佈的文字內容');
+            target.placeholder = '按 Ctrl+V 貼上文字';
+            Object.assign(target.style, {
+                minHeight: '128px',
+                width: '100%',
+                padding: '18px',
+                border: '2px dashed #64748b',
+                borderRadius: '8px',
+                background: '#f8fafc',
+                color: '#334155',
+                fontSize: '16px',
+                lineHeight: '1.5',
+                outline: 'none',
+                textAlign: 'left',
+                wordBreak: 'break-word',
+                boxSizing: 'border-box',
+                resize: 'vertical'
+            });
+
+            hint.textContent = '';
+            Object.assign(hint.style, {
+                marginTop: '10px',
+                minHeight: '18px',
+                fontSize: '12px',
+                lineHeight: '1.5',
+                color: '#64748b',
+                wordBreak: 'break-word'
+            });
+
+            cancelButton.type = 'button';
+            cancelButton.textContent = '取消';
+            Object.assign(cancelButton.style, {
+                marginTop: '14px',
+                padding: '8px 12px',
+                border: '1px solid #cbd5e1',
+                borderRadius: '6px',
+                background: '#fff',
+                color: '#1f2937',
+                cursor: 'pointer',
+                fontSize: '14px'
+            });
+
+            function cleanup() {
+                target.removeEventListener('paste', onPaste);
+                document.removeEventListener('keydown', onKeyDown, true);
+                cancelButton.removeEventListener('click', onCancel);
+                overlay.remove();
+            }
+
+            function settle(text) {
+                if (isSettled) return;
+                isSettled = true;
+                cleanup();
+                resolve(text);
+            }
+
+            function onPaste(event) {
+                // 必須同步阻止預設行為，避免 textarea 先插入或轉換內容。
+                event.preventDefault();
+
+                const text = event.clipboardData?.getData('text/plain') || '';
+                if (!text) {
+                    target.value = '';
+                    target.placeholder = '沒有偵測到文字內容，請貼上文字。';
+                    hint.textContent = '圖片與二進位內容不會被發佈。';
+                    target.focus();
+                    return;
+                }
+
+                settle(text);
+            }
+
+            function onKeyDown(event) {
+                if (event.key === 'Escape') {
+                    event.preventDefault();
+                    settle(null);
+                }
+            }
+
+            function onCancel() {
+                settle(null);
+            }
+
+            panel.append(title, message, target, hint, cancelButton);
+            overlay.appendChild(panel);
+            document.body.appendChild(overlay);
+
+            target.addEventListener('paste', onPaste);
+            document.addEventListener('keydown', onKeyDown, true);
+            cancelButton.addEventListener('click', onCancel);
+
+            window.setTimeout(() => {
+                target.focus();
+            }, 0);
+        });
     }
 
     // ===== UI：顯示浮動狀態提示條 =====
@@ -771,7 +1396,7 @@
     }
 
     /**
-     * 在上傳成功後才開啟快照頁籤，確保使用者停留在原頁面等待進度，
+     * 在上傳成功後才開啟發佈結果頁籤，確保使用者停留在原頁面等待進度，
      * 並避免因為「先開 about:blank 佔位」導致瀏覽器立即切換分頁。
      *
      * 設計取捨說明：
@@ -781,10 +1406,10 @@
      *   - 若 GM_openInTab 不可用（例如在非 Tampermonkey 環境），
      *     退回 window.open()，並以 best-effort 方式 focus 新分頁。
      *
-     * @param {string} url - 上傳後的乾淨快照 URL（不含 SAS Token）
+     * @param {string} url - 上傳後的乾淨 URL（不含 SAS Token）
      * @returns {object|null} GM_openInTab 的 tab 物件或 window 物件（可能為 null）
      */
-    function openSnapshotTab(url) {
+    function openPublishedTab(url) {
         if (typeof GM_openInTab === 'function') {
             return GM_openInTab(url, {
                 active: true,
@@ -804,33 +1429,44 @@
         return newTab;
     }
 
-    // ===== 主流程：「📸 儲存網頁快照」選單功能 =====
+    /**
+     * 讀取已設定的 Azure Blob Container SAS URL，並在缺少設定時提示使用者。
+     *
+     * @returns {string} SAS URL；尚未設定時回傳空字串
+     */
+    function getConfiguredSasUrl() {
+        const sasUrl = GM_getValue(SAS_URL_STORAGE_KEY, '');
+        if (!sasUrl) {
+            alert('尚未設定 Azure Blob SAS URL。\n請先點選 Tampermonkey 選單中的「⚙️ 設定 Azure Blob SAS URL」。');
+            return '';
+        }
+
+        return sasUrl;
+    }
+
+    // ===== 主流程：「📸 將目前網頁狀態發佈到 Infinitybin」選單功能 =====
 
     /**
      * 主要執行流程，依序完成以下工作：
      *   1. 讀取已儲存的 SAS URL，如果尚未設定則提示使用者先設定
      *   2. 顯示進度提示條
      *   3. 序列化當前頁面（轉換所有外部資源為 Data URI）
-     *   4. 上傳 HTML 至 Azure Blob Storage
+     *   4. 以 HTML Content-Type 發佈到 Infinitybin
      *   5. 在新頁籤開啟純淨的 Blob URL
      */
     async function savePageToAzureBlob() {
         if (activeSaveOperation) {
-            // 直接重用既有作業，而不是再啟動第二份快照流程。
+            // 直接重用既有作業，而不是再啟動第二份發佈流程。
             // 這可避免同一頁面因重複事件或連點而開出多個空白分頁。
-            activeStatusBar?.update('⏳ 已有進行中的快照作業，忽略重複觸發...');
-            console.warn('[SavePageToAzureBlob] 偵測到重複觸發，已忽略新的快照要求。');
+            activeStatusBar?.update('⏳ 已有進行中的發佈作業，忽略重複觸發...');
+            console.warn('[SavePageToAzureBlob] 偵測到重複觸發，已忽略新的發佈要求。');
             return activeSaveOperation;
         }
 
-        // 讀取已儲存的 SAS URL
-        const sasUrl = GM_getValue(SAS_URL_STORAGE_KEY, '');
-        if (!sasUrl) {
-            alert('尚未設定 Azure Blob SAS URL。\n請先點選 Tampermonkey 選單中的「⚙️ 設定 Azure Blob SAS URL」。');
-            return;
-        }
+        const sasUrl = getConfiguredSasUrl();
+        if (!sasUrl) return;
 
-        const statusBar = createStatusBar('🔄 正在擷取頁面資源，請稍候...');
+        const statusBar = createStatusBar('🔄 正在擷取目前網頁狀態，請稍候...');
         activeStatusBar = statusBar;
 
         activeSaveOperation = (async () => {
@@ -842,25 +1478,29 @@
                 });
 
                 const sizeKb = Math.round(new TextEncoder().encode(htmlContent).byteLength / 1024);
-                statusBar.update(`📤 正在上傳（${sizeKb.toLocaleString()} KB），請稍候...`);
+                statusBar.update(`📤 正在發佈到 Infinitybin（${sizeKb.toLocaleString()} KB），請稍候...`);
 
-                // ── 上傳至 Azure Blob ──
-                const cleanUrl = await uploadToAzureBlob(htmlContent, sasUrl);
+                // ── 發佈到 Infinitybin（Azure Blob）──
+                const cleanUrl = await uploadToAzureBlob(htmlContent, sasUrl, {
+                    blobNamePrefix: 'snapshot',
+                    extension: 'html',
+                    contentType: getTextContentType('html')
+                });
 
-                statusBar.update(`✅ 上傳成功！即將切換至快照頁籤...\n${cleanUrl}`);
+                statusBar.update(`✅ 發佈成功！即將切換至 Infinitybin 頁籤...\n${cleanUrl}`);
 
-                // 稍作延遲讓使用者看到成功訊息後，再開啟快照頁籤並切換過去，
-                // 符合「保留在原頁等待上傳完成」的使用體驗。
+                // 稍作延遲讓使用者看到成功訊息後，再開啟結果頁籤並切換過去，
+                // 符合「保留在原頁等待發佈完成」的使用體驗。
                 await delay(2000);
 
-                const openedTab = openSnapshotTab(cleanUrl);
+                const openedTab = openPublishedTab(cleanUrl);
                 if (!openedTab) {
-                    statusBar.update(`✅ 上傳成功，但新頁籤被瀏覽器封鎖。\n請允許彈出式視窗或手動開啟：\n${cleanUrl}`);
+                    statusBar.update(`✅ 發佈成功，但新頁籤被瀏覽器封鎖。\n請允許彈出式視窗或手動開啟：\n${cleanUrl}`);
                     await delay(6000);
                     return;
                 }
             } catch (err) {
-                // 擷取或上傳失敗時顯示錯誤，並提供複製建議
+                // 擷取或發佈失敗時顯示錯誤，並提供複製建議
                 statusBar.update(`❌ 操作失敗：${err.message}`);
                 console.error('[SavePageToAzureBlob] 操作失敗：', err);
                 await delay(6000);
@@ -875,7 +1515,84 @@
         return activeSaveOperation;
     }
 
+    // ===== 主流程：「📋 將任意內容發佈到 Infinitybin」選單功能 =====
+
+    /**
+     * 接收使用者貼上的任意文字並發佈到 Infinitybin。
+     *
+     * 主要執行流程：
+     *   1. 讀取已儲存的 SAS URL，如果尚未設定則提示使用者先設定
+     *   2. 顯示文字對話框並等待使用者貼上內容
+     *   3. 貼上後依文字內容推斷副檔名與 Content-Type
+     *   4. 發佈到 Infinitybin
+     *   5. 在新頁籤開啟純淨的 Blob URL
+     */
+    async function publishArbitraryContentToInfinitybin() {
+        if (activeSaveOperation) {
+            // 任意內容與網頁狀態共用同一把鎖，避免使用者連點不同選單時
+            // 產生多個並行 PUT Blob 請求，造成重複內容或難以理解的頁籤切換。
+            activeStatusBar?.update('⏳ 已有進行中的發佈作業，忽略重複觸發...');
+            console.warn('[SavePageToAzureBlob] 偵測到重複觸發，已忽略新的任意內容發佈要求。');
+            return activeSaveOperation;
+        }
+
+        const sasUrl = getConfiguredSasUrl();
+        if (!sasUrl) return;
+
+        let statusBar = null;
+
+        activeSaveOperation = (async () => {
+            try {
+                const pastedText = await waitForPastedText();
+                if (pastedText === null) return;
+
+                const contentUpload = createTextUpload(pastedText, 'text/plain');
+                const sizeKb = Math.max(1, Math.round(contentUpload.byteLength / 1024));
+                const extension = normalizeExtension(contentUpload.extension);
+
+                statusBar = createStatusBar('📋 正在準備發佈內容...');
+                activeStatusBar = statusBar;
+
+                statusBar.update(
+                    `📤 正在發佈內容到 Infinitybin（.${extension}, ${contentUpload.contentType}, ${sizeKb.toLocaleString()} KB），請稍候...`
+                );
+
+                const cleanUrl = await uploadToAzureBlob(contentUpload.content, sasUrl, {
+                    blobNamePrefix: 'content',
+                    extension,
+                    contentType: contentUpload.contentType
+                });
+
+                statusBar.update(`✅ 內容已發佈為 ${contentUpload.label}！即將切換至 Infinitybin 頁籤...\n${cleanUrl}`);
+                await delay(2000);
+
+                const openedTab = openPublishedTab(cleanUrl);
+                if (!openedTab) {
+                    statusBar.update(`✅ 發佈成功，但新頁籤被瀏覽器封鎖。\n請允許彈出式視窗或手動開啟：\n${cleanUrl}`);
+                    await delay(6000);
+                    return;
+                }
+            } catch (err) {
+                if (!statusBar) {
+                    statusBar = createStatusBar('');
+                    activeStatusBar = statusBar;
+                }
+                statusBar.update(`❌ 內容發佈失敗：${err.message}`);
+                console.error('[SavePageToAzureBlob] 內容發佈失敗：', err);
+                await delay(6000);
+            } finally {
+                statusBar?.remove();
+            }
+        })().finally(() => {
+            activeSaveOperation = null;
+            activeStatusBar = null;
+        });
+
+        return activeSaveOperation;
+    }
+
     // ===== 設定流程：「⚙️ 設定 Azure Blob SAS URL」選單功能 =====
+
 
     /**
      * 讓使用者透過 prompt() 對話框輸入或更新 Azure Container SAS URL，
@@ -931,7 +1648,7 @@
 
         // 驗證通過，使用 GM_setValue 安全儲存
         GM_setValue(SAS_URL_STORAGE_KEY, trimmed);
-        alert('✅ Azure Blob SAS URL 已儲存成功！\n現在可以使用「📸 儲存網頁快照」功能了。');
+        alert('✅ Azure Blob SAS URL 已儲存成功！\n現在可以使用「📸 將目前網頁狀態發佈到 Infinitybin」或「📋 將任意內容發佈到 Infinitybin」功能了。');
     }
 
     /**
@@ -964,13 +1681,16 @@
         });
     }
 
-    // ===== 向 Tampermonkey 選單註冊兩個指令 =====
+    // ===== 向 Tampermonkey 選單註冊三個指令 =====
 
-    // 先設定 SAS URL（依賴此設定才能上傳），故放在第一個位置讓使用者容易找到
+    // 主要功能：擷取目前頁面狀態並發佈到 Infinitybin
+    GM_registerMenuCommand('📸 將目前網頁狀態發佈到 Infinitybin', savePageToAzureBlob);
+
+    // 任意內容功能：接收使用者貼上的文字並依內容推斷副檔名與 Content-Type 後發佈
+    GM_registerMenuCommand('📋 將任意內容發佈到 Infinitybin', publishArbitraryContentToInfinitybin);
+
+    // 設定項目放在最後，讓日常使用時最常用的發佈動作優先顯示。
     GM_registerMenuCommand('⚙️ 設定 Azure Blob SAS URL', configureSasUrl);
-
-    // 主要功能：擷取快照並上傳
-    GM_registerMenuCommand('📸 儲存網頁快照', savePageToAzureBlob);
 
     // 支援由 Tampermonkey context-menu 腳本直接觸發同一套主流程。
     registerContextMenuBridge();
