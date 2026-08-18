@@ -66,6 +66,15 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/LinkChecker.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>網頁連結檢查器</td>
+      <td>
+        手動檢查目前網頁中所有可見的圖片、超連結、影片與音訊網址，可檢查全部或僅外部連結，並以不同顏色框線標示檢查結果
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GoogleAppsScriptHideWarningBar.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://script.google.com/">Google Apps Script</a>: 隱藏警告列</td>
