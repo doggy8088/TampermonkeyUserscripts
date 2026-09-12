@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Facebook: 好用的鍵盤快速鍵集合
-// @version      0.8.4
+// @version      0.8.5
 // @description  按下 Ctrl+B 快速切換側邊欄、Ctrl+I 檢舉留言、Ctrl+Delete 刪除留言、Alt+B 快速封鎖使用者
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -11,9 +11,10 @@
 // @author       Will Huang
 // @match        https://www.facebook.com/*
 // @match        https://facebook.com/*
-// @run-at       document-end
+// @run-at       document-start
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=facebook.com
 // @require      https://doggy8088.github.io/playwright-js/src/playwright.js
+// @grant        none
 // ==/UserScript==
 
 // TODO: 當使用者按下「檢舉留言」時，不用確認，直接幫我檢舉、封鎖、刪除
@@ -22,10 +23,78 @@
 (function () {
     'use strict';
 
-    // 當頁面載入後，先執行一次 ctrl+b 操作
-    window.addEventListener('load', () => {
-        setTimeout(toggleSidebar, 1000);
-    });
+    const hideMenuSelector = 'div[aria-label="隱藏功能表"]';
+    const showMenuSelector = 'div[aria-label="顯示功能表"]';
+    const pageNavigationSelector = '[role="navigation"][aria-label="粉絲專頁導覽"]';
+    const cancelInitialSidebarHide = hideInitialSidebar();
+
+    function hideInitialSidebar() {
+        // 使用者希望管理側欄一出現就隱藏。Facebook 可能先產生 DOM，之後才綁定
+        // 按鈕事件，因此先以精確的語意選擇器隱藏側欄，不等待 load 或點擊成功。
+        // 側欄是主內容的 flex 同層元素；display:none 也會讓主內容取得騰出的寬度。
+        const style = document.createElement('style');
+        style.textContent = `${pageNavigationSelector} { display: none !important; }`;
+        let stopped = false;
+        let retryTimer;
+        const initialUrl = window.location.href;
+
+        function stop() {
+            stopped = true;
+            observer.disconnect();
+            clearTimeout(retryTimer);
+            style.remove();
+        }
+
+        function tryHide() {
+            if (stopped) return;
+            if (window.location.href !== initialUrl) {
+                stop();
+                return;
+            }
+
+            // document-start 時 head、甚至 html 都可能尚未建立；觀察 document
+            // 可以在根節點出現後立即補上樣式，也能處理 Facebook 延後插入的側欄。
+            if (!style.isConnected && document.documentElement) {
+                (document.head || document.documentElement).appendChild(style);
+            }
+
+            // 只有「顯示功能表」出現才算真正收合完成。不能把 click() 已呼叫
+            // 當作成功，也不能呼叫 toggleSidebar()，否則可能把已收合的側欄打開。
+            if (document.querySelector(showMenuSelector)) {
+                stop();
+                return;
+            }
+
+            const button = document.querySelector(hideMenuSelector);
+            if (!button || retryTimer !== undefined) return;
+
+            // 事件綁定本身不一定造成 DOM mutation，因此仍需短間隔重試。
+            // 先設定計時器以合併同一期間的 DOM 通知，避免密集重複點擊。
+            retryTimer = setTimeout(() => {
+                retryTimer = undefined;
+                tryHide();
+            }, 100);
+            button.click();
+        }
+
+        const observer = new MutationObserver(tryHide);
+        observer.observe(document, {
+            childList: true,
+            subtree: true,
+            attributes: true,
+            attributeFilter: ['aria-label']
+        });
+        tryHide();
+
+        // 手動切換優先於自動收合。暫時 CSS 隱藏時，第一次切換只需移除 CSS，
+        // 露出原本仍展開的側欄；成功收合後則交還 Facebook 原生按鈕處理。
+        return () => {
+            const wasHiddenByStyle = !stopped && !!document.querySelector(pageNavigationSelector)
+                && !document.querySelector(showMenuSelector);
+            stop();
+            return wasHiddenByStyle;
+        };
+    }
 
     document.addEventListener("keydown", async (event) => {
 
@@ -147,7 +216,8 @@
     }
 
     function toggleSidebar() {
-        var dom = document.querySelector('div[aria-label="隱藏功能表"],div[aria-label="顯示功能表"]')
+        if (cancelInitialSidebarHide()) return true;
+        var dom = document.querySelector(`${hideMenuSelector},${showMenuSelector}`);
         dom?.click();
         return !!dom;
     }
