@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         多奇中文簡繁轉換大師
-// @version      1.0.5
-// @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站
+// @version      1.0.6
+// @description  自動識別網頁中的簡體中文並轉換為繁體中文，同時將中國大陸常用詞彙轉換為台灣用語(包含頁面標題、元素屬性值)，支援 SPA 類型網站，支援連續按下 stt 快速鍵轉換
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -78,6 +78,13 @@
 
     // 簡繁體檢測閾值
     const MIN_SIMPLIFIED_CHAR_COUNT = 1;     // 判定為簡體中文所需的最少簡體字數量
+
+    // 鍵盤連續按鍵快捷鍵設定 (連續鍵入 "stt" 觸發簡繁轉換)
+    // 設計意圖：網頁開啟後，若在非輸入文字的區域連續鍵入 "stt"（代表 Simplified To Traditional），
+    // 即可手動強制觸發整頁簡轉繁。設定 1000 毫秒間隔閥值，限制使用者必須在短時間內連續輸入，
+    // 避免平時瀏覽網頁時的無意識零星按鍵被誤組合成快捷鍵。
+    const SHORTCUT_SEQUENCE = 'stt';         // 觸發簡繁轉換的目標字元序列
+    const SHORTCUT_KEY_TIMEOUT = 1000;       // 連續按鍵的最大允許間隔時間（毫秒），超過此時間未鍵入下一字即重置
 
     /* eslint-enable no-multi-spaces */
 
@@ -384,6 +391,36 @@
         }
     }
 
+    /**
+     * 封裝整頁簡繁轉換邏輯（包含網頁標題與 DOM 內容）。
+     * 設計意圖：
+     * 1. 提供全域統一的頁面轉換入口，供腳本初始化、SPA 路由切換、選單命令與鍵盤快捷鍵調用。
+     * 2. 自動確保 OpenCC 轉換器實例與台灣用語詞庫正則表達式皆已完成初始化。
+     * 3. 先行處理 document.title 的轉換，再遍歷轉換 document.body 的文字節點與允許屬性。
+     */
+    function convertPage() {
+        initConverter();
+        initTermRegex();
+
+        if (!converter) {
+            console.warn('[簡轉繁] OpenCC 轉換器尚未初始化完成，略過本次轉換');
+            return;
+        }
+
+        // 轉換頁面標題
+        if (document.title) {
+            const convertedTitle = convertText(document.title);
+            if (convertedTitle !== document.title) {
+                document.title = convertedTitle;
+            }
+        }
+
+        // 轉換頁面內容
+        if (document.body) {
+            traverse(document.body);
+        }
+    }
+
     // 主執行函數
     function init() {
         // 檢查當前頁面是否應該進行轉換
@@ -394,20 +431,8 @@
 
         console.log('[簡轉繁] 腳本已啟動，開始監聽頁面變化...');
 
-        // 初始化轉換器和正規表達式
-        initConverter();
-        initTermRegex();
-
-        // 轉換頁面標題
-        if (document.title) {
-            const convertedTitle = convertText(document.title);
-            if (convertedTitle !== document.title) {
-                document.title = convertedTitle;
-            }
-        }
-
-        // 轉換現有內容
-        traverse(document.body);
+        // 轉換頁面標題與現有內容
+        convertPage();
 
         // 使用防抖技術減少 MutationObserver 的執行頻率
         let debounceTimer = null;
@@ -501,20 +526,6 @@
         // 監聽 URL 變化 (用於 SPA 路由切換)
         let lastUrl = location.href;
 
-        // 封裝轉換邏輯為函式,便於重複呼叫
-        function convertPage() {
-            // 轉換頁面標題
-            if (document.title) {
-                const convertedTitle = convertText(document.title);
-                if (convertedTitle !== document.title) {
-                    document.title = convertedTitle;
-                }
-            }
-
-            // 轉換頁面內容
-            traverse(document.body);
-        }
-
         // 監聽 pushState 和 replaceState
         const originalPushState = history.pushState;
         const originalReplaceState = history.replaceState;
@@ -594,22 +605,215 @@
         if (typeof GM_registerMenuCommand !== 'undefined') {
             GM_registerMenuCommand('🔄 轉換此頁面 (簡→繁)', () => {
                 console.log('[簡轉繁] 使用者在非清單頁面手動觸發轉換');
-                initConverter();
-                initTermRegex();
-
-                // 轉換頁面標題
-                if (document.title) {
-                    const convertedTitle = convertText(document.title);
-                    if (convertedTitle !== document.title) {
-                        document.title = convertedTitle;
-                    }
-                }
-
-                // 轉換頁面內容
-                traverse(document.body);
+                convertPage();
                 // alert('[簡轉繁] 頁面轉換完成！');
             });
         }
+    }
+
+    // ===== 鍵盤快捷鍵功能實作 (連續快速鍵入 "stt" 觸發簡繁轉換) =====
+
+    // 按鍵輸入緩衝區與逾時重置計時器
+    let keySequenceBuffer = '';
+    let keySequenceTimer = null;
+
+    /**
+     * 檢查特定元素是否屬於使用者可直接輸入或正在進行文本編輯的區域。
+     * 設計意圖：
+     * 1. 排除 HTML 原生輸入元素（INPUT、TEXTAREA、SELECT）。
+     * 2. 排除具有 contenteditable 屬性之編輯區塊（如各類富文本編輯器、Notion、Google Docs、Slack 等）。
+     * 3. 排除 ARIA 角色為 textbox、searchbox 或 combobox 的模擬文字輸入元件。
+     * 4. 透過 closest() 向上遍歷祖先節點，確保在任何可編輯容器內部都不會誤觸發快捷鍵。
+     *
+     * @param {Element} element - 待檢查的 DOM 元素
+     * @returns {boolean} 若為輸入或可編輯元素則返回 true
+     */
+    function isDirectlyEditable(element) {
+        if (!element || !(element instanceof Element)) {
+            return false;
+        }
+
+        const tagName = element.tagName.toUpperCase();
+        if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') {
+            return true;
+        }
+
+        if (element.isContentEditable) {
+            return true;
+        }
+
+        const role = element.getAttribute('role');
+        if (role === 'textbox' || role === 'searchbox' || role === 'combobox') {
+            return true;
+        }
+
+        if (typeof element.closest === 'function') {
+            if (element.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"]), [role="textbox"], [role="searchbox"], [role="combobox"]')) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 檢查當前鍵盤事件是否發生在使用者輸入的範圍內。
+     * 設計意圖：
+     * 1. 優先檢查 document.activeElement，若當前焦點已位於輸入框中，則絕對不觸發快捷鍵。
+     * 2. 透過 event.composedPath() 檢查事件傳遞路徑中的所有節點，能有效穿透 Shadow DOM，
+     *    正確識別現代 Web Components 封裝內部的自訂輸入框。
+     * 3. 確保使用者在網頁任何輸入框、表單、編輯器正常鍵入 "stt" 時，不會被當成快捷鍵截斷或干擾正常輸入。
+     *
+     * @param {KeyboardEvent} event - 鍵盤事件物件
+     * @returns {boolean} 若處於輸入模式則返回 true
+     */
+    function isInInputMode(event) {
+        // 檢查當前獲得焦點的元素
+        const activeElement = document.activeElement;
+        if (activeElement && isDirectlyEditable(activeElement)) {
+            return true;
+        }
+
+        // 透過 composedPath 取得事件傳遞路徑（支援 Shadow DOM 穿透）
+        const path = (typeof event.composedPath === 'function') ? event.composedPath() : [event.target];
+        for (const node of path) {
+            if (node instanceof Element && isDirectlyEditable(node)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * 執行由快捷鍵觸發的簡繁轉換。
+     * 設計意圖：
+     * 1. 檢查 OpenCC 是否已經載入完成，若尚未載入則定時輪詢等待至就緒。
+     * 2. 呼叫 convertPage() 執行整頁轉換（包含頁面標題與 body 所有節點）。
+     * 3. 無論當前網址是否在 ALLOWED_URL_PATTERNS 白名單中，使用者皆可透過連續按下 "stt" 立即手動執行轉換。
+     */
+    function executeShortcutConversion() {
+        if (typeof OpenCC === 'undefined') {
+            console.log('[簡轉繁] 收到快捷鍵轉換請求，等待 OpenCC 函式庫載入...');
+            let retryCount = 0;
+            const checkInterval = setInterval(() => {
+                retryCount++;
+                if (typeof OpenCC !== 'undefined') {
+                    clearInterval(checkInterval);
+                    convertPage();
+                    console.log('[簡轉繁] 快捷鍵 "stt" 簡繁轉換完成！');
+                } else if (retryCount >= OPENCC_MAX_RETRY_COUNT) {
+                    clearInterval(checkInterval);
+                    console.error('[簡轉繁] OpenCC 函式庫載入失敗，無法執行簡繁轉換');
+                }
+            }, OPENCC_LOAD_CHECK_INTERVAL);
+            return;
+        }
+
+        convertPage();
+        console.log('[簡轉繁] 快捷鍵 "stt" 簡繁轉換完成！');
+    }
+
+    /**
+     * 處理連續按鍵觸發簡繁轉換的鍵盤事件監聽器。
+     * 設計意圖與運作機制：
+     * 1. 排除包含 Ctrl / Alt / Meta(Command) 等系統修飾鍵，避免與系統或瀏覽器快捷鍵（如 Ctrl+S）產生衝突。
+     * 2. 排除輸入法組字中狀態 (isComposing / keyCode 229)，避免中文輸入法選字期間誤觸發。
+     * 3. 嚴格檢查是否處於輸入模式，若在輸入框內鍵入則立即清空緩衝區並退出。
+     * 4. 採用前綴狀態機比對：
+     *    - 使用者依序鍵入字母，檢查拼接後的新字串是否符合目標序列 "stt" 的前綴。
+     *    - 若符合前綴則累積緩衝區，並重設逾時清除計時器（SHORTCUT_KEY_TIMEOUT）。
+     *    - 若不符合但新按下的鍵恰為起始字元 's'，則視為重新開始序列（例如輸入 "sstt" 能在第二個 's' 順利接續 't', 't' 觸發）。
+     *    - 若完全不符合則清空緩衝區與計時器。
+     * 5. 達成連續完整按鍵 "stt" 且各鍵輸入間隔未逾時時，阻止預設行為與事件冒泡，並立即執行簡繁轉換。
+     *
+     * @param {KeyboardEvent} event - 鍵盤事件物件
+     */
+    function handleKeyDown(event) {
+        // 排除包含 Ctrl / Alt / Meta(Command) 的組合鍵，避免干擾系統或自訂全域快捷鍵
+        if (event.ctrlKey || event.altKey || event.metaKey) {
+            keySequenceBuffer = '';
+            if (keySequenceTimer) {
+                clearTimeout(keySequenceTimer);
+                keySequenceTimer = null;
+            }
+            return;
+        }
+
+        // 排除輸入法組字中狀態 (IME composing)，避免選字或注音拼音輸入時觸發
+        if (event.isComposing || event.keyCode === 229) {
+            return;
+        }
+
+        // 若使用者正在可輸入的範圍內（如文字框、輸入框、編輯器），絕不觸發快捷鍵並重置緩衝區
+        if (isInInputMode(event)) {
+            keySequenceBuffer = '';
+            if (keySequenceTimer) {
+                clearTimeout(keySequenceTimer);
+                keySequenceTimer = null;
+            }
+            return;
+        }
+
+        // 取得按鍵字元並轉換為小寫，確保支援大寫鎖定 (CapsLock) 或 Shift 鍵入時的一致性
+        const key = event.key ? event.key.toLowerCase() : '';
+
+        // 只處理單一字母或符號鍵，排除 Shift、Control、Enter、Backspace、方向鍵等功能鍵
+        if (key.length !== 1) {
+            // 功能鍵打斷連續輸入序列
+            keySequenceBuffer = '';
+            if (keySequenceTimer) {
+                clearTimeout(keySequenceTimer);
+                keySequenceTimer = null;
+            }
+            return;
+        }
+
+        // 清除上一個按鍵所設定的逾時清除計時器
+        if (keySequenceTimer) {
+            clearTimeout(keySequenceTimer);
+            keySequenceTimer = null;
+        }
+
+        // 透過前綴比對檢查連續按鍵是否朝著 "stt" 邁進
+        const nextBuffer = keySequenceBuffer + key;
+        if (SHORTCUT_SEQUENCE.startsWith(nextBuffer)) {
+            keySequenceBuffer = nextBuffer;
+        } else if (key === SHORTCUT_SEQUENCE[0]) {
+            // 若目前按下的字元恰好是序列的開頭字元 's'，則將緩衝區重設為 's' 重新開始
+            keySequenceBuffer = key;
+        } else {
+            // 與序列不符，清空緩衝區
+            keySequenceBuffer = '';
+        }
+
+        // 檢查是否成功達成連續按下 "stt"
+        if (keySequenceBuffer === SHORTCUT_SEQUENCE) {
+            keySequenceBuffer = '';
+            // 阻止該按鍵可能的預設行為（例如部分網站的單鍵快速導航）
+            event.preventDefault();
+            event.stopPropagation();
+            executeShortcutConversion();
+            return;
+        }
+
+        // 若序列尚未湊齊但有部分匹配，設定逾時計時器，若間隔停留太久未按下一鍵則自動重置
+        if (keySequenceBuffer.length > 0) {
+            keySequenceTimer = setTimeout(() => {
+                keySequenceBuffer = '';
+                keySequenceTimer = null;
+            }, SHORTCUT_KEY_TIMEOUT);
+        }
+    }
+
+    /**
+     * 初始化鍵盤快捷鍵監聽器。
+     * 設計意圖：
+     * 網頁開啟後即註冊鍵盤監聽事件，使用 capture 捕獲階段（true）確保在最上層即時攔截按鍵，
+     * 避免被網頁上其他框架或事件監聽器透過 stopPropagation 阻擋。
+     */
+    function initShortcutListener() {
+        window.addEventListener('keydown', handleKeyDown, true);
     }
 
     // 等待 OpenCC 函式庫載入完成後再執行
@@ -635,6 +839,9 @@
         // 對於不在清單中的頁面，只提供手動轉換菜單
         initMenuForOtherPages();
     }
+
+    // 網頁開啟後，無論是否符合自動轉換網址名單，皆啟用鍵盤快捷鍵（連續按下 "stt" 觸發簡繁轉換）
+    initShortcutListener();
 
     // 加入 YouTube 字幕攔截和轉換功能
     (function () {
