@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         網頁連結檢查器
-// @version      1.0.0
-// @description  手動檢查目前網頁中所有可見的圖片、超連結、影片與音訊網址，可檢查全部或僅外部連結，並以不同顏色框線標示結果
+// @version      1.1.0
+// @description  手動檢查目前網頁中可見的 IMG 與 CSS 圖片、超連結、影片與音訊網址，圖片須回傳 image/* MIME 類型，可檢查全部或僅外部連結並以框線標示結果
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -299,6 +299,98 @@
      * ============================================================
      */
 
+    function extractCssImageUrls(value) {
+        /*
+         * 從計算後樣式讀取 url()，讓外部樣式表的相對網址由瀏覽器解析。
+         * 不依副檔名判斷圖片；多層背景與 image-set() 中的 URL 都須檢查。
+         * 引號中的括號與 CSS 跳脫字元屬於網址內容，不能直接以右括號切割。
+         */
+        const urls = new Set();
+        const pattern = /"(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|\burl\(\s*(?:"((?:\\[\s\S]|[^"\\])*)"|'((?:\\[\s\S]|[^'\\])*)'|((?:\\[\s\S]|[^)\\])*))\s*\)/gi;
+
+        for (const match of (value || '').matchAll(pattern)) {
+            // content 的純文字可能包含 url(...)；獨立字串不是圖片來源。
+            if (match[1] === undefined && match[2] === undefined && match[3] === undefined) {
+                continue;
+            }
+
+            const escaped = match[1] ?? match[2] ?? match[3].trim();
+            const url = escaped.replace(
+                /\\(?:([0-9a-f]{1,6})[\t\n\f\r ]?|\r\n|[\n\r\f]|([\s\S]))/gi,
+                (escape, hex, character) => {
+                    if (!hex) {
+                        return character || '';
+                    }
+
+                    const code = parseInt(hex, 16);
+                    return code === 0 || code > 0x10ffff || (code >= 0xd800 && code <= 0xdfff)
+                        ? '\uFFFD'
+                        : String.fromCodePoint(code);
+                }
+            );
+
+            if (url) {
+                urls.add(absoluteUrl(url));
+            }
+        }
+
+        return urls;
+    }
+
+    function collectCssImages(element, add) {
+        const properties = [
+            'background-image',
+            'border-image-source',
+            'list-style-image',
+            'mask-image',
+            '-webkit-mask-image',
+            'content'
+        ];
+
+        /*
+         * 計算後樣式涵蓋行內 CSS 與樣式表，無須讀取可能受跨來源限制的 cssRules。
+         * 偽元素沒有獨立 DOM 節點，報表與框線使用其所屬元素，並保留來源名稱。
+         * 同一圖片的標準與 WebKit 屬性別名只建立一筆，避免重複列入統計。
+         */
+        for (const pseudo of ['', '::before', '::after']) {
+            const style = getComputedStyle(element, pseudo || null);
+
+            if (
+                style.display === 'none' ||
+                style.visibility === 'hidden' ||
+                Number(style.opacity) === 0 ||
+                (pseudo && (style.content === 'none' || style.content === 'normal'))
+            ) {
+                continue;
+            }
+
+            const seen = new Set();
+
+            for (const property of properties) {
+                // list-style-image 會繼承，但只有 list-item 本身繪製項目符號。
+                if (property === 'list-style-image' && !style.display.split(' ').includes('list-item')) {
+                    continue;
+                }
+
+                for (const url of extractCssImageUrls(style.getPropertyValue(property))) {
+                    if (seen.has(url)) {
+                        continue;
+                    }
+
+                    seen.add(url);
+                    add({
+                        element,
+                        type: 'image',
+                        typeLabel: 'Image',
+                        url,
+                        source: `CSS ${pseudo ? `${pseudo} ` : ''}${property}`,
+                        cssImage: true
+                    });
+                }
+            }
+        }
+    }
+
     function collectVisibleResources(
         mode
     ) {
@@ -391,6 +483,18 @@
                         'src/currentSrc'
                 });
             });
+
+        /*
+         * CSS 圖片與 IMG 使用相同的 HTTP 與 MIME 驗證，保留原有可見性和範圍篩選。
+         * 排除前一次檢查的報表，避免報表本身的樣式被當成頁面資源。
+         */
+        document.querySelectorAll('*').forEach(element => {
+            if (element.id === REPORT_HOST_ID || !isVisible(element)) {
+                return;
+            }
+
+            collectCssImages(element, add);
+        });
 
         /*
          * Video
@@ -532,6 +636,18 @@
                 type ===
                 'image'
             ) {
+                /*
+                 * CSS 的 data/blob 圖片沒有 HTTP 標頭，也沒有 IMG 的載入狀態。
+                 * 不可用所屬元素的 naturalWidth 判斷另一張圖片，故明確標示跳過。
+                 */
+                if (record.cssImage) {
+                    return {
+                        status: 'skipped',
+                        httpStatus: '',
+                        note: `${parsed.protocol.slice(0, -1)} CSS image; no HTTP Content-Type to validate`
+                    };
+                }
+
                 const ok =
                     element.complete &&
                     element.naturalWidth > 0;
@@ -644,6 +760,26 @@
 
                 note:
                     `Unsupported protocol: ${parsed.protocol}`
+            };
+        }
+
+        /*
+         * 頁內 SVG mask 的 url(#id) 引用 DOM，並非另外下載圖片。
+         * 不應重新請求 HTML 頁面，再因 text/html 誤報為無效圖片。
+         * 外部 SVG 遮罩仍走正常 HTTP 與 image/* 驗證。
+         */
+        if (
+            record.cssImage &&
+            record.source.endsWith('mask-image') &&
+            parsed.origin === location.origin &&
+            parsed.pathname === location.pathname &&
+            parsed.search === location.search &&
+            parsed.hash
+        ) {
+            return {
+                status: 'skipped',
+                httpStatus: '',
+                note: 'In-page CSS mask reference; no separate HTTP image response'
             };
         }
 
@@ -998,6 +1134,47 @@
 
     /*
      * ============================================================
+     * Response validation
+     * ============================================================
+     */
+
+    function getResponseContentType(response) {
+        /*
+         * Tampermonkey 提供文字格式的 responseHeaders。標頭名稱與 MIME 類型
+         * 不分大小寫；charset 等分號後參數不影響 image/* 的類型判斷。
+         * 缺少標頭時保留空值，絕不由 .jpg 等副檔名或 HTTP 200 推測內容。
+         */
+        const match = (response.responseHeaders || '').match(/^content-type:[\t ]*([^\r\n]*)/im);
+        return match ? match[1].split(';', 1)[0].trim().toLowerCase() : '';
+    }
+
+    function isImageContentType(contentType) {
+        return /^image\/[a-z0-9][a-z0-9!#$&^_.+-]*$/.test(contentType || '');
+    }
+
+    function isSuccessfulResponse(record, response) {
+        /*
+         * 圖片網址可能以 HTTP 200 回傳登入頁或錯誤 HTML。圖片必須同時符合
+         * 2xx 與具體的 image 子類型；其他資源維持既有的 HTTP 判斷方式。
+         */
+        return response.status >= 200 &&
+            response.status < (record.type === 'image' ? 300 : 400) &&
+            (record.type !== 'image' || isImageContentType(response.contentType));
+    }
+
+    function describeResponse(record, response) {
+        const summary = `${response.method} ${describeCode(response.status)}`;
+
+        if (record.type !== 'image' || !response.status) {
+            return summary;
+        }
+
+        const expected = isImageContentType(response.contentType) ? '' : '; expected image/*';
+        return `${summary} (Content-Type: ${response.contentType || 'missing'}${expected})`;
+    }
+
+    /*
+     * ============================================================
      * HEAD request
      * ============================================================
      */
@@ -1038,6 +1215,9 @@
                             statusText:
                                 response.statusText ||
                                 '',
+
+                            contentType:
+                                getResponseContentType(response),
 
                             finalUrl:
                                 response.finalUrl ||
@@ -1149,6 +1329,9 @@
                             response.statusText ||
                             '',
 
+                        contentType:
+                            getResponseContentType(response),
+
                         finalUrl:
                             response.finalUrl ||
                             requestUrl
@@ -1178,10 +1361,18 @@
                         onreadystatechange(
                             response
                         ) {
+                            /*
+                             * 不能在重新導向的中間回應就中止，也不能在圖片標頭尚未
+                             * 提供時只憑狀態碼判定。等待最終標頭或 onload 再驗證 MIME。
+                             */
                             if (
                                 settled ||
                                 response.readyState < 2 ||
-                                response.status <= 0
+                                response.status <= 0 ||
+                                (response.readyState < 4 && (
+                                    (response.status >= 300 && response.status < 400) ||
+                                    (record.type === 'image' && !response.responseHeaders)
+                                ))
                             ) {
                                 return;
                             }
@@ -1332,11 +1523,11 @@
                             );
 
                         /*
-                         * HEAD succeeded.
+                         * HEAD 只有符合該資源的條件才成功。圖片若缺少 Content-Type
+                         * 或回傳非圖片類型，仍須以 GET 確認，容許 HEAD 標頭不完整的服務。
                          */
                         if (
-                            head.status >= 200 &&
-                            head.status < 400
+                            isSuccessfulResponse(record, head)
                         ) {
                             return {
                                 finalStatus:
@@ -1346,7 +1537,7 @@
                                     head.status,
 
                                 note:
-                                    `HEAD ${head.status}`,
+                                    describeResponse(record, head),
 
                                 finalUrl:
                                     head.finalUrl
@@ -1386,11 +1577,11 @@
                             );
 
                         /*
-                         * GET succeeded.
+                         * GET 的最終回應也必須通過 MIME 驗證，不能把 HTTP 200 的
+                         * HTML 錯誤頁當成有效圖片；GET probe 保留中止前收到的標頭。
                          */
                         if (
-                            get.status >= 200 &&
-                            get.status < 400
+                            isSuccessfulResponse(record, get)
                         ) {
                             return {
                                 finalStatus:
@@ -1400,9 +1591,7 @@
                                     get.status,
 
                                 note:
-                                    `HEAD ${describeCode(
-                                        head.status
-                                    )} → GET ${get.status}`,
+                                    `${describeResponse(record, head)} → ${describeResponse(record, get)}`,
 
                                 finalUrl:
                                     get.finalUrl
@@ -1486,7 +1675,8 @@
                         }
 
                         /*
-                         * Actual HTTP error returned by GET.
+                         * GET 的 HTTP 錯誤或圖片 MIME 不符都屬於無效資源。
+                         * 報表保留 MIME 結果，讓 HTTP 200 的無效圖片原因可被查驗。
                          */
                         return {
                             finalStatus:
@@ -1496,9 +1686,7 @@
                                 get.status,
 
                             note:
-                                `HEAD ${describeCode(
-                                    head.status
-                                )} → GET ${get.status}`,
+                                `${describeResponse(record, head)} → ${describeResponse(record, get)}`,
 
                             finalUrl:
                                 get.finalUrl
@@ -1542,24 +1730,53 @@
      * ============================================================
      */
 
+    let elementStatuses = new WeakMap();
+
     function applyElementStatus(
         record,
         status
     ) {
+        /*
+         * 一個元素可能包含超連結、多層背景與偽元素圖片。非同步請求的完成順序
+         * 不應讓後完成的有效圖片覆蓋已發現的錯誤；框線彙總所有資源的狀態。
+         * 錯誤優先，其次為檢查中與無法確認，只有全部有效才顯示有效框線。
+         */
+        let states = elementStatuses.get(record.element);
+
+        if (!states) {
+            states = new Map();
+            elementStatuses.set(record.element, states);
+        }
+
+        states.set(record, status);
+
+        const priority = { invalid: 3, checking: 2, skipped: 1, valid: 0 };
+        let selected = record;
+        let selectedStatus = status;
+
+        for (const [candidate, candidateStatus] of states) {
+            if (priority[candidateStatus] > priority[selectedStatus]) {
+                selected = candidate;
+                selectedStatus = candidateStatus;
+            }
+        }
+
         record.element
             .setAttribute(
                 ATTR_TYPE,
-                record.type
+                selected.type
             );
 
         record.element
             .setAttribute(
                 ATTR_STATUS,
-                status
+                selectedStatus
             );
     }
 
     function clearPreviousMarks() {
+        elementStatuses = new WeakMap();
+
         document
             .querySelectorAll(
                 `[${ATTR_STATUS}],` +
@@ -3236,8 +3453,7 @@
                 rowInfo
                     .noteCell
                     .textContent =
-                    result.note ||
-                    '';
+                    [records[index].source, result.note].filter(Boolean).join('; ');
 
                 applyFilter();
             }
