@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網頁連結檢查器
-// @version      1.1.0
+// @version      1.1.1
 // @description  手動檢查目前網頁中可見的 IMG 與 CSS 圖片、超連結、影片與音訊網址，圖片須回傳 image/* MIME 類型，可檢查全部或僅外部連結並以框線標示結果
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -11,6 +11,7 @@
 // @author       Will Huang
 // @match        *://*/*
 // @run-at       document-idle
+// @icon         https://raw.githubusercontent.com/doggy8088/TampermonkeyUserscripts/main/images/LinkChecker.png
 // @grant        GM_registerMenuCommand
 // @grant        GM_xmlhttpRequest
 // @grant        GM_addStyle
