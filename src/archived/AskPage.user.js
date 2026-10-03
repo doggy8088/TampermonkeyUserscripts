@@ -40,7 +40,25 @@
         { value: 'gemini-2.5-flash', label: 'Gemini 2.5 Flash (平衡速度與品質)' },
         { value: 'gemini-2.5-flash-lite-preview-06-17', label: 'Gemini 2.5 Flash Lite (最快速度)' }
     ];
-    let apiKey = GM_getValue(API_KEY_STORAGE, '');
+    function encodeApiKey(rawKey) {
+        try {
+            return rawKey ? btoa(encodeURIComponent(rawKey)) : '';
+        } catch (error) {
+            console.error('無法編碼 API Key', error);
+            return '';
+        }
+    }
+
+    function decodeApiKey(storedKey) {
+        try {
+            return storedKey ? decodeURIComponent(atob(storedKey)) : '';
+        } catch (error) {
+            console.error('無法解碼 API Key', error);
+            return '';
+        }
+    }
+
+    let apiKey = decodeApiKey(GM_getValue(API_KEY_STORAGE, ''));
     let selectedModel = GM_getValue(MODEL_STORAGE, 'gemini-2.5-flash-lite-preview-06-17');
 
     /* --------------------------------------------------
@@ -123,7 +141,7 @@
         btnSave.addEventListener('click', () => {
             apiKey = keyInput.value.trim();
             selectedModel = modelSelect.value;
-            GM_setValue(API_KEY_STORAGE, apiKey);
+            GM_setValue(API_KEY_STORAGE, encodeApiKey(apiKey));
             GM_setValue(MODEL_STORAGE, selectedModel);
             console.log('[AskPage] API Key 和模型已儲存');
             alert('已儲存 API Key 和模型設定');
