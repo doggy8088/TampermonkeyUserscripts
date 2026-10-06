@@ -106,6 +106,8 @@ function consumeRecentKeyboardCopy() {
  *      實作的「一鍵複製」按鈕，或其他由程式觸發的複製。本腳本的捕獲階段監聽器比網站的監聽器更早執行，
  *      原本會搶先把整頁文章寫進 text/html、text/markdown，再用 GM_setClipboard() 寫入整頁純文字，
  *      導致網站要複製的內容消失；這類複製一律略過。
+ * 3. 在可編輯區（contenteditable、designMode）中沒有選取任何內容就按下複製（略過）：交還給編輯器自己的
+ *    複製行為（例如程式碼編輯器在沒有選取時複製整行），不以整頁文章覆蓋。可編輯區中有選取時則照常轉換。
  *
  * 需要略過時直接 return，不呼叫 preventDefault()，讓瀏覽器與網站原本的複製行為完全不受影響。
  * 腳本說明中「在網頁選取文字範圍後，按下 Ctrl+C」的正常使用流程則完全不變。
@@ -129,6 +131,24 @@ function shouldSkipCopyEvent(event, selection) {
     const hasSelection = !!selection && selection.rangeCount > 0 && !selection.isCollapsed;
     if (!hasSelection && !isKeyboardCopy) {
         return true;
+    }
+
+    // 3. 在可編輯區（contenteditable 編輯器或 designMode 文件）中、沒有選取任何內容時按下複製（略過）：
+    //    游標收合在編輯器裡按 Ctrl+C／Cmd+C，使用者要的是「編輯器自己的複製行為」，例如 CodeMirror、
+    //    Monaco 這類程式碼編輯器在沒有選取時會複製游標所在的整行，ProseMirror、Lexical 等富文字編輯器
+    //    也會自行決定要放進剪貼簿的內容；而不是把整頁文章轉成 Markdown。原本這種情況會被第 2 點的
+    //    鍵盤複製判斷放行，捕獲階段的監聽器搶先 preventDefault()，蓋掉編輯器的原生複製結果。
+    //    刻意只略過「沒有選取」的情況：在可編輯區中選取文字後複製，仍維持把選取範圍轉成 Markdown 的
+    //    既有行為，這是本腳本的主要用途，全面排除可編輯區會讓使用者失去這個功能。
+    //    以 isContentEditable 判斷：它會沿用祖先的 contenteditable 設定，也能正確處理
+    //    contenteditable="false" 的唯讀區塊與 designMode 開啟的文件；另外直接檢查 designMode，
+    //    涵蓋 target 不是元素（例如 document 本身）的情況。
+    if (!hasSelection) {
+        const isEditableTarget = (target && target.isContentEditable === true)
+            || document.designMode === 'on';
+        if (isEditableTarget) {
+            return true;
+        }
     }
 
     return false;

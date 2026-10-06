@@ -2901,6 +2901,12 @@
     if (!hasSelection && !isKeyboardCopy) {
       return true;
     }
+    if (!hasSelection) {
+      const isEditableTarget = target && target.isContentEditable === true || document.designMode === "on";
+      if (isEditableTarget) {
+        return true;
+      }
+    }
     return false;
   }
   function getHTMLfromSelectorOrContent() {
