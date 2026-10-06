@@ -86,7 +86,9 @@
     let applyAbortRequested = false;
     let detachApplyAbortListener = null;
 
-    injectStyles();
+    // 樣式改為第一次顯示通知或高亮欄位時才注入（見 showToast()、highlightElement()）。
+    // 本腳本的 @match 涵蓋所有網站，若在載入時就插入 <style>，每個頁面與 iframe 都會多一個
+    // 用不到的樣式表；實際上只有使用者從選單執行命令時才需要。
     registerMenuCommands();
 
     function registerMenuCommands() {
@@ -1931,6 +1933,8 @@
     }
 
     function highlightElement(element) {
+        // 高亮動畫的 CSS 與 toast 共用同一個 <style>，延後到真正需要時才注入。
+        injectStyles();
         element.classList.add(HIGHLIGHT_CLASS);
         return () => {
             element.classList.remove(HIGHLIGHT_CLASS);
@@ -1988,7 +1992,9 @@
             toast.appendChild(closeButton);
         }
 
-        document.body.appendChild(toast);
+        // XML/SVG 等文件沒有 <body>；退回 documentElement，避免 toast 本身丟出例外，
+        // 讓「找不到可快照的表單欄位」這類提示也能正常顯示。
+        (document.body || document.documentElement).appendChild(toast);
         requestAnimationFrame(() => {
             toast.classList.add('show');
         });
@@ -2408,6 +2414,15 @@
                     input.remove();
                 }
             };
+
+            // 使用者在檔案選擇視窗按「取消」時不會觸發 change，原本 Promise 會永遠
+            // 停在 pending：匯入流程卡住、不顯示「已取消匯入」，隱藏的 <input> 也一直
+            // 留在頁面上（每取消一次多一個）。現代瀏覽器（Chrome 113+、Firefox 91+、
+            // Safari 16.4+）會在取消時觸發 cancel 事件，藉此比照「未選檔」結束流程。
+            input.addEventListener('cancel', () => {
+                cleanup();
+                resolve('');
+            }, { once: true });
 
             input.addEventListener('change', async () => {
                 try {
