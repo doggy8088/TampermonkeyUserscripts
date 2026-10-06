@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         在網頁複製內容時，自動將 text/markdown 的內容寫入剪貼簿
-// @version      0.1.0
+// @version      0.2.0
 // @description  在網頁選取文字範圍後，使用者按下 Ctrl+C 複製內容，就可以將選取範圍的 HTML 轉成 Markdown 格式並寫入剪貼簿
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -8,10 +8,10 @@
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/CopyToMarkdown.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/CopyToMarkdown.user.js
-// @match        *://*/*
 // @author       Will Huang
-// @grant        GM_setClipboard
+// @match        *://*/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=www.duotify.com
+// @grant        GM_setClipboard
 // ==/UserScript==
 (() => {
   var __create = Object.create;
@@ -2867,11 +2867,53 @@
   var turndown_browser_es_default = TurndownService;
 
   // CopyToMarkdown.user.src.js
+  function toAbsoluteUrl(url) {
+    if (url.startsWith("//")) {
+      return window.location.protocol + url;
+    }
+    return window.location.origin + url;
+  }
+  function escapeHtml(text) {
+    return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  var KEYBOARD_COPY_WINDOW_MS = 1e3;
+  var lastKeyboardCopyAt = 0;
+  function rememberKeyboardCopy(event) {
+    if (!event.isTrusted || !(event.ctrlKey || event.metaKey) || event.altKey) {
+      return;
+    }
+    if (event.code === "KeyC" || (event.key || "").toLowerCase() === "c") {
+      lastKeyboardCopyAt = performance.now();
+    }
+  }
+  function consumeRecentKeyboardCopy() {
+    const isRecent = lastKeyboardCopyAt > 0 && performance.now() - lastKeyboardCopyAt <= KEYBOARD_COPY_WINDOW_MS;
+    lastKeyboardCopyAt = 0;
+    return isRecent;
+  }
+  function shouldSkipCopyEvent(event, selection) {
+    const isKeyboardCopy = consumeRecentKeyboardCopy();
+    const target = event.target;
+    if (target && typeof target.closest === "function" && target.closest("input, textarea")) {
+      return true;
+    }
+    const hasSelection = !!selection && selection.rangeCount > 0 && !selection.isCollapsed;
+    if (!hasSelection && !isKeyboardCopy) {
+      return true;
+    }
+    if (!hasSelection) {
+      const isEditableTarget = target && target.isContentEditable === true || document.designMode === "on";
+      if (isEditableTarget) {
+        return true;
+      }
+    }
+    return false;
+  }
   function getHTMLfromSelectorOrContent() {
     let selection = window.getSelection();
     let html = "";
     let container = document.createElement("div");
-    if (selection.rangeCount > 0) {
+    if (selection && selection.rangeCount > 0) {
       let range = selection.getRangeAt(0);
       container.appendChild(range.cloneContents());
       if (!!container) {
@@ -2883,7 +2925,7 @@
         images.forEach(function(img) {
           var src = img.getAttribute("src");
           if (src && src.startsWith("/")) {
-            var fullUrl = window.location.origin + src;
+            var fullUrl = toAbsoluteUrl(src);
             img.setAttribute("src", fullUrl);
           }
         });
@@ -2891,7 +2933,7 @@
         links.forEach(function(a) {
           var href = a.getAttribute("href");
           if (href && href.startsWith("/")) {
-            var fullUrl = window.location.origin + href;
+            var fullUrl = toAbsoluteUrl(href);
             a.setAttribute("href", fullUrl);
           }
         });
@@ -2904,7 +2946,11 @@
       }
       var documentClone = document.cloneNode(true);
       var article = new import_readability.Readability(documentClone).parse();
-      html = `<h1>${article.title}</h1>` + article.content;
+      if (!article || !article.content) {
+        console.warn("Readability \u7121\u6CD5\u5F9E\u76EE\u524D\u7684\u9801\u9762\u64F7\u53D6\u51FA\u6587\u7AE0\u5167\u5BB9\uFF0C\u7DAD\u6301\u700F\u89BD\u5668\u539F\u672C\u7684\u8907\u88FD\u884C\u70BA\u3002");
+        return "";
+      }
+      html = `<h1>${escapeHtml(article.title || "")}</h1>` + article.content;
     }
     return html;
   }
@@ -2922,14 +2968,18 @@
     preformattedCode: false
   });
   function normalizeSpacesToAscii(text) {
-    return text.replace(/[\u00a0\u1680\u2000-\u200b\u202f\u205f\u3000]/g, " ");
+    return text.replace(/[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g, " ").replace(/[\u200b\ufeff]/g, "");
   }
   function getPlainTextFromHTML(html) {
-    const div = document.createElement("div");
-    div.innerHTML = html;
-    return normalizeSpacesToAscii(div.textContent || div.innerText || "").trim();
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const text = doc.body ? doc.body.textContent : "";
+    return normalizeSpacesToAscii(text || "").trim();
   }
+  document.addEventListener("keydown", rememberKeyboardCopy, true);
   document.addEventListener("copy", function(event) {
+    if (shouldSkipCopyEvent(event, window.getSelection())) {
+      return;
+    }
     let html = getHTMLfromSelectorOrContent();
     if (!!html) {
       let markdown = turndownService.turndown(html);

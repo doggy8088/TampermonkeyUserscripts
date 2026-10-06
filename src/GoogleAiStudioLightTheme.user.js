@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Google AI Studio Light Theme
-// @version      1.0
+// @version      1.0.1
 // @description  強迫讓 Google AI Studio 使用淺色主題，方便簡報時使用
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -12,6 +12,7 @@
 // @match        https://makersuite.google.com/*
 // @run-at       document-idle
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=makersuite.google.com
+// @grant        none
 // ==/UserScript==
 
 (function () {

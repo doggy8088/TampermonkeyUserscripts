@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Google Apps Script 隱藏警告列
-// @version      1.0
+// @version      1.0.1
 // @description  自動隱藏 Google Apps Script 執行頁面的警告提示列
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -11,12 +11,14 @@
 // @author       Will Huang
 // @match        https://script.google.com/macros/s/*/exec
 // @run-at       document-idle
-// @grant        none
 // @icon         https://www.gstatic.com/script/favicon.ico
+// @grant        none
 // ==/UserScript==
 
 (function() {
     'use strict';
+
+    const LOG_PREFIX = '[Google Apps Script Hide Warning Bar]';
 
     function removeWarningBar() {
         const warningTable = document.getElementById('warning-bar-table');
@@ -27,9 +29,14 @@
                 // 檢查是否包含警告內容
                 const warningDiv = firstTr.querySelector('#warning');
                 if (warningDiv) {
-                    console.log('[Google Apps Script Hide Warning Bar] 隱藏警告提示列');
-                    // 只能隱藏，如果刪除 DOM 整個網頁就無法顯示了
-                    firstTr.style.display = 'none';
+                    // 這個函式會被 DOMContentLoaded、MutationObserver、load 與定期檢查重複呼叫。
+                    // 只有在「這一次真的把警告列從顯示改成隱藏」時才輸出訊息，
+                    // 避免舊版在 5 秒內把同一句「隱藏警告提示列」重複印好幾次、洗版 Console。
+                    if (firstTr.style.display !== 'none') {
+                        console.log(`${LOG_PREFIX} 隱藏警告提示列`);
+                        // 只能隱藏，如果刪除 DOM 整個網頁就無法顯示了
+                        firstTr.style.display = 'none';
+                    }
                     return true;
                 }
             }
@@ -38,11 +45,11 @@
     }
 
     // 立即嘗試移除（適用於內容已載入的情況）
+    // 舊版在這裡另外輸出「頁面尚未載入／已載入」的除錯訊息，對使用者沒有幫助，因此移除，
+    // 只保留真正隱藏警告列時的那一行紀錄。
     if (document.readyState === 'loading') {
-        console.log('[Google Apps Script Hide Warning Bar] 頁面尚未載入，等待 DOMContentLoaded 事件');
-        document.addEventListener('DOMContentLoaded', removeWarningBar);
+        document.addEventListener('DOMContentLoaded', removeWarningBar, { once: true });
     } else {
-        console.log('[Google Apps Script Hide Warning Bar] 頁面已載入，嘗試移除警告提示列');
         removeWarningBar();
     }
 
@@ -56,9 +63,8 @@
                         // 檢查新增的節點是否包含警告表格
                         if (node.id === 'warning-bar-table' ||
                             node.querySelector('#warning-bar-table')) {
-                            if (removeWarningBar()) {
-                                console.log('[Google Apps Script Hide Warning Bar] 透過 Observer 隱藏警告提示列');
-                            }
+                            // removeWarningBar() 已在實際隱藏時輸出紀錄，這裡不再重複印出第二行訊息。
+                            removeWarningBar();
                         }
                     }
                 }
@@ -75,7 +81,7 @@
     // 額外的安全機制：在頁面完全載入後再檢查一次
     window.addEventListener('load', function() {
         setTimeout(removeWarningBar, 100);
-    });
+    }, { once: true });
 
     // 定期檢查（作為最後的保險）
     const checkInterval = setInterval(function() {

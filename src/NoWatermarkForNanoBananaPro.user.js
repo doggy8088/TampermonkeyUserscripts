@@ -1,21 +1,23 @@
 // ==UserScript==
 // @name         Gemini 🍌 無"印"良品
-// @version      0.1.2
+// @version      0.1.3
 // @description  自動識別與移除 Gemini 網站透過 Nano Banana Pro 生圖的浮水印
-// @author       TanShilongMario, Will Huang
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/NoWatermarkForNanoBananaPro.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/NoWatermarkForNanoBananaPro.user.js
+// @author       TanShilongMario, Will Huang
 // @match        https://gemini.google.com/gem*
 // @match        https://gemini.google.com/u/*/gem*
 // @match        https://gemini.google.com/app*
 // @match        https://gemini.google.com/u/*/app*
-// @grant        GM_xmlhttpRequest
 // @run-at       document-end
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=gemini.google.com
+// @grant        GM_xmlhttpRequest
+// @grant        unsafeWindow
+// @connect      googleusercontent.com
 // ==/UserScript==
 
 (function () {
@@ -423,6 +425,15 @@
     // src/userscript/index.js
     var engine = null;
     var processingQueue = /* @__PURE__ */ new Set();
+    // 每個 <img> 處理失敗的次數。失敗時 src 會還原成 googleusercontent.com 的原始網址，
+    // 下一波 DOM 變動又會被 findGeminiImages() 找到並重試。若圖片網址已失效（例如 403），
+    // 舊版會在 Gemini 每一波 DOM 變動時無限重抓，而且每次重試都先把 src 清空，造成圖片不斷閃爍。
+    // 限制次數後仍保留暫時性網路錯誤的重試機會；元素被 Gemini 重新建立時 WeakMap 會自然歸零。
+    var failedAttempts = /* @__PURE__ */ new WeakMap();
+    var MAX_ATTEMPTS = 3;
+    // GM_xmlhttpRequest 預設沒有逾時：連線卡住時 Promise 永遠不會結束，圖片會一直停在 src="" 的空白狀態，
+    // 而且元素一直留在 processingQueue 中無法重試。原尺寸圖片可能有數 MB，給 60 秒寬裕的下載時間。
+    var FETCH_TIMEOUT_MS = 60000;
     var debounce = (func, wait) => {
         let timeout;
         return (...args) => {
@@ -436,16 +447,36 @@
         img.onerror = reject;
         img.src = src;
     });
-    var canvasToBlob = (canvas, type = "image/png") => new Promise((resolve) => canvas.toBlob(resolve, type));
+    // canvas.toBlob() 在畫布過大或編碼失敗時會回傳 null。舊版直接 resolve(null)：
+    // 在 fetch 攔截路徑會變成 new Response(null)，網頁拿到 0 位元組的「成功」回應（下載到空檔案）。
+    // 改為 reject，交由呼叫端的 catch 退回原始圖片。
+    var canvasToBlob = (canvas, type = "image/png") => new Promise((resolve, reject) => canvas.toBlob((blob) => {
+        if (blob) {
+            resolve(blob);
+        } else {
+            reject(new Error("canvas.toBlob() returned null"));
+        }
+    }, type));
     var isValidGeminiImage = (img) => img.closest("model-response,.generated-image-container") !== null;
-    var findGeminiImages = () => [...document.querySelectorAll('img[src*="googleusercontent.com"]')].filter(isValidGeminiImage);
+    var findGeminiImages = () => [...document.querySelectorAll('img[src*="googleusercontent.com"]')].filter((img) => isValidGeminiImage(img) && (failedAttempts.get(img) || 0) < MAX_ATTEMPTS);
     var fetchBlob = (url) => new Promise((resolve, reject) => {
         GM_xmlhttpRequest({
             method: "GET",
             url,
             responseType: "blob",
-            onload: (response) => resolve(response.response),
-            onerror: reject
+            timeout: FETCH_TIMEOUT_MS,
+            onload: (response) => {
+                // onload 只代表收到回應，不代表成功；403/404 時拿到的是錯誤頁，交給 loadImage() 解碼一定失敗，
+                // 直接以 HTTP 狀態碼結束，Console 的錯誤訊息也比較容易判讀。
+                if (response.status >= 200 && response.status < 300) {
+                    resolve(response.response);
+                } else {
+                    reject(new Error(`HTTP ${response.status}`));
+                }
+            },
+            onerror: reject,
+            ontimeout: () => reject(new Error("Request timed out")),
+            onabort: () => reject(new Error("Request aborted"))
         });
     });
     var replaceWithNormalSize = (src) => {
@@ -456,22 +487,26 @@
         processingQueue.add(imgElement);
         imgElement.dataset.watermarkProcessed = "processing";
         const originalSrc = imgElement.src;
+        let normalSizeBlobUrl = null;
         try {
             imgElement.src = "";
             const normalSizeBlob = await fetchBlob(replaceWithNormalSize(originalSrc));
-            const normalSizeBlobUrl = URL.createObjectURL(normalSizeBlob);
+            normalSizeBlobUrl = URL.createObjectURL(normalSizeBlob);
             const normalSizeImg = await loadImage(normalSizeBlobUrl);
             const { canvas: processedCanvas, removed } = await engine.removeWatermarkFromImage(normalSizeImg);
             const processedBlob = await canvasToBlob(processedCanvas);
-            URL.revokeObjectURL(normalSizeBlobUrl);
             imgElement.src = URL.createObjectURL(processedBlob);
             imgElement.dataset.watermarkProcessed = "true";
             console.log(`[Gemini \u{1F34C} \u7121\u5370\u826F\u54C1] ${removed ? "Processed image" : "No watermark detected, skipped"}`);
         } catch (error) {
+            failedAttempts.set(imgElement, (failedAttempts.get(imgElement) || 0) + 1);
             console.warn("[Gemini \u{1F34C} \u7121\u5370\u826F\u54C1] Failed to process image:", error);
             imgElement.dataset.watermarkProcessed = "failed";
             imgElement.src = originalSrc;
         } finally {
+            // 不論成功或失敗都釋放中繼用的原尺寸 blob URL；舊版只在成功路徑釋放，
+            // 解碼或去浮水印失敗時，數 MB 的原圖會一直留在記憶體中直到關閉頁面。
+            if (normalSizeBlobUrl) URL.revokeObjectURL(normalSizeBlobUrl);
             processingQueue.delete(imgElement);
         }
     }
@@ -487,32 +522,61 @@
     };
     async function processImageBlob(blob) {
         const blobUrl = URL.createObjectURL(blob);
-        const img = await loadImage(blobUrl);
-        const { canvas } = await engine.removeWatermarkFromImage(img);
-        URL.revokeObjectURL(blobUrl);
-        return canvasToBlob(canvas);
+        // 以 finally 確保處理失敗時也會釋放 blob URL。
+        try {
+            const img = await loadImage(blobUrl);
+            const { canvas } = await engine.removeWatermarkFromImage(img);
+            return await canvasToBlob(canvas);
+        } finally {
+            URL.revokeObjectURL(blobUrl);
+        }
     }
     var GEMINI_URL_PATTERN = /^https:\/\/lh3\.googleusercontent\.com\/rd-gg(?:-dl)?\/.+=s(?!0-d\?).*/;
     var { fetch: origFetch } = unsafeWindow;
+    // fetch() 的第一個參數可能是字串、URL 物件或 Request 物件，分別取出網址字串。
+    // 舊版只處理字串與 Request，URL 物件會得到 undefined 而直接略過攔截。
+    // 以 typeof 檢查屬性而非 instanceof：網頁與 userscript 可能位於不同 realm，instanceof 會誤判。
+    var getRequestUrl = (input) => {
+        if (typeof input === "string") return input;
+        if (typeof input?.href === "string") return input.href;
+        if (typeof input?.url === "string") return input.url;
+        return "";
+    };
     unsafeWindow.fetch = async (...args) => {
-        const url = typeof args[0] === "string" ? args[0] : args[0]?.url;
+        const url = getRequestUrl(args[0]);
         if (GEMINI_URL_PATTERN.test(url)) {
             console.log("[Gemini \u{1F34C} \u7121\u5370\u826F\u54C1] Intercepting:", url);
             const origUrl = replaceWithNormalSize(url);
-            if (typeof args[0] === "string") args[0] = origUrl;
-            else if (args[0]?.url) args[0].url = origUrl;
+            if (typeof args[0] === "string" || typeof args[0]?.href === "string") {
+                args[0] = origUrl;
+            } else {
+                // Request.url 是唯讀屬性：舊版直接指派，在嚴格模式下會丟出 TypeError，讓網頁的整個 fetch 失敗。
+                // 改以原本的 Request 為範本建立新的 Request，保留 method、headers、credentials 等設定。
+                args[0] = new unsafeWindow.Request(origUrl, args[0]);
+            }
             const response = await origFetch(...args);
-            if (!engine || !response.ok) return response;
+            // 204/205 依規範不能帶 body，無從處理也無法重新包裝成 Response，原樣交還。
+            if (!engine || !response.ok || response.status === 204 || response.status === 205) return response;
+            // 先把原始內容讀成 blob 並保留下來。Response 的 body 只能讀取一次，舊版在處理失敗時回傳
+            // 已被讀取過的 response，網頁再呼叫 .blob() 會得到「body stream already read」，連原圖都拿不到。
+            const originalBlob = await response.blob();
             try {
-                const processedBlob = await processImageBlob(await response.blob());
+                const processedBlob = await processImageBlob(originalBlob);
+                // 內容已換成去浮水印後的 PNG，原本的 Content-Length 不再正確，移除以免下游依此判斷長度或進度。
+                const headers = new Headers(response.headers);
+                headers.delete("content-length");
                 return new Response(processedBlob, {
+                    status: response.status,
+                    statusText: response.statusText,
+                    headers
+                });
+            } catch (error) {
+                console.warn("[Gemini \u{1F34C} \u7121\u5370\u826F\u54C1] Processing failed:", error);
+                return new Response(originalBlob, {
                     status: response.status,
                     statusText: response.statusText,
                     headers: response.headers
                 });
-            } catch (error) {
-                console.warn("[Gemini \u{1F34C} \u7121\u5370\u826F\u54C1] Processing failed:", error);
-                return response;
             }
         }
         return origFetch(...args);

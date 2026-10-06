@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ReadingMode: 讓網頁更容易閱讀與翻譯的工具
-// @version      0.7.0
+// @version      0.7.1
 // @description  按下 ctrl-alt-shift-f 鍵可讓網頁僅顯示 main 元素的內容，按下 Esc 恢復原狀
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -20,9 +20,12 @@
 // @exclude      https://www.youtube.com/*
 // @exclude      https://studio.youtube.com/*
 // @exclude      https://remotedesktop.google.com/*
+// @grant        none
 // ==/UserScript==
 
 (function () {
+    'use strict';
+
     let isReading = false;
     let container = null;
     let bodyStyle = null;
@@ -30,7 +33,19 @@
     document.addEventListener('keydown', e => {
         if (isInInputMode(e.target)) return;
 
-        if ((e.altKey && (e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'f' || e.key === 'F')) || (isReading && e.key === 'Escape')) {
+        const isToggleShortcut = e.altKey && (e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'f' || e.key === 'F');
+        if (isToggleShortcut || (isReading && e.key === 'Escape')) {
+            // 按住不放時瀏覽器會持續送出重複的 keydown（e.repeat 為 true），
+            // 舊版每一次都會切換一次模式（整頁 DOM 在 body 與暫存容器之間來回搬移），畫面會不停閃爍，
+            // 所以只處理第一次按下
+            if (e.repeat) return;
+
+            // 由本腳本接手的組合鍵就取消預設行為，避免同時觸發瀏覽器或網站綁在同一組合鍵上的功能；
+            // Esc 刻意不取消，讓網站原本的 Esc 行為（例如關閉對話框）照常運作
+            if (isToggleShortcut) {
+                e.preventDefault();
+            }
+
             // console.log('isReading: ', isReading)
             if (!isReading) {
                 // 第一次按下快速鍵時才建立暫存容器

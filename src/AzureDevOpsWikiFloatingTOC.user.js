@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 強化 Wiki 的 TOC 目錄為浮動側邊資訊卡
-// @version      0.1.0
+// @version      0.1.1
 // @description  將 Visual Studio Wiki 中使用 [[_TOC_]] 的目錄，改為深色/淺色浮動側邊資訊卡的樣式；新增參數可控制預設是否隱藏 TOC、可儲存主題偏好並由 TOC 內按鈕切換
 // @license      MIT
 // @homepage     https://github.com/doggy8088/TampermonkeyUserscripts
@@ -161,6 +161,10 @@
     // 設計目標：避免直接改 hash 或 location，讓 Azure DevOps 自己處理 anchor 跳轉。
     function simulateNativeClick(target) {
         if (!target || !target.isConnected) return;
+        // 只派送「一次」click。原本先 dispatchEvent(new MouseEvent('click')) 又呼叫 target.click()
+        // 作為保險，但兩者都會觸發 SPA 的 click 處理器與連結的預設導覽，等於每點一次就導覽兩次
+        // （history 會多出重複的紀錄，要按兩次「上一頁」才回得去）。依 DOM 規範，派送 click 型別的
+        // MouseEvent 本身就會執行連結的啟動行為（activation behavior），不需要再補一次 click()。
         try {
             const event = new MouseEvent('click', {
                 bubbles: true,
@@ -168,10 +172,8 @@
                 view: window
             });
             target.dispatchEvent(event);
-            // 若 SPA 沒有在 click handler 攔截，仍可用原生 click 作為保險
-            if (typeof target.click === 'function') target.click();
         } catch (e) {
-            // 發生例外時，仍嘗試用原生 click 降低失敗機率
+            // 只有在 MouseEvent 建構或派送失敗時，才退回原生 click 降低失敗機率
             if (typeof target.click === 'function') target.click();
         }
     }
@@ -535,8 +537,10 @@
     // 切換主題（並立即套用）
     function applyTheme(useLight) {
         IS_LIGHT_THEME = !!useLight;
-        // 重新產生 css 並套用
-        style.textContent = buildCss(getThemeVars(IS_LIGHT_THEME));
+        // 重新產生 css 並套用。requestScan() 每次掃描都會呼叫 applyStoredThemeSetting()，
+        // 主題沒有改變時不要重寫 <style>，否則每次都會讓瀏覽器重新解析整份樣式表並重算全頁樣式。
+        const css = buildCss(getThemeVars(IS_LIGHT_THEME));
+        if (style.textContent !== css) style.textContent = css;
         // 更新所有現有的主題按鈕顯示
         document.querySelectorAll('.toc-theme-toggle').forEach(b => {
             b.textContent = IS_LIGHT_THEME ? '☀' : '🌙';
@@ -579,6 +583,15 @@
         }
     }
 
+    // 讀取「是否顯示原始 TOC」偏好：新鍵優先，沒有時沿用舊鍵 azdo_toc_show_inline（相容舊使用者設定），
+    // 兩者都沒有時依 HIDE_TOC_BY_DEFAULT 決定。
+    // 原本這段邏輯分散在四個地方，其中 toggleOriginalPreference() 的預設值寫死為 true、其他地方則是
+    // !HIDE_TOC_BY_DEFAULT；若把 HIDE_TOC_BY_DEFAULT 改成 true，畫面預設會隱藏原始 TOC，但第一次點按鈕
+    // 卻會把偏好「切換成隱藏」，看起來毫無反應。集中到同一個函式，確保各處判斷一致。
+    function getShowOriginalPreference() {
+        return !!getSetting(STORAGE_KEY_SHOW_ORIGINAL, getSetting(STORAGE_KEY_SHOW_INLINE, !HIDE_TOC_BY_DEFAULT));
+    }
+
     // 註冊 Tampermonkey 選單命令（僅在 GM_registerMenuCommand 可用時）
     function registerMenuCommands() {
         try {
@@ -586,7 +599,7 @@
 
             // 切換原始 TOC 顯示狀態
             GM_registerMenuCommand(
-                getSetting(STORAGE_KEY_SHOW_ORIGINAL, getSetting(STORAGE_KEY_SHOW_INLINE, !HIDE_TOC_BY_DEFAULT)) ?
+                getShowOriginalPreference() ?
                 '隱藏原始 TOC 目錄內容' : '顯示原始 TOC 目錄內容',
                 () => { toggleOriginalPreference(); }
             );
@@ -629,8 +642,7 @@
     // 切換並儲存「是否顯示原始 TOC」偏好
     function toggleOriginalPreference() {
         // 支援舊 key 的相容性：讀新 key，若不存在就讀舊 key
-        const current = !!getSetting(STORAGE_KEY_SHOW_ORIGINAL,
-            getSetting(STORAGE_KEY_SHOW_INLINE, true));
+        const current = getShowOriginalPreference();
         const next = !current;
         setSetting(STORAGE_KEY_SHOW_ORIGINAL, next);
         // 更新所有原始 TOC
@@ -646,8 +658,7 @@
 
     // 初始化：根據儲存的偏好值，決定是否顯示原始 TOC
     function applyStoredOriginalSetting() {
-        const shouldShowOriginal = !!getSetting(STORAGE_KEY_SHOW_ORIGINAL,
-            getSetting(STORAGE_KEY_SHOW_INLINE, !HIDE_TOC_BY_DEFAULT));
+        const shouldShowOriginal = getShowOriginalPreference();
         document.querySelectorAll('.' + ORIGINAL_MARK_CLASS).forEach(orig => {
             if (shouldShowOriginal) showOriginal(orig); else hideOriginal(orig);
         });
@@ -687,7 +698,7 @@
             // 加入「顯示/隱藏原始 TOC」按鈕
             const btn = document.createElement('button');
             btn.className = 'toc-toggle-original';
-            const shouldShowOrig = !!getSetting(STORAGE_KEY_SHOW_ORIGINAL, getSetting(STORAGE_KEY_SHOW_INLINE, !HIDE_TOC_BY_DEFAULT));
+            const shouldShowOrig = getShowOriginalPreference();
             btn.textContent = shouldShowOrig ? '隱' : '顯';
             btn.setAttribute('title', '切換是否顯示原始 TOC（會記住偏好）');
             btn.addEventListener('click', (ev) => {
@@ -715,6 +726,7 @@
             el._floating = floating;
             floating._original = el;
             el.classList.add(ORIGINAL_MARK_CLASS);
+            floatingTocs.add(floating);
 
             // 將浮動 TOC 的點擊代理到原始 TOC，確保 SPA 的 anchor 行為一致
             attachFloatingLinkProxy(floating, el);
@@ -723,6 +735,45 @@
         // 可延伸功能想法：
         // - 若頁面同時有多個 TOC，可以加入切換按鈕或只顯示第一個；
         // - 若希望在展開時保持 focus，可在這裡加入 keyboard handlers。
+    }
+
+    // 目前存在的浮動 TOC。浮動複本是掛在 document.body 上，不會隨著原始 TOC 一起被移除；
+    // 以 Set 追蹤，讓 MutationObserver 每個批次只需檢查少數幾個元素的 isConnected，不必查詢整份文件。
+    const floatingTocs = new Set();
+
+    // 判斷浮動複本是否已失效：原始 TOC 已脫離 DOM，或浮動複本本身被頁面移除。
+    function isOrphanFloatingToc(floating) {
+        const original = floating._original;
+        return !floating.isConnected || !original || !original.isConnected;
+    }
+
+    function hasOrphanFloatingToc() {
+        for (const floating of floatingTocs) {
+            if (isOrphanFloatingToc(floating)) return true;
+        }
+        return false;
+    }
+
+    /**
+     * 移除已失效的浮動 TOC。
+     * Azure DevOps Wiki 是 SPA：切換到另一個 Wiki 頁面、或從 Wiki 切到 Boards 等其他功能時，
+     * 原始 TOC 會被移除，但浮動複本仍留在 body 上。原本不會清除，造成：
+     * - 換到沒有 TOC 的頁面（甚至離開 Wiki）時，右側仍顯示上一頁的目錄；
+     * - 換到另一個有 TOC 的頁面時，新舊兩張浮動資訊卡疊在同一個位置；
+     * - 點擊舊目錄的連結時，代理目標已脫離 DOM，點了沒有任何反應；
+     * - 已脫離 DOM 的原始 TOC 仍被 floating._original 參照住，無法被回收。
+     * 若只是浮動複本被頁面移除、原始 TOC 還在，清掉原始 TOC 的 _floating 標記後，
+     * 接下來的 scanAndMark() 會重新建立浮動複本。
+     */
+    function removeOrphanFloatingTocs() {
+        floatingTocs.forEach(floating => {
+            if (!isOrphanFloatingToc(floating)) return;
+            const original = floating._original;
+            if (original) original._floating = null;
+            floating._original = null;
+            floating.remove();
+            floatingTocs.delete(floating);
+        });
     }
 
     function scanAndMark() {
@@ -771,6 +822,9 @@
         if (scanTimer) return;
         scanTimer = window.setTimeout(() => {
             scanTimer = 0;
+            // 先清除原始 TOC 已消失的浮動複本，再掃描新出現的 TOC。
+            // 放在 debounce 之後執行，若 SPA 只是暫時把原始 TOC 移出再放回，這裡就不會誤刪。
+            removeOrphanFloatingTocs();
             scanAndMark();
             // 新插入的容器若要遵循偏好，立即套用
             applyStoredOriginalSetting();
@@ -788,6 +842,13 @@
     };
 
     const observer = new MutationObserver((mutations) => {
+        // SPA 換頁移除原始 TOC 時，新增的節點不一定含有 TOC（例如換到沒有 TOC 的頁面），
+        // 因此每個批次先檢查既有的浮動複本（通常只有一個，成本極低），有失效的就排程清理。
+        if (hasOrphanFloatingToc()) {
+            requestScan();
+            return;
+        }
+
         // 只有在新增節點中出現「可能是 TOC 的容器」時才觸發掃描，
         // 避免因為頁面大量 DOM 更新而造成高負載或無窮迴圈。
         for (const mutation of mutations) {

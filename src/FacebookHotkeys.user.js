@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Facebook: 好用的鍵盤快速鍵集合
-// @version      0.8.5
-// @description  按下 Ctrl+B 快速切換側邊欄、Ctrl+I 檢舉留言、Ctrl+Delete 刪除留言、Alt+B 快速封鎖使用者
+// @version      0.8.6
+// @description  按下 f 快速切換側邊欄、Ctrl+I 檢舉留言、Ctrl+Delete 刪除留言、Alt+B 快速封鎖使用者
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -36,13 +36,41 @@
         style.textContent = `${pageNavigationSelector} { display: none !important; }`;
         let stopped = false;
         let retryTimer;
+        let giveUpTimer;
         const initialUrl = window.location.href;
+
+        // 動態消息、社團、個人檔案等非粉絲專頁永遠不會出現管理側欄與「隱藏功能表」按鈕，
+        // 但原本的流程只會在「收合成功」或「網址改變」時停止；使用者若一直停留在動態消息往下捲，
+        // 觀察器就會持續存在，每一批 DOM 變動都對整份文件執行兩次 querySelector，
+        // 在 Facebook 這種變動極為頻繁的頁面上會持續消耗主執行緒。
+        // 因此開始後 15 秒若仍找不到側欄也找不到收合按鈕，就判定不是粉絲專頁並結束初始化流程。
+        // 此時頁面上沒有側欄，移除暫時樣式不會有任何可見的變化。
+        const NON_PAGE_GIVE_UP_MS = 15000;
 
         function stop() {
             stopped = true;
             observer.disconnect();
             clearTimeout(retryTimer);
+            clearTimeout(giveUpTimer);
             style.remove();
+        }
+
+        function scheduleGiveUpCheck() {
+            giveUpTimer = setTimeout(() => {
+                if (stopped) return;
+
+                // 在背景分頁開啟時，Facebook 可能延後繪製內容；等分頁回到前景後再判斷，
+                // 避免粉絲專頁在背景載入較慢時被誤判為非粉絲專頁，導致側欄沒有被自動隱藏。
+                if (document.hidden) {
+                    scheduleGiveUpCheck();
+                    return;
+                }
+
+                // 已經出現側欄或收合按鈕，代表確實是粉絲專頁，交由原本的成功判斷與網址判斷來結束流程。
+                if (document.querySelector(pageNavigationSelector) || document.querySelector(hideMenuSelector)) return;
+
+                stop();
+            }, NON_PAGE_GIVE_UP_MS);
         }
 
         function tryHide() {
@@ -84,6 +112,7 @@
             attributes: true,
             attributeFilter: ['aria-label']
         });
+        scheduleGiveUpCheck();
         tryHide();
 
         // 手動切換優先於自動收合。暫時 CSS 隱藏時，第一次切換只需移除 CSS，
@@ -98,14 +127,17 @@
 
     document.addEventListener("keydown", async (event) => {
 
-        if (!isInInputMode(event.target) && !event.ctrlKey && !event.metaKey && !event.altKey && event.key === "f") {
+        // 中文、日文等輸入法組字期間的按鍵屬於輸入法，不能當成 f 快速鍵處理。
+        if (!event.isComposing && !isInInputMode(event.target) && !event.ctrlKey && !event.metaKey && !event.altKey && event.key === "f") {
+            // preventDefault() 必須在第一個 await 之前呼叫。舊版放在最後：當 toggleSidebar() 回傳 false、
+            // 改走 await toggleSidebarByNavigation() 時，事件早已派送完畢，preventDefault() 已經沒有作用。
+            event.preventDefault();
+
             // 只有粉絲團的 Sidebar 沒有找到才去隱藏其他的側邊欄
             // 因為只有粉絲團的 Sidebar 有切換顯示的按鈕
             toggleSidebar() || await toggleSidebarByNavigation();
 
             toggleReelsLayout();
-
-            event.preventDefault();
             return;
         }
 
@@ -148,7 +180,12 @@
                 // 封鎖趙清涵和對方可能建立的新個人檔案
                 await delay(1000);
                 var blockNew1 = await window.page.getByText('和對方可能建立的新個人檔案').all();
-                document.querySelector(`[aria-labelledby="${blockNew1[0].id}"]`)?.click();
+                // 封鎖對話框不一定會出現這個選項（例如封鎖粉絲專頁時），此時 .all() 會回傳空陣列；
+                // 舊版直接讀取 blockNew1[0].id 會丟出 TypeError，流程停在對話框中，後面的「確認」永遠不會被按下。
+                const blockNewLabelId = blockNew1[0]?.id;
+                if (blockNewLabelId) {
+                    document.querySelector(`[aria-labelledby="${blockNewLabelId}"]`)?.click();
+                }
 
                 await delay(1000);
                 await window.page.getByRole('button', { name: '確認' }).click();
@@ -200,8 +237,9 @@
      * @returns {boolean} - 如果元素處於輸入模式則返回 true，否則返回 false。
      */
     function isInInputMode(element) {
-        // 如果元素是輸入欄位或文字區域，則處於輸入模式
-        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA') {
+        // 如果元素是輸入欄位、文字區域或下拉選單，則處於輸入模式
+        // （SELECT 取得焦點時按字母鍵會跳到對應選項，不應被 f 快速鍵攔截）
+        if (element.tagName === 'INPUT' || element.tagName === 'TEXTAREA' || element.tagName === 'SELECT') {
             return true;
         }
         // 如果元素是可編輯內容，則處於輸入模式
@@ -239,22 +277,21 @@
     let checkForWatch = setInterval(() => {
         // 判斷當前網址路徑是否為 /watch/?v= 開頭
         if (window.location.pathname.startsWith('/watch/')) {
-            // 找出網頁中所有的 div，並篩選符合條件的元素
-            const divs = document.querySelectorAll('div'); // 選取所有的 div 元素
-            const filteredDivs = Array.from(divs).filter(div =>
-                div.getAttribute('tabindex') === '0' &&
-                div.getAttribute('aria-pressed') === 'false' &&
-                div.textContent.trim() === '留言'
-            );
+            // 舊版每 600ms 取出整頁「所有」div（Facebook 動輒上萬個），複製成陣列後在 JS 中逐一呼叫 getAttribute() 篩選，
+            // 在影片頁停留越久、DOM 越大，每次輪詢的成本就越高。
+            // 改由瀏覽器原生的屬性選擇器直接篩出 tabindex="0" 且 aria-pressed="false" 的 div（通常只有少數切換按鈕），
+            // 再比對文字；條件與舊版的 getAttribute() 判斷完全相同，querySelectorAll 也依文件順序回傳，
+            // 選中的仍是舊版的「第一個符合條件的元素」。
+            const candidates = document.querySelectorAll('div[tabindex="0"][aria-pressed="false"]');
+            const commentButton = Array.from(candidates).find(div => div.textContent.trim() === '留言');
 
             // 如果有符合條件的元素，對第一個執行 .click()
-            if (filteredDivs.length > 0) {
-                filteredDivs[0].click();
-                console.log('已對第一個符合條件的元素執行 .click()');
+            if (commentButton) {
+                commentButton.click();
+                console.log('[FacebookHotkeys] 已自動點擊「留言」按鈕');
                 clearInterval(checkForWatch); // 停止檢查
-            } else {
-                console.log('沒有符合條件的元素');
             }
+            // 舊版找不到時每 600ms 都會印出「沒有符合條件的元素」，在影片頁停留越久 Console 就越洗版，因此移除。
         }
     }, 600);
 

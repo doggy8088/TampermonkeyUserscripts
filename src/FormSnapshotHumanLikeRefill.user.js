@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         表單快照與人類模擬回填
-// @version      0.2.0
+// @version      0.2.1
 // @description  透過選單命令儲存目前頁面表單快照，可人類化回填，並支援匯出/匯入全部快照資料以跨電腦移轉
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -56,6 +56,13 @@
     ].join(', ');
 
     const INPUT_TYPES_TO_SKIP = new Set(['hidden', 'submit', 'reset', 'button', 'image', 'file']);
+
+    // getFieldKind() 可能回傳的所有欄位種類，用於回填時驗證候選元素與快照是否同類。
+    const KNOWN_FIELD_KINDS = new Set([
+        'input', 'checkbox', 'radio', 'textarea',
+        'select-one', 'select-multiple', 'custom-select-one', 'contenteditable'
+    ]);
+
     const TEXT_LIKE_INPUT_TYPES = new Set([
         'text', 'search', 'url', 'tel', 'email', 'password',
         'number', 'date', 'datetime-local', 'month', 'time', 'week'
@@ -79,7 +86,9 @@
     let applyAbortRequested = false;
     let detachApplyAbortListener = null;
 
-    injectStyles();
+    // 樣式改為第一次顯示通知或高亮欄位時才注入（見 showToast()、highlightElement()）。
+    // 本腳本的 @match 涵蓋所有網站，若在載入時就插入 <style>，每個頁面與 iframe 都會多一個
+    // 用不到的樣式表；實際上只有使用者從選單執行命令時才需要。
     registerMenuCommands();
 
     function registerMenuCommands() {
@@ -159,10 +168,18 @@
 
         const retryQueue = [];
 
+        // 第 1、2 輪已成功回填或本來就相符的欄位。readonly 後補階段會再檢查一次
+        // 所有 input/textarea（用來補回被框架還原的值），但這些欄位已計入結果，
+        // 不可再算成「readonly 後補」，否則成功數會重複累加、略過數被錯誤扣減。
+        const settledFieldSnapshots = new Set();
+
         const applySingleField = async (fieldSnapshot, waitTimeoutMs) => {
             const element = await waitForTruthy(() => {
-                const candidate = findElementByLocator(fieldSnapshot.locator);
-                return candidate && canFillElement(candidate) ? candidate : null;
+                const candidate = findElementByLocator(fieldSnapshot.locator, fieldSnapshot.kind);
+                // 欄位種類必須與快照相容，避免以文字輸入流程改寫 checkbox/radio 的 value。
+                return candidate && canFillElement(candidate) && isFieldKindCompatible(candidate, fieldSnapshot.kind)
+                    ? candidate
+                    : null;
             }, { timeoutMs: waitTimeoutMs, intervalMs: 120 });
 
             if (!element) {
@@ -198,11 +215,13 @@
                     }
 
                     if (firstPass.status === 'already-matched') {
+                        settledFieldSnapshots.add(fieldSnapshot);
                         continue;
                     }
 
                     if (firstPass.status === 'applied') {
                         stats.applied++;
+                        settledFieldSnapshots.add(fieldSnapshot);
                         const gapDelay = getGapDelayRangeByFieldKind(fieldSnapshot.kind);
                         await sleep(randomInt(gapDelay.min, gapDelay.max));
                         throwIfApplyAbortRequested();
@@ -244,6 +263,7 @@
                     const retryPass = await applySingleField(fieldSnapshot, RETRY_PASS_FIELD_WAIT_MS);
                     if (retryPass.status === 'applied') {
                         stats.applied++;
+                        settledFieldSnapshots.add(fieldSnapshot);
                         const gapDelay = getGapDelayRangeByFieldKind(fieldSnapshot.kind);
                         await sleep(randomInt(gapDelay.min, gapDelay.max));
                         throwIfApplyAbortRequested();
@@ -251,6 +271,7 @@
                     }
 
                     if (retryPass.status === 'already-matched') {
+                        settledFieldSnapshots.add(fieldSnapshot);
                         continue;
                     }
 
@@ -267,7 +288,7 @@
             }
 
             const readonlySynced = shouldRunReadonlySync
-                ? await syncReadonlySnapshotFields(snapshot.fields)
+                ? await syncReadonlySnapshotFields(snapshot.fields, settledFieldSnapshots)
                 : 0;
             if (readonlySynced > 0) {
                 stats.readonlySynced = readonlySynced;
@@ -315,6 +336,16 @@
             if (!isApplyingSnapshot) return;
             if (event.key !== APPLY_ABORT_KEY) return;
             if (applyAbortRequested) return;
+
+            // 只接受使用者真正按下的 Esc。腳本本身在自訂下拉選單找不到選項時，
+            // 會對欄位 dispatch 合成的 Escape keydown 來關閉面板；該事件會冒泡、
+            // 在 capture 階段經過 window，原本會被誤判為「使用者要求中止」，
+            // 導致只要有一個自訂選單比對失敗，整批回填就被中斷。合成事件的
+            // isTrusted 一律為 false，以此區分即可。
+            if (!event.isTrusted) return;
+
+            // IME 組字中按 Esc 是取消組字，不代表要停止回填。
+            if (event.isComposing) return;
 
             applyAbortRequested = true;
             showToast('⏹️ 偵測到 Esc，正在停止回填...', { duration: 1200, closable: true });
@@ -614,7 +645,14 @@
         }
     }
 
-    function findElementByLocator(locator) {
+    /**
+     * 依快照中的 locator 尋找目前頁面上的對應欄位。
+     *
+     * @param {object} locator - buildLocator() 產生的定位資訊
+     * @param {string} [expectedKind] - 快照欄位種類；只用來驗證最後的 globalIndex 位置推測
+     * @returns {HTMLElement|null} 找到的欄位
+     */
+    function findElementByLocator(locator, expectedKind = '') {
         const normalizedLocator = normalizeLocator(locator);
         if (!normalizedLocator) return null;
 
@@ -651,12 +689,42 @@
             }
         }
 
+        // 最後手段：以快照當時在頁面中的欄位順序推測。頁面欄位增減後，同一個索引
+        // 可能落在完全不同的欄位上（例如原本是文字框，現在是 checkbox），原本不做任何
+        // 檢查就直接回傳，文字回填流程便會把字串寫進 checkbox 的 value，悄悄改壞
+        // 表單送出的資料。因此至少要求標籤名稱與欄位種類相同；刻意不比對 id/name，
+        // 因為這個退路本來就是用來處理 Angular 等框架每次載入都重新產生 id 的情況。
         const fields = getFormFields();
         if (normalizedLocator.globalIndex >= 0 && normalizedLocator.globalIndex < fields.length) {
-            return fields[normalizedLocator.globalIndex];
+            const byIndex = fields[normalizedLocator.globalIndex];
+            const tagMatches = !normalizedLocator.tagName || byIndex.tagName.toLowerCase() === normalizedLocator.tagName;
+            if (tagMatches && isFieldKindCompatible(byIndex, expectedKind)) {
+                return byIndex;
+            }
         }
 
         return null;
+    }
+
+    /**
+     * 判斷元素目前的欄位種類是否與快照記錄的 kind 相容。
+     *
+     * 快照中的 kind 一律由 getFieldKind() 產生，同一個欄位在快照與回填時會得到相同結果。
+     * input 與 textarea 視為同一類：兩者都由 applyTextLikeValue() 處理，網站把單行輸入框
+     * 改成可自動長高的 textarea 時仍可照常回填；真正要擋下的是把文字寫進 checkbox、
+     * radio 或下拉選單這類「種類不同、回填方式也不同」的元素。
+     * 為了相容手動編輯或舊版匯入資料，kind 缺漏或不是已知種類時不做限制，維持原本的
+     * 寬鬆行為（交給 applyFieldSnapshot 的 default 分支處理）。
+     *
+     * @param {HTMLElement} element - 候選欄位
+     * @param {string} kind - 快照欄位種類
+     * @returns {boolean} 是否可用該快照回填此元素
+     */
+    function isFieldKindCompatible(element, kind) {
+        if (!KNOWN_FIELD_KINDS.has(kind)) return true;
+
+        const toKindGroup = (value) => (value === 'input' || value === 'textarea' ? 'text-like' : value);
+        return toKindGroup(getFieldKind(element)) === toKindGroup(kind);
     }
 
     function findElementByRoleAriaLocator(locator) {
@@ -1013,14 +1081,31 @@
     }
 
     async function typeTextLikeCharacters(element, targetValue) {
+        // number、date、time、month、week、datetime-local 等型別的 value setter
+        // 會執行瀏覽器的 value sanitization：逐字輸入時的中間狀態（例如 "1."、"-"、
+        // "2024-0"）不是合法值，指派後會立刻被清成空字串。原本每個字元都以
+        // 「讀回目前值 + 新字元」累加，於是 "1.5" 只剩 "5"、"-3" 只剩 "3"，
+        // 日期與時間欄位更是永遠組不出完整值，回填後卻仍回報成功。
+        //
+        // 這裡只在「setter 同步把非空值清成空字串」時記住原本想寫入的字串，
+        // 下一個字元若欄位仍是空的就接續該字串；其餘情況照舊讀回欄位目前值，
+        // 保留網站在 input 事件中自行改寫內容（遮罩格式化、輸入逗號後轉成標籤
+        // 並清空欄位等）時與真人輸入一致的行為。
+        let sanitizedPendingValue = null;
+
         for (const char of targetValue) {
             throwIfApplyAbortRequested();
             dispatchKeyboardEvent(element, 'keydown', char);
             dispatchKeyboardEvent(element, 'keypress', char);
             dispatchBeforeInputEvent(element, char, 'insertText');
 
-            const nextValue = `${getTextLikeValue(element)}${char}`;
+            const currentValue = getTextLikeValue(element);
+            const baseValue = sanitizedPendingValue !== null && currentValue === ''
+                ? sanitizedPendingValue
+                : currentValue;
+            const nextValue = `${baseValue}${char}`;
             setTextLikeValue(element, nextValue);
+            sanitizedPendingValue = getTextLikeValue(element) === '' ? nextValue : null;
 
             dispatchInputEvent(element, char, 'insertText');
             dispatchKeyboardEvent(element, 'keyup', char);
@@ -1848,6 +1933,8 @@
     }
 
     function highlightElement(element) {
+        // 高亮動畫的 CSS 與 toast 共用同一個 <style>，延後到真正需要時才注入。
+        injectStyles();
         element.classList.add(HIGHLIGHT_CLASS);
         return () => {
             element.classList.remove(HIGHLIGHT_CLASS);
@@ -1905,7 +1992,9 @@
             toast.appendChild(closeButton);
         }
 
-        document.body.appendChild(toast);
+        // XML/SVG 等文件沒有 <body>；退回 documentElement，避免 toast 本身丟出例外，
+        // 讓「找不到可快照的表單欄位」這類提示也能正常顯示。
+        (document.body || document.documentElement).appendChild(toast);
         requestAnimationFrame(() => {
             toast.classList.add('show');
         });
@@ -2326,6 +2415,15 @@
                 }
             };
 
+            // 使用者在檔案選擇視窗按「取消」時不會觸發 change，原本 Promise 會永遠
+            // 停在 pending：匯入流程卡住、不顯示「已取消匯入」，隱藏的 <input> 也一直
+            // 留在頁面上（每取消一次多一個）。現代瀏覽器（Chrome 113+、Firefox 91+、
+            // Safari 16.4+）會在取消時觸發 cancel 事件，藉此比照「未選檔」結束流程。
+            input.addEventListener('cancel', () => {
+                cleanup();
+                resolve('');
+            }, { once: true });
+
             input.addEventListener('change', async () => {
                 try {
                     const file = input.files?.[0];
@@ -2423,7 +2521,14 @@
         });
     }
 
-    async function syncReadonlySnapshotFields(fieldSnapshots) {
+    /**
+     * 對 readonly 但可程式化寫入的欄位（日期挑選器等）補做一次值同步。
+     *
+     * @param {Array<object>} fieldSnapshots - 快照中的全部欄位
+     * @param {Set<object>} [settledFieldSnapshots] - 前兩輪已成功回填或原本即相符的欄位
+     * @returns {Promise<number>} 本階段新增成功的欄位數（不含已計入的欄位）
+     */
+    async function syncReadonlySnapshotFields(fieldSnapshots, settledFieldSnapshots = new Set()) {
         if (!Array.isArray(fieldSnapshots) || fieldSnapshots.length === 0) return 0;
 
         let syncedCount = 0;
@@ -2437,8 +2542,10 @@
             const targetValue = String(fieldSnapshot.value ?? '');
             if (!targetValue) continue;
 
+            // 已計入結果的欄位仍要同步（框架可能在失焦後把值還原），但不重複計數：
+            // syncSingleReadonlyFieldSnapshot() 在值已相符時也會回傳 true。
             const synced = await syncSingleReadonlyFieldSnapshot(fieldSnapshot, targetValue);
-            if (synced) {
+            if (synced && !settledFieldSnapshots.has(fieldSnapshot)) {
                 syncedCount++;
             }
         }
@@ -2453,7 +2560,7 @@
             throwIfApplyAbortRequested();
 
             let element = null;
-            const immediateCandidate = findElementByLocator(fieldSnapshot.locator);
+            const immediateCandidate = findElementByLocator(fieldSnapshot.locator, fieldSnapshot.kind);
 
             if (immediateCandidate instanceof HTMLInputElement || immediateCandidate instanceof HTMLTextAreaElement) {
                 if (!canFillElement(immediateCandidate)) {
@@ -2467,7 +2574,7 @@
                 element = immediateCandidate;
             } else {
                 element = await waitForTruthy(() => {
-                    const candidate = findElementByLocator(fieldSnapshot.locator);
+                    const candidate = findElementByLocator(fieldSnapshot.locator, fieldSnapshot.kind);
                     if (!(candidate instanceof HTMLInputElement || candidate instanceof HTMLTextAreaElement)) return null;
                     if (!canFillElement(candidate)) return null;
                     if (!candidate.readOnly) return null;

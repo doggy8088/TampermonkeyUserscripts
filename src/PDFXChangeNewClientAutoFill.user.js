@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         PDF-XChange: 按下 Ctrl+V 自動貼上建立客戶的欄位
-// @version      0.2.0
+// @version      0.2.1
 // @description  先複製客戶資料的 JSON 內容，按下 Ctrl+V 可自動貼上建立客戶的欄位
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -10,10 +10,19 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/PDFXChangeNewClientAutoFill.user.js
 // @author       Will Huang
 // @match        https://www.pdf-xchange.com/*
+// @grant        none
 // ==/UserScript==
 
 (async function () {
     'use strict';
+
+    // waitForElement() 有傳入選項、但沒有指定 timeout 時的等待上限（毫秒）
+    // 設計意圖：舊版的預設值 { timeout: 3000 } 只在「完全沒傳第二個參數」時才生效；
+    // 只要傳了 { titleFilter: ... } 之類的選項，timeout 就是 undefined，
+    // Date.now() - startTime > undefined 永遠是 false，找不到元素時每 100ms 的輪詢會永遠持續，
+    // 自動化流程也永遠卡在那一步。這些呼叫原本實際上是「無限等待」（例如等待搜尋結果、等待對話框），
+    // 為了不讓較慢的網路環境因此失敗，這裡給一個寬鬆的 30 秒上限，而不是套用 3 秒。
+    const WAIT_FOR_ELEMENT_DEFAULT_TIMEOUT = 30000;
 
     loadGetAriaRoleLibrary();
 
@@ -26,8 +35,18 @@
     // JavaScript
     document.addEventListener("paste", async function (event) {
         const targetTag = event.target.tagName;
-        if (targetTag === 'INPUT' || targetTag === 'TEXTAREA') {
+        // 在輸入框、文字區域或可編輯區域（例如富文字編輯器）中貼上時，允許預設的貼上動作
+        if (targetTag === 'INPUT' || targetTag === 'TEXTAREA' || event.target.isContentEditable) {
             // 允許預設的貼上動作
+            return;
+        }
+
+        // 只有兩個自動化頁面才需要接手貼上
+        // 設計意圖：舊版在 pdf-xchange.com 的「所有頁面」都會先 preventDefault()，
+        // 其他頁面雖然什麼都不做，貼上卻也被擋掉了。現在只在需要自動化的頁面才取消預設動作。
+        const isProductsPage = location.pathname === '/products';
+        const isNewClientPage = location.pathname === '/myaccount/clients-list/new-client';
+        if (!isProductsPage && !isNewClientPage) {
             return;
         }
 
@@ -35,7 +54,24 @@
         event.preventDefault();
 
         // 從剪貼簿讀取文字
-        const clipboardText = await navigator.clipboard.readText();
+        // 設計意圖：優先使用 paste 事件本身攜帶的 clipboardData（必須在第一個 await 之前同步讀取），
+        // 它不需要額外的剪貼簿權限，也不會像 navigator.clipboard.readText() 那樣在部分瀏覽器跳出權限提示
+        // 或「貼上」確認選單；拿不到時才退回 readText()。readText() 失敗（權限被拒等）時，
+        // 舊版會留下未處理的 Promise rejection 並默默結束，現在改為視為空字串，讓後續流程顯示既有的提示。
+        let clipboardText = '';
+        try {
+            clipboardText = event.clipboardData?.getData('text/plain') || '';
+        } catch (e) {
+            clipboardText = '';
+        }
+        if (!clipboardText) {
+            try {
+                clipboardText = await navigator.clipboard.readText();
+            } catch (err) {
+                console.warn('無法讀取剪貼簿內容:', err);
+                clipboardText = '';
+            }
+        }
 
         if (location.pathname === '/products') {
             // 判斷剪貼簿文字為 Email 格式，檢查前先移除空白
@@ -98,7 +134,9 @@
                 const data = JSON.parse(sanitizedText);
 
                 // 呼叫填入表單的函式
-                populateForm(data);
+                // 必須 await：populateForm() 是 async 函式，不 await 的話它丟出的錯誤不會被這裡的 catch 接住，
+                // 只會變成未處理的 Promise rejection
+                await populateForm(data);
 
             } catch (error) {
                 console.error("無法從剪貼簿取得或解析 JSON 資料:", error);
@@ -139,7 +177,9 @@
         await simulateTyping("client_address_phone", data["(英文) Phone number"]);
     }
 
-    function waitForElement(selector, { ariaRoleFilter, titleFilter, textFilter, ariaLabelFilter, timeout } = { timeout: 3000 }) {
+    // 注意：完全沒有傳入選項時，等待上限沿用舊版的 3000ms；有傳選項但沒有指定 timeout 時，
+    // 改用 WAIT_FOR_ELEMENT_DEFAULT_TIMEOUT（舊版這種情況會無限等待，原因見常數宣告處的說明）
+    function waitForElement(selector, { ariaRoleFilter, titleFilter, textFilter, ariaLabelFilter, timeout = WAIT_FOR_ELEMENT_DEFAULT_TIMEOUT } = { timeout: 3000 }) {
         return new Promise((resolve, reject) => {
             const startTime = Date.now();
 
@@ -149,7 +189,11 @@
                     if (ariaRoleFilter !== undefined && getAriaRole(element) !== ariaRoleFilter) continue;
                     if (titleFilter !== undefined && element.title.indexOf(titleFilter) === -1) continue;
                     if (textFilter !== undefined && element.textContent.indexOf(textFilter) === -1) continue;
-                    if (ariaLabelFilter !== undefined && element.ariaLabel === ariaLabelFilter) continue;
+                    // 不符合 aria-label 條件的元素才要跳過。舊版寫成「===」條件相反：
+                    // waitForElement("button", { ariaLabelFilter: 'Close' }) 會跳過真正的 Close 按鈕，
+                    // 回傳頁面上第一個「不是」Close 的按鈕，接著被 simulateClicking() 點下去，可能誤觸其他功能。
+                    // 改用 getAttribute('aria-label')，不依賴較新瀏覽器才支援的 ARIA 屬性反映（element.ariaLabel）。
+                    if (ariaLabelFilter !== undefined && element.getAttribute('aria-label') !== ariaLabelFilter) continue;
 
                     clearInterval(interval);
                     resolve(element);
@@ -191,6 +235,12 @@
         }
 
         if (!element) return;
+
+        // 剪貼簿 JSON 缺少某個欄位（例如沒有 Address 2）時值是 undefined，舊版在 text.length 丟出 TypeError，
+        // 之後的欄位全部不會填入；JSON 中的數字（例如郵遞區號 10491）沒有 length，舊版會默默略過不填。
+        // 因此缺值時直接略過這個欄位，其他型別一律轉成字串再輸入。
+        if (text === undefined || text === null) return;
+        text = String(text);
 
         element.focus(); // 使字段獲得焦點
 
@@ -259,16 +309,22 @@
 
         if (!element) return;
 
+        // 沒有提供值時略過這個欄位：舊版會把 undefined 當成文字輸入到搜尋框；
+        // 空字串則會直接按下 Enter，選到清單中的第一個國家，兩者都不是使用者要的結果
+        if (text === undefined || text === null || text === '') return;
+
         element.focus(); // 使下拉選單獲得焦點
 
         // 取得下拉選單的 DOM，點擊開啟選單
+        // 找不到時（例如網站改版）略過這個欄位，避免丟出 TypeError 而中斷後續欄位的填寫
         const selectElement = document.querySelector(`[data-id="${fieldId}"]`);
+        if (!selectElement) return;
         selectElement.click();
 
         await delay(50);
 
         // 直接模擬選擇並輸入文本
-        document.execCommand("insertText", false, text);
+        document.execCommand("insertText", false, String(text));
 
         await delay(50);
 

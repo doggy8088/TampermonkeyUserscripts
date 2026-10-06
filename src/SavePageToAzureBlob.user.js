@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網頁狀態與任意內容發佈到 Infinitybin
-// @version      0.3.0
+// @version      0.3.1
 // @description  透過 Tampermonkey 選單將目前網頁狀態或任意文字內容發佈到 Azure Blob Storage-backed Infinitybin，並設定正確檔名與 Content-Type
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -182,6 +182,69 @@
     let activeSaveOperation = null;
     let activeStatusBar = null;
 
+    // ===== 工具：遮蔽 SAS 簽章 =====
+
+    /**
+     * 將文字中所有 SAS 查詢參數 sig= 的值替換為 REDACTED。
+     *
+     * 設計意圖：
+     *   - 上傳用的 PUT 網址帶有完整 SAS Token；原本請求失敗時，錯誤訊息直接內含該網址，
+     *     接著被寫進頁面右下角的狀態提示條與 console.error()。狀態提示條是一般 DOM 節點，
+     *     目前網頁的任何 JavaScript（包含第三方廣告或追蹤腳本）都能讀到它的文字，
+     *     等於把可寫入 Container 的憑證交給當前網站。
+     *   - SAS 中真正構成授權的是 HMAC 簽章 sig；sv、sp、se 等參數不具機密性，
+     *     保留下來反而有助於判斷權限不足或 Token 過期，因此只遮蔽 sig 的值。
+     *   - 以字串取代而不經 URL 解析，可同時處理一般訊息、JSON.stringify 的輸出，
+     *     以及無法被 URL() 解析的片段，也不會改變其餘參數的編碼形式。
+     *
+     * @param {string} text - 可能含有 SAS URL 的文字
+     * @returns {string} 已遮蔽簽章的文字
+     */
+    function redactSasSignature(text) {
+        return String(text ?? '').replace(/([?&]sig=)[^&#\s"']*/gi, '$1REDACTED');
+    }
+
+    /**
+     * 取得可安全顯示或記錄的錯誤訊息（已遮蔽 SAS 簽章）。
+     *
+     * 設計意圖：gmFetch() 產生的錯誤雖已先行遮蔽，但發佈流程中還有其他來源的例外，
+     * 例如 Firefox 的 new URL() 會把無法解析的原始輸入（可能就是 SAS URL）放進錯誤訊息。
+     * 凡是要寫進頁面狀態提示條、alert() 或 console 的錯誤，一律經過這裡，
+     * 不必逐一判斷例外的來源是否安全。
+     *
+     * @param {unknown} err - 任意例外物件或值
+     * @returns {string} 已遮蔽 sig 的錯誤訊息
+     */
+    function describeError(err) {
+        return redactSasSignature(err?.message ?? String(err));
+    }
+
+    /**
+     * 取得可安全寫入 console 的錯誤詳細資訊（含 stack，已遮蔽 SAS 簽章）。
+     *
+     * 原本直接把例外物件交給 console.error()，DevTools 會原樣展開 message 與 stack；
+     * 改為輸出遮蔽後的字串，保留排查需要的呼叫堆疊，同時避免 sig 出現在 console。
+     *
+     * @param {unknown} err - 任意例外物件或值
+     * @returns {string} 已遮蔽 sig 的 stack（沒有 stack 時退回訊息）
+     */
+    function describeErrorForLog(err) {
+        return redactSasSignature(err?.stack || describeError(err));
+    }
+
+    /**
+     * 從 GM_xmlhttpRequest 的 responseHeaders 字串中取出指定標頭的值。
+     *
+     * @param {string} headers - HTTP response headers 的原始字串
+     * @param {string} name - 標頭名稱（不分大小寫）
+     * @returns {string} 標頭值；不存在時回傳空字串
+     */
+    function getResponseHeaderValue(headers, name) {
+        const prefix = `${name.toLowerCase()}:`;
+        const line = (headers || '').split(/\r?\n/).find(h => h.toLowerCase().startsWith(prefix));
+        return line ? line.slice(prefix.length).trim() : '';
+    }
+
     // ===== 工具：Promise 化 GM_xmlhttpRequest =====
 
     /**
@@ -189,10 +252,15 @@
      * 統一處理 onload / onerror / ontimeout / onabort 回呼，
      * 讓後續程式碼可使用 async/await 語法。
      *
+     * 錯誤訊息中的網址一律先經 redactSasSignature() 遮蔽，
+     * 呼叫端可放心把 err.message 顯示在頁面上或寫入 console。
+     *
      * @param {object} options - 傳入 GM_xmlhttpRequest 的選項物件
      * @returns {Promise<object>} 解析後的 GM_xmlhttpRequest response 物件
      */
     function gmFetch(options) {
+        const safeUrl = redactSasSignature(options.url);
+
         return new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
                 timeout: REQUEST_TIMEOUT_MS,
@@ -202,12 +270,27 @@
                     if (response.status >= 200 && response.status < 400) {
                         resolve(response);
                     } else {
-                        reject(new Error(`HTTP ${response.status}: ${options.url}`));
+                        // Azure Storage 會以 x-ms-error-code 標頭說明失敗原因
+                        // （例如 AuthorizationPermissionMismatch 代表 SAS 缺少 c/w 權限、
+                        // AuthenticationFailed 多半是 Token 過期或簽章錯誤），附在訊息中方便排查；
+                        // 一般網站資源沒有這個標頭時維持原本格式。
+                        const azureErrorCode = getResponseHeaderValue(response.responseHeaders, 'x-ms-error-code');
+                        const codeSuffix = azureErrorCode ? ` (${azureErrorCode})` : '';
+                        reject(new Error(`HTTP ${response.status}${codeSuffix}: ${safeUrl}`));
                     }
                 },
-                onerror(err)  { reject(new Error(`Network error: ${options.url} — ${JSON.stringify(err)}`)); },
-                ontimeout()   { reject(new Error(`Timeout: ${options.url}`)); },
-                onabort()     { reject(new Error(`Aborted: ${options.url}`)); }
+                onerror(err) {
+                    // 錯誤物件的 finalUrl 等欄位同樣含有完整 SAS URL，序列化後也要遮蔽。
+                    let detail = '';
+                    try {
+                        detail = JSON.stringify(err);
+                    } catch {
+                        detail = String(err);
+                    }
+                    reject(new Error(`Network error: ${safeUrl} — ${redactSasSignature(detail)}`));
+                },
+                ontimeout()   { reject(new Error(`Timeout: ${safeUrl}`)); },
+                onabort()     { reject(new Error(`Aborted: ${safeUrl}`)); }
             });
         });
     }
@@ -645,11 +728,19 @@
      * 或抓取失敗（網路錯誤、逾時、HTTP 錯誤等），
      * 將直接回傳原始絕對 URL，確保頁面仍可正常顯示。
      *
+     * 傳入 resourceCache 時，同一次快照中相同的絕對網址只會下載一次：
+     * 同一張背景圖常被數十個 style 屬性或多條 CSS 規則重複引用，
+     * 原本每次出現都重新下載與 base64 編碼；連不上的主機更會每次都等滿
+     * REQUEST_TIMEOUT_MS（30 秒）才放棄，被引用 N 次就多等 N 倍時間。
+     * 快取存放的是 Promise，並行或先後請求同一網址時都會共用同一個結果
+     * （成功的 Data URI 或失敗後的原始絕對 URL）。
+     *
      * @param {string} url      - 欲轉換的資源 URL（可為相對路徑）
      * @param {string} baseUrl  - 解析相對 URL 時使用的基準 URL，預設為 location.href
+     * @param {Map<string, Promise<string>>} [resourceCache] - 單次快照專用的下載結果快取
      * @returns {Promise<string>} Data URI 字串，或原始絕對 URL（轉換失敗時）
      */
-    async function toDataUri(url, baseUrl) {
+    async function toDataUri(url, baseUrl, resourceCache) {
         if (!url) return url;
 
         // 已是 Data URI，直接回傳
@@ -666,6 +757,23 @@
         // blob: URL 屬於另一個 origin，GM_xmlhttpRequest 無法跨域取得，直接略過
         if (absoluteUrl.startsWith('blob:')) return absoluteUrl;
 
+        if (!resourceCache) {
+            return fetchAsDataUri(absoluteUrl);
+        }
+
+        if (!resourceCache.has(absoluteUrl)) {
+            resourceCache.set(absoluteUrl, fetchAsDataUri(absoluteUrl));
+        }
+        return resourceCache.get(absoluteUrl);
+    }
+
+    /**
+     * 下載單一絕對網址並轉成 Data URI；任何失敗都降級為回傳原始絕對 URL，永不 reject。
+     *
+     * @param {string} absoluteUrl - 已解析的絕對網址
+     * @returns {Promise<string>} Data URI 字串，或原始絕對 URL（轉換失敗時）
+     */
+    async function fetchAsDataUri(absoluteUrl) {
         try {
             const response = await gmFetch({
                 method: 'GET',
@@ -675,7 +783,7 @@
 
             // 確認資源大小在可接受範圍
             if (response.response.byteLength > MAX_INLINE_SIZE_BYTES) {
-                console.warn(`[SavePageToAzureBlob] 資源超過大小上限，略過內嵌：${absoluteUrl}`);
+                console.warn(`[SavePageToAzureBlob] 資源超過大小上限，略過內嵌：${redactSasSignature(absoluteUrl)}`);
                 return absoluteUrl;
             }
 
@@ -692,9 +800,41 @@
             return `data:${mimeType};base64,${btoa(binary)}`;
         } catch (err) {
             // 任何錯誤皆降級為保留原始絕對 URL
-            console.warn(`[SavePageToAzureBlob] 無法轉換資源（${err.message}）：${absoluteUrl}`);
+            // 頁面資源本身也可能是帶 SAS 的網址（例如在 Infinitybin 或 Azure Storage 頁面上製作快照），
+            // 寫入 console 前一律遮蔽 sig。
+            console.warn(`[SavePageToAzureBlob] 無法轉換資源（${describeError(err)}）：${redactSasSignature(absoluteUrl)}`);
             return absoluteUrl;
         }
+    }
+
+    /**
+     * 依照 matchAll() 的結果，一次組出替換後的新字串。
+     *
+     * 設計意圖：
+     *   - 原本對每個比對結果呼叫 cssText.replace(match[0], replacement)，有兩個問題：
+     *     1) replacement 為字串時，其中的 $$、$&、$`、$' 會被當成特殊替換樣式，
+     *        引入的 CSS 只要含有 content: "$$" 之類的文字就會被改寫或插入多餘內容；
+     *     2) 每次 replace 都會複製整段越來越長的 CSS（Data URI 動輒數十 KB），
+     *        數百個 url() 時是 O(n²) 的字串複製，實測 1000 個 30KB 圖片約需 3.7 秒。
+     *   - 改為依比對位置由前往後切片拼接：只掃描一次、不解析 $ 樣式，
+     *     且每個替換精準對應到自己的位置，不會誤改到前面同字串的其他出現處。
+     *
+     * @param {string} text - 原始文字
+     * @param {Array<RegExpMatchArray>} matches - 依出現順序排列的比對結果（需含 index）
+     * @param {Array<string|null>} replacements - 與 matches 對應的替換文字；null 代表保留原文
+     * @returns {string} 替換後的文字
+     */
+    function replaceMatchesInOrder(text, matches, replacements) {
+        let result = '';
+        let lastIndex = 0;
+
+        matches.forEach((match, index) => {
+            const replacement = replacements[index];
+            result += text.slice(lastIndex, match.index) + (replacement ?? match[0]);
+            lastIndex = match.index + match[0].length;
+        });
+
+        return result + text.slice(lastIndex);
     }
 
     // ===== 核心：遞迴內嵌 CSS 文字中的所有外部資源 =====
@@ -709,54 +849,88 @@
      *
      * @param {string} cssText - 待處理的 CSS 文字內容
      * @param {string} baseUrl - 解析 CSS 中相對路徑所使用的基準 URL
+     * @param {Map<string, Promise<string>>} [resourceCache] - 單次快照專用的下載結果快取
+     * @param {Set<string>} [importChain] - 目前遞迴路徑上已展開的樣式表絕對網址，用來偵測循環 @import
      * @returns {Promise<string>} 所有資源皆內嵌後的 CSS 文字
      */
-    async function inlineCssResources(cssText, baseUrl) {
+    async function inlineCssResources(cssText, baseUrl, resourceCache, importChain = new Set()) {
         // ── 第一步：展開 @import 規則（遞迴處理） ──
         // 比對兩種語法：@import url("...") 與 @import "..."
         const importRegex = /@import\s+(?:url\(\s*(['"]?)([^'")]+)\1\s*\)|(['"])([^'"]+)\3)\s*([^;]*);/g;
         const importMatches = [...cssText.matchAll(importRegex)];
+        const importReplacements = [];
 
         for (const match of importMatches) {
             // 取出 import 的 URL（url() 語法存在 match[2]，引號語法存在 match[4]）
             const importedUrl = match[2] || match[4];
             const mediaQuery = match[5] ? match[5].trim() : '';
+            let replacement = null;
 
             try {
                 const absUrl = new URL(importedUrl, baseUrl).href;
-                const importedCssResponse = await gmFetch({ method: 'GET', url: absUrl, responseType: 'text' });
-                // 遞迴處理引入的 CSS，並以其絕對 URL 作為新的 baseUrl
-                let importedCss = await inlineCssResources(importedCssResponse.responseText, absUrl);
 
-                // 若原本有 media query，用 @media 包裝引入的 CSS
-                if (mediaQuery) {
-                    importedCss = `@media ${mediaQuery} {\n${importedCss}\n}`;
+                // a.css 引入 b.css、b.css 又引入 a.css 時，原本會無限遞迴並持續發出請求。
+                // 瀏覽器本身會忽略循環引用，這裡比照辦理：保留原始宣告、不再展開。
+                if (importChain.has(absUrl)) {
+                    console.warn(`[SavePageToAzureBlob] 偵測到循環 @import，略過展開：${redactSasSignature(absUrl)}`);
+                } else {
+                    const importedCssResponse = await gmFetch({ method: 'GET', url: absUrl, responseType: 'text' });
+                    // 遞迴處理引入的 CSS，並以其絕對 URL 作為新的 baseUrl
+                    let importedCss = await inlineCssResources(
+                        importedCssResponse.responseText,
+                        absUrl,
+                        resourceCache,
+                        new Set(importChain).add(absUrl)
+                    );
+
+                    // 若原本有 media query，用 @media 包裝引入的 CSS
+                    if (mediaQuery) {
+                        importedCss = `@media ${mediaQuery} {\n${importedCss}\n}`;
+                    }
+                    replacement = importedCss;
                 }
-                cssText = cssText.replace(match[0], importedCss);
             } catch (err) {
                 // @import 展開失敗時保留原始宣告，不中斷整體處理
-                console.warn(`[SavePageToAzureBlob] @import 展開失敗（${err.message}）：${importedUrl}`);
+                console.warn(`[SavePageToAzureBlob] @import 展開失敗（${describeError(err)}）：${redactSasSignature(importedUrl)}`);
             }
+
+            importReplacements.push(replacement);
+        }
+
+        if (importMatches.length > 0) {
+            cssText = replaceMatchesInOrder(cssText, importMatches, importReplacements);
         }
 
         // ── 第二步：將 url() 中的所有外部資源替換為 Data URI ──
         // 比對 url('...') 與 url("...") 與 url(...) 三種語法
         const urlRegex = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
         const urlMatches = [...cssText.matchAll(urlRegex)];
+        const urlReplacements = [];
 
         for (const match of urlMatches) {
             const resourceUrl = match[2].trim();
-            // 已是 Data URI，跳過
-            if (resourceUrl.startsWith('data:')) continue;
+            let replacement = null;
 
-            const dataUri = await toDataUri(resourceUrl, baseUrl);
-            // 僅在成功轉換時（回傳 Data URI 而非原始 URL）才進行替換，確保冪等性
-            if (dataUri !== resourceUrl && !dataUri.startsWith(resourceUrl)) {
-                cssText = cssText.replace(match[0], `url("${dataUri}")`);
+            // 已是 Data URI，跳過。
+            // url(#id) 是指向同一份文件內 SVG 元素（漸層、clipPath、mask、filter）的片段參照，
+            // 不是外部資源；原本會被解析成「目前網頁網址#id」而下載整份 HTML，
+            // 再以 data:text/html 取代，反而破壞 SVG 的填色與遮罩，並讓快照暴增。
+            if (!resourceUrl.startsWith('data:') && !resourceUrl.startsWith('#')) {
+                const dataUri = await toDataUri(resourceUrl, baseUrl, resourceCache);
+                // 僅在成功轉換時（回傳 Data URI 而非原始 URL）才進行替換，確保冪等性
+                if (dataUri !== resourceUrl && !dataUri.startsWith(resourceUrl)) {
+                    replacement = `url("${dataUri}")`;
+                }
             }
+
+            urlReplacements.push(replacement);
         }
 
-        return cssText;
+        if (urlMatches.length === 0) {
+            return cssText;
+        }
+
+        return replaceMatchesInOrder(cssText, urlMatches, urlReplacements);
     }
 
     // ===== 核心：序列化當前頁面為完全獨立的 HTML 字串 =====
@@ -784,6 +958,10 @@
      */
     async function serializePage(onProgress) {
         const pageUrl = location.href;
+
+        // 本次快照專用的資源下載快取（絕對網址 → Data URI 或失敗時的原始網址）。
+        // 生命週期只到這個函式結束，不跨快照保留，避免佔用記憶體或沿用過期的資源內容。
+        const resourceCache = new Map();
 
         /**
          * 將相對 URL 轉為基於原始頁面的絕對 URL，必要時保留「#」書籤連結。
@@ -836,28 +1014,64 @@
             }
         });
 
-        // ── 將當前表單值對應到 DOM 屬性（clone 之前先埋值）──
-        // cloneNode(true) 複製 DOM 屬性，但不複製 JS property（.value / .checked），
-        // 因此需先將當前值寫回屬性，才能確保 clone 後的快照保留使用者輸入內容。
-        document.querySelectorAll('input, textarea, select').forEach(el => {
-            if (el.tagName === 'INPUT') {
-                if (el.type === 'checkbox' || el.type === 'radio') {
-                    el.checked ? el.setAttribute('checked', '') : el.removeAttribute('checked');
-                } else {
-                    el.setAttribute('value', el.value);
+        /**
+         * 把原始頁面表單欄位的「目前值」寫進 clone 中對應節點的屬性。
+         *
+         * 設計意圖：
+         *   - outerHTML 只序列化 DOM 屬性，不含 JS property（.value / .checked / .selected），
+         *     因此必須把目前值寫回屬性，快照才會保留使用者的輸入內容。
+         *   - 原本是在 clone 之前直接改寫「原始頁面」的屬性：會改掉欄位的 defaultValue
+         *     （之後網站呼叫 form.reset() 會重設成快照當下的值而非原始預設值）、
+         *     讓網站自己的 MutationObserver 收到大量屬性變動，也違反「所有修改都在
+         *     clone 上進行，不影響原始頁面」的原則。改為只寫入 clone。
+         *   - 密碼欄位一律不保留值（連既有的 value 屬性也移除）：快照會發佈到可公開
+         *     讀取的 Blob URL，若把已輸入的密碼寫進 HTML，等於把密碼公開在網路上。
+         *   - 檔案欄位的 value 只是 "C:\fakepath\檔名"，寫進屬性也無法還原選取的檔案，
+         *     反而洩漏本機檔名，因此略過。
+         *
+         * @param {Element} liveField - 原始頁面中的 input / textarea / select
+         * @param {Element} clonedField - clone 中位於相同位置的對應元素
+         */
+        function syncFormFieldStateToClone(liveField, clonedField) {
+            const tagName = liveField.localName;
+
+            if (tagName === 'input') {
+                const type = (liveField.type || '').toLowerCase();
+                if (type === 'checkbox' || type === 'radio') {
+                    liveField.checked ? clonedField.setAttribute('checked', '') : clonedField.removeAttribute('checked');
+                } else if (type === 'password') {
+                    clonedField.removeAttribute('value');
+                } else if (type !== 'file') {
+                    clonedField.setAttribute('value', liveField.value);
                 }
-            } else if (el.tagName === 'TEXTAREA') {
-                el.textContent = el.value;
-            } else if (el.tagName === 'SELECT') {
-                // 為每個 <option> 同步 selected 屬性
-                Array.from(el.options).forEach(opt => {
-                    opt.selected ? opt.setAttribute('selected', '') : opt.removeAttribute('selected');
+            } else if (tagName === 'textarea') {
+                clonedField.textContent = liveField.value;
+            } else if (tagName === 'select') {
+                // 為每個 <option> 同步 selected 屬性；clone 的 options 與原始頁面一一對應
+                Array.from(liveField.options).forEach((opt, optionIndex) => {
+                    const clonedOption = clonedField.options?.[optionIndex];
+                    if (!clonedOption) return;
+                    opt.selected ? clonedOption.setAttribute('selected', '') : clonedOption.removeAttribute('selected');
                 });
             }
-        });
+        }
+
+        // 先記下原始頁面的表單欄位，clone 後依文件順序配對。
+        const FORM_FIELD_SELECTOR = 'input, textarea, select';
+        const liveFormFields = [...document.querySelectorAll(FORM_FIELD_SELECTOR)];
 
         // ── 深度克隆整個 <html> 節點，後續所有修改都在 clone 上進行，不影響原始頁面 ──
         const root = document.documentElement.cloneNode(true);
+
+        // ── 將當前表單值寫入 clone 的屬性（必須緊接在 clone 之後、移除任何節點之前）──
+        // cloneNode(true) 完整保留樹狀結構，querySelectorAll 的文件順序與數量必然一致，
+        // 因此可用索引一對一配對；數量不符時（理論上不會發生）寧可略過也不錯置欄位值。
+        const clonedFormFields = root.querySelectorAll(FORM_FIELD_SELECTOR);
+        if (clonedFormFields.length === liveFormFields.length) {
+            clonedFormFields.forEach((clonedField, index) => {
+                syncFormFieldStateToClone(liveFormFields[index], clonedField);
+            });
+        }
 
         // ── 移除快照工具自身注入的狀態提示條（不應出現在最終快照中）──
         // 狀態提示條在序列化開始前就已插入 document.body，
@@ -914,9 +1128,12 @@
                       videoPosterEls.length + iconLinks.length;
         let current = 0;
 
+        // 進度訊息會顯示在頁面上的狀態提示條（一般 DOM 節點，目前網頁的 JavaScript 讀得到），
+        // 其中「處理樣式表：xxx」等訊息取自資源網址的最後一段，可能帶著含 sig 的查詢字串，
+        // 因此統一在這裡遮蔽，不必在每個呼叫點各自處理。
         const progress = (msg) => {
             current++;
-            onProgress?.(current, total, msg);
+            onProgress?.(current, total, redactSasSignature(msg));
         };
 
         // ── 處理 <link rel="stylesheet"> → 抓取並展開為 <style> ──
@@ -926,7 +1143,7 @@
             try {
                 const absHref = new URL(href, pageUrl).href;
                 const response = await gmFetch({ method: 'GET', url: absHref, responseType: 'text' });
-                const inlinedCss = await inlineCssResources(response.responseText, absHref);
+                const inlinedCss = await inlineCssResources(response.responseText, absHref, resourceCache, new Set([absHref]));
                 const styleEl = document.createElement('style');
                 styleEl.textContent = inlinedCss;
                 // 保留 media 屬性（如 media="print"）
@@ -937,7 +1154,7 @@
                 try {
                     link.href = new URL(href, pageUrl).href;
                 } catch { /* 無效 URL，保留原樣 */ }
-                console.warn(`[SavePageToAzureBlob] 樣式表內嵌失敗（${err.message}）：${href}`);
+                console.warn(`[SavePageToAzureBlob] 樣式表內嵌失敗（${describeError(err)}）：${redactSasSignature(href)}`);
             }
             progress(`處理樣式表：${href.split('/').pop()}`);
         }
@@ -945,9 +1162,9 @@
         // ── 處理 <style> 塊中的 url() ──
         for (const styleEl of styleElements) {
             try {
-                styleEl.textContent = await inlineCssResources(styleEl.textContent, pageUrl);
+                styleEl.textContent = await inlineCssResources(styleEl.textContent, pageUrl, resourceCache);
             } catch (err) {
-                console.warn(`[SavePageToAzureBlob] <style> 處理失敗：${err.message}`);
+                console.warn(`[SavePageToAzureBlob] <style> 處理失敗：${describeError(err)}`);
             }
             progress('處理內嵌樣式');
         }
@@ -956,7 +1173,7 @@
         for (const img of imgElements) {
             const src = img.getAttribute('src');
             if (src) {
-                img.setAttribute('src', await toDataUri(src, pageUrl));
+                img.setAttribute('src', await toDataUri(src, pageUrl, resourceCache));
             }
             // srcset 含多個候選 URL，全部清除以確保瀏覽器只使用已內嵌的 src
             img.removeAttribute('srcset');
@@ -972,7 +1189,7 @@
         for (const video of videoPosterEls) {
             const poster = video.getAttribute('poster');
             if (poster) {
-                video.setAttribute('poster', await toDataUri(poster, pageUrl));
+                video.setAttribute('poster', await toDataUri(poster, pageUrl, resourceCache));
             }
             // video / audio 的 src 不內嵌（媒體體積通常過大），改為絕對 URL 保留連結
             const mediaSrc = video.getAttribute('src');
@@ -986,7 +1203,7 @@
         for (const link of iconLinks) {
             const href = link.getAttribute('href');
             if (href) {
-                link.setAttribute('href', await toDataUri(href, pageUrl));
+                link.setAttribute('href', await toDataUri(href, pageUrl, resourceCache));
             }
             progress(`處理網站圖示：${href?.split('/').pop()}`);
         }
@@ -995,7 +1212,7 @@
         for (const el of elementsWithStyleAttr) {
             const styleValue = el.getAttribute('style');
             if (styleValue && styleValue.includes('url(')) {
-                el.setAttribute('style', await inlineCssResources(styleValue, pageUrl));
+                el.setAttribute('style', await inlineCssResources(styleValue, pageUrl, resourceCache));
             }
         }
 
@@ -1107,6 +1324,11 @@
         }
 
         if (ArrayBuffer.isView(content)) {
+            // 檢視範圍剛好涵蓋整個 buffer 時（例如 TextEncoder.encode() 的結果）直接沿用，
+            // 不必為了數十 MB 的快照再複製一份。
+            if (content.byteOffset === 0 && content.byteLength === content.buffer.byteLength) {
+                return content.buffer;
+            }
             return content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength);
         }
 
@@ -1341,7 +1563,8 @@
 
             panel.append(title, message, target, hint, cancelButton);
             overlay.appendChild(panel);
-            document.body.appendChild(overlay);
+            // 檢視 XML/SVG 等沒有 <body> 的文件時退回 documentElement，避免直接丟出 TypeError。
+            (document.body || document.documentElement).appendChild(overlay);
 
             target.addEventListener('paste', onPaste);
             document.addEventListener('keydown', onKeyDown, true);
@@ -1387,7 +1610,9 @@
         });
 
         bar.textContent = initialMessage;
-        document.body.appendChild(bar);
+        // 沒有 <body> 的文件（XML、SVG）退回 documentElement；原本會在建立提示條時丟出
+        // TypeError，而且發生在防重入鎖設定之前，使用者完全看不到任何回饋。
+        (document.body || document.documentElement).appendChild(bar);
 
         return {
             update: (msg) => { bar.textContent = msg; },
@@ -1477,11 +1702,15 @@
                     statusBar.update(`🔄 處理中 ${pct}%（${current}/${total}）\n${msg}`);
                 });
 
-                const sizeKb = Math.round(new TextEncoder().encode(htmlContent).byteLength / 1024);
+                // 只做一次 UTF-8 編碼：同一份位元組既用來顯示大小，也直接交給上傳。
+                // 原本先編碼一次算大小後丟棄，uploadToAzureBlob() 內又再編碼一次；
+                // 內嵌大量圖片的快照常達數十 MB，等於多做一次大型配置與複製。
+                const htmlBytes = new TextEncoder().encode(htmlContent);
+                const sizeKb = Math.round(htmlBytes.byteLength / 1024);
                 statusBar.update(`📤 正在發佈到 Infinitybin（${sizeKb.toLocaleString()} KB），請稍候...`);
 
                 // ── 發佈到 Infinitybin（Azure Blob）──
-                const cleanUrl = await uploadToAzureBlob(htmlContent, sasUrl, {
+                const cleanUrl = await uploadToAzureBlob(htmlBytes, sasUrl, {
                     blobNamePrefix: 'snapshot',
                     extension: 'html',
                     contentType: getTextContentType('html')
@@ -1501,8 +1730,9 @@
                 }
             } catch (err) {
                 // 擷取或發佈失敗時顯示錯誤，並提供複製建議
-                statusBar.update(`❌ 操作失敗：${err.message}`);
-                console.error('[SavePageToAzureBlob] 操作失敗：', err);
+                // 錯誤訊息會寫進頁面上的狀態提示條，必須先遮蔽 SAS 簽章（見 describeError()）。
+                statusBar.update(`❌ 操作失敗：${describeError(err)}`);
+                console.error('[SavePageToAzureBlob] 操作失敗：', describeErrorForLog(err));
                 await delay(6000);
             } finally {
                 statusBar.remove();
@@ -1577,8 +1807,9 @@
                     statusBar = createStatusBar('');
                     activeStatusBar = statusBar;
                 }
-                statusBar.update(`❌ 內容發佈失敗：${err.message}`);
-                console.error('[SavePageToAzureBlob] 內容發佈失敗：', err);
+                // 錯誤訊息會寫進頁面上的狀態提示條，必須先遮蔽 SAS 簽章（見 describeError()）。
+                statusBar.update(`❌ 內容發佈失敗：${describeError(err)}`);
+                console.error('[SavePageToAzureBlob] 內容發佈失敗：', describeErrorForLog(err));
                 await delay(6000);
             } finally {
                 statusBar?.remove();
@@ -1642,7 +1873,8 @@
                 throw new Error('SAS URL 似乎缺少 sig 參數，請確認複製的是完整的 SAS URL。');
             }
         } catch (err) {
-            alert(`SAS URL 驗證失敗：\n${err.message}\n\n請重新設定。`);
+            // Firefox 的 new URL() 會把無法解析的原始輸入放進錯誤訊息，同樣先遮蔽 sig 再顯示。
+            alert(`SAS URL 驗證失敗：\n${describeError(err)}\n\n請重新設定。`);
             return;
         }
 

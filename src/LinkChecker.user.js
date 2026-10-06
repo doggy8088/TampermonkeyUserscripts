@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網頁連結檢查器
-// @version      1.1.1
+// @version      1.1.2
 // @description  手動檢查目前網頁中可見的 IMG 與 CSS 圖片、超連結、影片與音訊網址，圖片須回傳 image/* MIME 類型，可檢查全部或僅外部連結並以框線標示結果
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -91,9 +91,14 @@
      *   </a>
      *
      * can display two visible outlines.
+     *
+     * 本腳本的 @match 涵蓋所有網站，但只有使用者從選單手動執行檢查時，
+     * 才需要這些框線樣式。因此先把 CSS 存成常數，第一次檢查時才由
+     * ensureOutlineStyle() 注入，避免在每個造訪的網頁都插入一個 <style>，
+     * 讓瀏覽器每次樣式重算都多比對這組屬性選擇器，也避免無謂改動網站的 DOM。
      */
 
-    GM_addStyle(`
+    const OUTLINE_STYLE_CSS = `
         [${ATTR_TYPE}="link"] {
             --dlc-valid: ${CONFIG.colors.link.valid};
             --dlc-invalid: ${CONFIG.colors.link.invalid};
@@ -145,7 +150,19 @@
             outline: 3px dashed var(--dlc-checking) !important;
             outline-offset: var(--dlc-offset) !important;
         }
-    `);
+    `;
+
+    let outlineStyleInjected = false;
+
+    function ensureOutlineStyle() {
+        // 同一頁面只注入一次；重複執行檢查時沿用第一次插入的 <style>。
+        if (outlineStyleInjected) {
+            return;
+        }
+
+        outlineStyleInjected = true;
+        GM_addStyle(OUTLINE_STYLE_CSS);
+    }
 
     /*
      * ============================================================
@@ -2726,6 +2743,11 @@
             'Close Link Checker report'
         );
 
+        /*
+         * 關閉只把報表從頁面移除，不中止背景檢查：使用者常會先關掉置中的
+         * 報表，觀察頁面上的框線隨檢查進度變化。檢查期間再次執行選單時，
+         * checkVisibleLinks() 會透過 activeReportHost 把同一份報表接回頁面。
+         */
         close.addEventListener(
             'click',
             () => host.remove()
@@ -3189,6 +3211,10 @@
                 host
             );
 
+        // 記住目前這一輪檢查的報表，供檢查進行中再次觸發選單時重新顯示。
+        activeReportHost =
+            host;
+
         /*
          * ========================================================
          * Filtering
@@ -3230,7 +3256,35 @@
             );
         }
 
+        /*
+         * 每筆檢查完成都會同時呼叫 updateRow() 與 updateProgress()，兩者原本都
+         * 同步執行 applyFilter() 掃過全部列：N 筆資源就是約 2N 次 × N 列的
+         * hidden 指派。頁面含數千個連結與 CSS 圖片時會變成數百萬次 DOM 寫入，
+         * 若篩選條件會隱藏多數列，每次重設 hidden 還會讓整張表重新計算樣式，
+         * 造成檢查期間明顯卡頓。改為以 requestAnimationFrame 合併：同一個
+         * 畫格內不論完成幾筆，只在繪製前重算一次篩選結果。
+         */
+        let filterFrame =
+            0;
+
+        function scheduleApplyFilter() {
+            if (filterFrame) {
+                return;
+            }
+
+            filterFrame = requestAnimationFrame(() => {
+                filterFrame = 0;
+                applyFilter();
+            });
+        }
+
         function applyFilter() {
+            // 使用者點選卡片會直接同步套用；已排定的畫格便不必再重複執行一次。
+            if (filterFrame) {
+                cancelAnimationFrame(filterFrame);
+                filterFrame = 0;
+            }
+
             let visibleCount =
                 0;
 
@@ -3241,10 +3295,10 @@
                             rowInfo
                         );
 
-                    rowInfo
-                        .row
-                        .hidden =
-                        !visible;
+                    // 只在狀態真的改變時寫入，避免對已隱藏的列重複設定 hidden 屬性。
+                    if (rowInfo.row.hidden === visible) {
+                        rowInfo.row.hidden = !visible;
+                    }
 
                     if (visible) {
                         visibleCount +=
@@ -3408,7 +3462,7 @@
                         }%`
                         : '100%';
 
-                applyFilter();
+                scheduleApplyFilter();
             },
 
             updateRow(
@@ -3456,7 +3510,7 @@
                     .textContent =
                     [records[index].source, result.note].filter(Boolean).join('; ');
 
-                applyFilter();
+                scheduleApplyFilter();
             }
         };
     }
@@ -3522,10 +3576,49 @@
     let running =
         false;
 
+    /*
+     * 目前進行中這一輪檢查所使用的報表宿主元素（檢查結束後重設為 null）。
+     * 檢查進行中時使用者若按 × 關閉報表，背景請求仍會繼續；原本此時再次
+     * 執行選單會因 running 防重入而「完全沒有反應」，看起來像腳本失效。
+     * 保留參考後即可把同一份仍在更新中的報表重新接回頁面。
+     */
+    let activeReportHost =
+        null;
+
+    /*
+     * 單筆驗證若發生非預期例外，轉成「無法確認」結果而不是讓例外往外拋。
+     * 原本例外會讓 runPool 的 Promise.all 提早 reject：finally 立刻把 running
+     * 設回 false，但其餘 runner 仍在背景執行；此時若再啟動新一輪檢查，舊 runner
+     * 會把舊資料寫進新的 elementStatuses 與框線。同時出錯的那一列會永遠停在
+     * Checking、統計數字也無法達到總數。歸類為 skipped 與網路錯誤的既有語意一致：
+     * 無法證明資源有效，也不能斷定它失效。
+     */
+    async function validateRecordSafely(
+        record,
+        cache
+    ) {
+        try {
+            return await validateRecord(record, cache);
+        } catch (error) {
+            console.warn('[LinkChecker] 驗證資源時發生非預期錯誤：', record.url, error);
+
+            return {
+                status: 'skipped',
+                httpStatus: '',
+                note: `Validation error: ${error?.message || error}`
+            };
+        }
+    }
+
     async function checkVisibleLinks(
         mode
     ) {
         if (running) {
+            // 檢查仍在進行：重新顯示被關閉的報表，讓使用者看得到目前進度。
+            if (activeReportHost && !activeReportHost.isConnected) {
+                document.documentElement.append(activeReportHost);
+            }
+
             return;
         }
 
@@ -3533,6 +3626,7 @@
             true;
 
         try {
+            ensureOutlineStyle();
             clearPreviousMarks();
 
             const records =
@@ -3591,7 +3685,7 @@
                     index
                 ) => {
                     const result =
-                        await validateRecord(
+                        await validateRecordSafely(
                             record,
                             cache
                         );
@@ -3627,6 +3721,10 @@
         } finally {
             running =
                 false;
+
+            // 檢查結束後不再需要重新接回報表；釋放參考，避免已關閉的報表 DOM 被保留在記憶體。
+            activeReportHost =
+                null;
         }
     }
 
