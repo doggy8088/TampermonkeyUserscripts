@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 在回應結果的地方加入常見提示回應按鈕
-// @version      1.1.2
+// @version      1.1.3
 // @description  點擊按鈕就會自動填入 ChatGPT 提示文字輸入框並自動送出提問
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -8,11 +8,12 @@
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTCommonPrompts.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTCommonPrompts.user.js
+// @author       Will Huang
 // @match        *://chat.openai.com/chat
 // @match        *://chat.openai.com/chat/*
-// @author       Will Huang
 // @run-at       document-idle
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=openai.com
+// @grant        none
 // ==/UserScript==
 
 /*
@@ -50,8 +51,6 @@
 
     const main = document.querySelector("body");
 
-    let counter = 0;
-
     let mutationObserverTimer = undefined;
     const obs = new MutationObserver(() => {
 
@@ -83,9 +82,6 @@
                 // 重新建立回應按鈕
                 rebuild_buttons();
             }
-
-            counter++;
-            console.log(`MutationObserver: ${counter}`);
 
             // 重新開始觀察
             start();
@@ -143,7 +139,11 @@
                 button.addEventListener("click", () => {
 
                     // 填入 prompt
+                    // 頁面改版或尚未載入完成時可能找不到輸入框，直接略過，避免點擊按鈕時丟出 TypeError。
                     const textarea = document.querySelector("textarea");
+                    if (!textarea) {
+                        return;
+                    }
                     textarea.value = item.value;
                     textarea.dispatchEvent(new Event("input", { bubbles: true }));
                     textarea.focus();
@@ -151,8 +151,8 @@
                     textarea.scrollTop = textarea.scrollHeight; // 自動捲動到最下方
 
                     // 預設的送出按鈕
-                    const button = textarea.parentElement.querySelector("button:last-child");
-                    button.click();
+                    const button = textarea.parentElement?.querySelector("button:last-child");
+                    button?.click();
 
                 });
 
@@ -180,9 +180,11 @@
      */
     const it = setInterval(() => {
         const textarea = document.activeElement;
-        if (textarea.tagName === "TEXTAREA" && textarea.nextSibling.tagName === "BUTTON") {
-            start();
+        // 以 optional chaining 防禦：textarea 沒有下一個兄弟節點時，舊版每 60ms 就丟一次 TypeError。
+        if (textarea?.tagName === "TEXTAREA" && textarea.nextSibling?.tagName === "BUTTON") {
+            // 先停止輪詢再開始觀察，即使 start() 發生例外也不會無限重試。
             clearInterval(it);
+            start();
         }
     }, 60);
 })();
