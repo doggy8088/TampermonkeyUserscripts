@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         將網頁內容轉成 Markdown 格式並寫入剪貼簿
-// @version      1.8.1
+// @version      1.9.1
 // @description  在網頁選取文字範圍後，使用者按下滑鼠右鍵，就可以將選取範圍的 HTML 轉成 Markdown 格式並寫入剪貼簿
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -8,11 +8,11 @@
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SelectionToMarkdownContextMenu.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SelectionToMarkdownContextMenu.user.js
-// @match        *://*/*
 // @author       Will Huang
+// @match        *://*/*
 // @run-at       context-menu
-// @grant        GM_setClipboard
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=www.duotify.com
+// @grant        GM_setClipboard
 // ==/UserScript==
 (() => {
   var __create = Object.create;
@@ -2868,11 +2868,20 @@
   var turndown_browser_es_default = TurndownService;
 
   // SelectionToMarkdownContextMenu.user.src.js
+  function toAbsoluteUrl(url) {
+    if (url.startsWith("//")) {
+      return window.location.protocol + url;
+    }
+    return window.location.origin + url;
+  }
+  function escapeHtml(text) {
+    return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
   function getHTMLfromSelectorOrContent() {
     let selection = window.getSelection();
     let html2 = "";
     let container = document.createElement("div");
-    if (selection.rangeCount > 0) {
+    if (selection && selection.rangeCount > 0) {
       let range = selection.getRangeAt(0);
       container.appendChild(range.cloneContents());
       if (!!container) {
@@ -2884,7 +2893,7 @@
         images.forEach(function(img) {
           var src = img.getAttribute("src");
           if (src && src.startsWith("/")) {
-            var fullUrl = window.location.origin + src;
+            var fullUrl = toAbsoluteUrl(src);
             img.setAttribute("src", fullUrl);
           }
         });
@@ -2892,7 +2901,7 @@
         links.forEach(function(a) {
           var href = a.getAttribute("href");
           if (href && href.startsWith("/")) {
-            var fullUrl = window.location.origin + href;
+            var fullUrl = toAbsoluteUrl(href);
             a.setAttribute("href", fullUrl);
           }
         });
@@ -2905,7 +2914,11 @@
       }
       var documentClone = document.cloneNode(true);
       var article = new import_readability.Readability(documentClone).parse();
-      html2 = `<h1>${article.title}</h1>` + article.content;
+      if (!article || !article.content) {
+        console.warn("Readability \u7121\u6CD5\u5F9E\u76EE\u524D\u7684\u9801\u9762\u64F7\u53D6\u51FA\u6587\u7AE0\u5167\u5BB9\uFF0C\u8ACB\u5148\u9078\u53D6\u8981\u8655\u7406\u7684\u6587\u5B57\u7BC4\u570D\u5F8C\u518D\u57F7\u884C\u3002");
+        return "";
+      }
+      html2 = `<h1>${escapeHtml(article.title || "")}</h1>` + article.content;
     }
     return html2;
   }
