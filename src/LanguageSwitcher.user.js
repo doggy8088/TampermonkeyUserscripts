@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.19.1
+// @version      1.19.2
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -10,14 +10,23 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/LanguageSwitcher.user.js
 // @author       Will Huang
 // @match        *://*/*
+// @grant        none
 // ==/UserScript==
 
 (function () {
     'use strict';
 
     // 小工具：真偵測 Alt+S、避免在輸入元件觸發、執行第一個命中的規則
-    const isExcludedTarget = (el) => /^(?:input|select|textarea|button)$/i.test(el?.nodeName || '');
+    // 排除可編輯區域（contenteditable）：macOS 上 Option+S 會輸入「ß」，在 Notion、Gmail 撰寫視窗、
+    // 各種富文字編輯器中打字時，舊版會直接把頁面導走，尚未儲存的內容就此遺失。
+    // isContentEditable 只在按下 Alt+S 時對單一元素讀取一次，成本可以忽略。
+    const isExcludedTarget = (el) => /^(?:input|select|textarea|button)$/i.test(el?.nodeName || '') || el?.isContentEditable === true;
     const isAltS = (ev) => ev.altKey && ev.code === 'KeyS';
+
+    // 取得事件真正的目標元素
+    // 設計意圖：事件從 Shadow DOM 冒泡到 document 時，ev.target 會被「重新指定」為宿主元素，
+    // 導致 Web Components 裡的 <input> 看起來不像輸入框；composedPath()[0] 才是實際接收按鍵的元素。
+    const getEventTarget = (ev) => (typeof ev.composedPath === 'function' && ev.composedPath()[0]) || ev.target;
 
     // 方便取用目前位址資訊
     const getLowercaseHostname = () => location.hostname.toLowerCase();
@@ -222,8 +231,11 @@
     // 網站映射規則（雙向）
     const mappingRules = [
         // Bootstrap
-        () => replaceHref(/\/\/getbootstrap\.com\/docs\/3\.3\//i, 'v3.bootcss.com/'),
-        () => replaceHref(/\/\/v3\.bootcss\.com\//i, 'getbootstrap.com/docs/3.3/'),
+        // 注意：比對的樣式包含開頭的「//」，取代字串也必須保留「//」。
+        // 舊版取代字串少了「//」，產生的是「https:v3.bootcss.com/...」，瀏覽器會把它當成相對路徑，
+        // 結果導向「https://getbootstrap.com/docs/3.3/v3.bootcss.com/...」這種不存在的頁面。
+        () => replaceHref(/\/\/getbootstrap\.com\/docs\/3\.3\//i, '//v3.bootcss.com/'),
+        () => replaceHref(/\/\/v3\.bootcss\.com\//i, '//getbootstrap.com/docs/3.3/'),
         () => getCurrentUrl() === 'https://getbootstrap.com/' ? (location.href = 'https://bootstrap5.hexschool.com', true) : false,
         () => replaceHref(/bootstrap\.hexschool\.com/i, 'getbootstrap.com'),
         () => replaceHref(/bootstrap5\.hexschool\.com/i, 'getbootstrap.com'),
@@ -278,8 +290,11 @@
         },
 
         // Vue.js
-        () => replaceHref(/vuejs\.org/i, 'cn.vuejs.org'),
+        // 注意：cn.vuejs.org → vuejs.org 這條必須排在前面。
+        // 舊版的順序是先比對 /vuejs\.org/，而「cn.vuejs.org」本身就包含「vuejs.org」，
+        // 在中文版按下 Alt+S 會被換成「cn.cn.vuejs.org」，永遠切不回英文版。
         () => replaceHref(/cn\.vuejs\.org/i, 'vuejs.org'),
+        () => replaceHref(/vuejs\.org/i, 'cn.vuejs.org'),
 
         // Dart
         () => setHostIf(getCurrentUrl().indexOf('//dart.dev/') >= 0, 'dart.tw.gh.miniasp.com'),
@@ -356,7 +371,8 @@
     }
 
     document.addEventListener('keydown', (ev) => {
-        if (!isAltS(ev) || isExcludedTarget(ev.target)) return;
+        // 輸入法組字中（isComposing）的按鍵屬於輸入法，不當成快捷鍵
+        if (!isAltS(ev) || ev.isComposing || isExcludedTarget(getEventTarget(ev))) return;
 
         const isCapsLockOn = ev.getModifierState('CapsLock');
         if (isCapsLockOn) {
@@ -364,6 +380,10 @@
             return;
         }
 
-        applyFirstMatch();
+        // 有規則命中（代表腳本已接手這次 Alt+S）才取消預設行為，
+        // 例如 Windows 版 Firefox 的 Alt+S 會開啟「歷史」選單；沒有命中時維持瀏覽器原本的行為
+        if (applyFirstMatch()) {
+            ev.preventDefault();
+        }
     });
 })();
