@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 翻譯選取文字的內容 (英翻中)
-// @version      1.0.0
+// @version      1.0.1
 // @description  自動將當前頁面的選取範圍送到 ChatGPT 進行翻譯 (英翻中)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -8,11 +8,11 @@
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTranslationE2T.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/ChatGPTTranslationE2T.user.js
-// @match        *://*/*
 // @author       Will Huang
+// @match        *://*/*
 // @run-at       context-menu
-// @grant        GM_openInTab
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=openai.com
+// @grant        GM_openInTab
 // ==/UserScript==
 
 (function () {
