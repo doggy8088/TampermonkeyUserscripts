@@ -192,8 +192,28 @@
      * @param {object} options - 傳入 GM_xmlhttpRequest 的選項物件
      * @returns {Promise<object>} 解析後的 GM_xmlhttpRequest response 物件
      */
+    // 僅允許 http/https，並封鎖常見的內部網段與 loopback 位址，
+    // 避免頁面內容中帶有的 URL 被用來發出 SSRF 請求（例如存取雲端中繼資料服務、
+    // 內部管理介面或 localhost 服務）。
+    const UNSAFE_HOSTNAME_PATTERN = /^(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|169\.254(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2}|\[?::1\]?|\[?fc[0-9a-f]{2}:|\[?fe80:)/i;
+
+    function isSafeRequestUrl(urlString) {
+        try {
+            const parsed = new URL(urlString, window.location.href);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+            if (UNSAFE_HOSTNAME_PATTERN.test(parsed.hostname)) return false;
+            return true;
+        } catch {
+            return false;
+        }
+    }
+
     function gmFetch(options) {
         return new Promise((resolve, reject) => {
+            if (!isSafeRequestUrl(options.url)) {
+                reject(new Error(`Blocked unsafe URL: ${options.url}`));
+                return;
+            }
             GM_xmlhttpRequest({
                 timeout: REQUEST_TIMEOUT_MS,
                 ...options,
