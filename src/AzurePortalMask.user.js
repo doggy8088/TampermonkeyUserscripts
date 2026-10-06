@@ -159,6 +159,12 @@ div.fxs-avatarmenu-tenant {
      * 若需要涵蓋，請在 tagNamesToMatch 加入對應的標籤名稱（大寫），初次掃描與觀察器會一併生效。
      */
     const observer = new MutationObserver(mutations => {
+        // tested / walked 只在「這一次回呼」中共用，讓同一批次內重複出現的元素只檢查一次。
+        // 這不會讓元素停在「某一筆 record 當下的舊狀態」：MutationObserver 的回呼是在整批變動
+        // 都已完成之後才以 microtask 執行，回呼內讀取的 textContent／firstChild 一律是「最終的 DOM」，
+        // 同一個元素不論在批次中被改了幾次，第一次檢查時看到的就已經是最後的結果。
+        // 若同一個元素在之後的 task 又被改動，下一次回呼會建立新的 Set，重新檢查。
+        // 注意：與原本的設計相同，隱碼 class 一旦加上就不會移除（內容之後若改成非 GUID 仍維持模糊）。
         const tested = new Set();
         const walked = new Set();
 
