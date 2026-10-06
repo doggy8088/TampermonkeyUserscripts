@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         GitHub: 新增 DeepWiki 按鈕
-// @version      0.1.0
+// @version      0.1.1
 // @description  在 GitHub Repo 頁面新增 DeepWiki 按鈕，快速跳轉到對應的 AI 文件網站
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -19,14 +19,24 @@
 (function() {
     'use strict';
 
-    function createDeepWikiButton() {
-        // 從當前 URL 提取 owner/repo 資訊
-        const pathMatch = window.location.pathname.match(/^\/([^\/]+)\/([^\/]+)(?:\/|$)/);
+    // 從網址路徑取出 owner/repo，例如 /doggy8088/TampermonkeyUserscripts/tree/main → doggy8088、TampermonkeyUserscripts。
+    const REPO_PATH_PATTERN = /^\/([^\/]+)\/([^\/]+)(?:\/|$)/;
+    const BUTTON_CLASS = 'deepwiki-button';
+    const ACTIONS_CONTAINER_SELECTOR = '#repository-details-container .pagehead-actions';
+
+    function getDeepWikiUrl() {
+        const pathMatch = window.location.pathname.match(REPO_PATH_PATTERN);
         if (!pathMatch) return null;
 
         const owner = pathMatch[1];
         const repo = pathMatch[2];
-        const deepwikiUrl = `https://deepwiki.com/${owner}/${repo}`;
+        return `https://deepwiki.com/${owner}/${repo}`;
+    }
+
+    function createDeepWikiButton() {
+        // 從當前 URL 提取 owner/repo 資訊
+        const deepwikiUrl = getDeepWikiUrl();
+        if (!deepwikiUrl) return null;
 
         // 建立按鈕容器
         const li = document.createElement('li');
@@ -66,19 +76,31 @@
     }
 
     function addDeepWikiButton() {
+        if (shouldIgnorePage()) return;
+
         // 尋找按鈕插入位置
-        const actionsContainer = document.querySelector('#repository-details-container .pagehead-actions');
+        const actionsContainer = document.querySelector(ACTIONS_CONTAINER_SELECTOR);
         if (!actionsContainer) return;
 
         // 檢查是否已經添加過按鈕
-        if (actionsContainer.querySelector('.deepwiki-button')) return;
+        const existingButton = actionsContainer.querySelector(`.${BUTTON_CLASS}`);
+        if (existingButton) {
+            // GitHub 換頁時若沿用同一個 pagehead（沒有整塊重繪），舊按鈕會留在畫面上；
+            // 此時同步更新連結，避免從 repo A 換到 repo B 後按鈕仍然指向 A 的 DeepWiki 頁面。
+            const link = existingButton.querySelector('a');
+            const deepwikiUrl = getDeepWikiUrl();
+            if (link && deepwikiUrl && link.href !== deepwikiUrl) {
+                link.href = deepwikiUrl;
+            }
+            return;
+        }
 
         // 建立按鈕
         const deepwikiButton = createDeepWikiButton();
         if (!deepwikiButton) return;
 
         // 為按鈕添加識別類別
-        deepwikiButton.classList.add('deepwiki-button');
+        deepwikiButton.classList.add(BUTTON_CLASS);
 
         // 在 Watch 按鈕前插入
         actionsContainer.insertBefore(deepwikiButton, actionsContainer.firstChild);
@@ -99,51 +121,52 @@
         }
 
         // 確保是Repo （包含 owner/repo 格式）
-        const pathMatch = path.match(/^\/([^\/]+)\/([^\/]+)(?:\/|$)/);
-        return !pathMatch;
+        return !REPO_PATH_PATTERN.test(path);
+    }
+
+    // DOM 變動時以 requestAnimationFrame 節流，同一個畫面更新週期內最多檢查一次。
+    // 檢查本身只有兩次 querySelector（容器以 id 開頭，瀏覽器可快速定位），成本極低。
+    let checkScheduled = false;
+    function scheduleAddDeepWikiButton() {
+        if (checkScheduled) return;
+        checkScheduled = true;
+        requestAnimationFrame(() => {
+            checkScheduled = false;
+            addDeepWikiButton();
+        });
     }
 
     function init() {
-        if (shouldIgnorePage()) return;
-
         // 初始添加按鈕
         addDeepWikiButton();
 
         // 監聽頁面變化（GitHub 使用 Turbo 進行頁面導航）
-        const observer = new MutationObserver((mutations) => {
-            mutations.forEach((mutation) => {
-                if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
-                    // 檢查是否有新的倉庫容器被添加
-                    for (const node of mutation.addedNodes) {
-                        if (node.nodeType === Node.ELEMENT_NODE) {
-                            if (node.id === 'repository-container-header' ||
-                                node.querySelector('#repository-container-header')) {
-                                setTimeout(addDeepWikiButton, 100);
-                                break;
-                            }
-                        }
-                    }
-                }
-            });
-        });
-
-        observer.observe(document.body, {
+        // 舊版在初始化與每次 turbo:load 都會呼叫 init()，每次都 new 一個新的 MutationObserver 且從不 disconnect：
+        // 每換一頁就多一個觀察器（初始載入的 turbo:load 若在腳本執行後才觸發，一開始就有兩個），
+        // 同一筆 DOM 變動會被重複處理 N 次。現在整個頁面生命週期只建立一個觀察器。
+        // 觀察 document.documentElement 而不是 document.body：Turbo 若以新的 <body> 取代舊的，
+        // 掛在舊 body 上的觀察器就再也收不到通知，觀察根節點則不受影響。
+        // 不再只等待 #repository-container-header 被插入：只要有任何 DOM 變動就節流檢查一次，
+        // 能涵蓋 GitHub 以 React 局部重繪 pagehead、按鈕被移除後需要補回的情況。
+        const observer = new MutationObserver(scheduleAddDeepWikiButton);
+        observer.observe(document.documentElement, {
             childList: true,
             subtree: true
+        });
+
+        // 監聽 Turbo 導航事件
+        // 保留舊版延遲 100ms 的時機，讓 GitHub 有時間把新頁面的 pagehead 繪製完成。
+        document.addEventListener('turbo:load', () => {
+            setTimeout(addDeepWikiButton, 100);
         });
     }
 
     // 等待頁面準備完成
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init);
+        document.addEventListener('DOMContentLoaded', init, { once: true });
     } else {
         init();
     }
-
-    // 監聽 Turbo 導航事件
-    document.addEventListener('turbo:load', () => {
-        setTimeout(init, 100);
-    });
 
     // 添加自定義樣式
     const style = document.createElement('style');
