@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Facebook: PunycodeConverter
-// @version      1.0
+// @version      1.0.1
 // @description  將 Facebook 貼文上所有 Punycode (國際化域名編碼) 轉為正常的 Unicode 文字
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -8,9 +8,10 @@
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBPunycodeConverter.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/FBPunycodeConverter.user.js
-// @match        *://www.facebook.com/*
 // @author       Will Huang
+// @match        *://www.facebook.com/*
 // @run-at       document-idle
+// @grant        none
 // ==/UserScript==
 
 (function () {
@@ -454,25 +455,50 @@
     };
 
 
+    // 快速預先篩選：innerText 的文字只可能來自元素內的文字節點（頂多再經過 CSS text-transform 轉換大小寫），
+    // 因此 textContent 不分大小寫找不到 "xn--" 的連結，innerText 也不可能含有 "http://xn--"。
+    // textContent 不需要版面計算；innerText 則會強制瀏覽器完成 style/layout，
+    // Facebook 頁面上動輒數千個 <a>，舊版每 200ms 對每個連結都讀一次 innerText，成本相當可觀。
+    const PUNYCODE_HINT_PATTERN = /xn--/i;
+
     function executeActions() {
         document.querySelectorAll('a').forEach(x => {
-            if (x.innerText.indexOf('http://xn--') >= 0) {
-                x.outerHTML = punycode.toUnicode(new URL(x.innerText).host);
+            if (!PUNYCODE_HINT_PATTERN.test(x.textContent)) return;
+
+            // 前一個連結被替換時，若剛好連帶移除了這個節點，就不必再處理。
+            if (!x.isConnected) return;
+
+            const text = x.innerText;
+            if (text.indexOf('http://xn--') < 0) return;
+
+            // 連結文字不一定是可以直接解析的完整網址（例如前後夾帶其他文字），new URL() 會丟出 TypeError；
+            // 舊版沒有攔截，一個解析失敗就讓整個 forEach 中斷，頁面上其餘的 Punycode 連結全部不會被轉換。
+            // 這裡改為逐一攔截，解析失敗的連結維持原樣。
+            let unicodeHost;
+            try {
+                unicodeHost = punycode.toUnicode(new URL(text).host);
+            } catch {
+                return;
             }
+
+            // 舊版以 outerHTML 指派解碼後的主機名稱，等於把貼文中的不受信任文字交給 HTML 解析器處理。
+            // 網址的主機名稱允許出現 & 與 ; 等字元，例如 http://xn--fiq228c.com&amp;x 的 host 是
+            // 「xn--fiq228c.com&amp;x」，經 HTML 解析後會被解碼成「中文.com&x」，顯示的文字與原始連結不一致。
+            // （< 與 > 屬於網址主機名稱的禁用字元，因此無法藉此注入標籤，但不應依賴這種間接保證。）
+            // 改為以純文字節點取代原本的 <a>：一般網域的畫面結果（連結被換成解碼後的網域文字）與舊版完全相同，
+            // 內容也永遠不會被當成 HTML 解析。
+            x.replaceWith(document.createTextNode(unicodeHost));
         });
     }
 
-    (function () {
-        'use strict';
-        document.addEventListener('keyup', function (e) {
-            if (e.ctrlKey && e.altKey && e.shiftKey && e.key == 'P') {
-                executeActions();
-            }
-        });
-
-        for (let i = 0; i < 20; i++) {
-            setTimeout(executeActions, i * 200);
+    document.addEventListener('keyup', function (e) {
+        if (e.ctrlKey && e.altKey && e.shiftKey && e.key == 'P') {
+            executeActions();
         }
-    })();
+    });
+
+    for (let i = 0; i < 20; i++) {
+        setTimeout(executeActions, i * 200);
+    }
 
 })();
