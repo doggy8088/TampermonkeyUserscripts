@@ -18,6 +18,7 @@
 
     "CopyToMarkdown:build": "esbuild CopyToMarkdown.user.src.js --bundle --outfile=dist/out.js --platform=browser && cat CopyToMarkdown.user.header.txt > dist/CopyToMarkdown.user.js && cat dist/out.js >> dist/CopyToMarkdown.user.js",
     "CopyToMarkdown:publish": "rimraf dist/ && npm run CopyToMarkdown:build && rimraf dist/out.js && copyfiles -f dist/*.user.js ../../src/",
+    "test": "node tests/html2markdown.sample.test.cjs",
     "build": "rimraf dist/ && npm run CopyToMarkdown:build && npm run SelectionToMarkdownContextMenu:build && npm run GeminiSummarizeSelectionContextMenu:build && npm run GeminiTranslationE2TContextMenu:build && npm run GeminiTranslationT2EContextMenu:build && rimraf dist/out.js && copyfiles -f dist/*.user.js ../../src/"
   },
   "keywords": [],
