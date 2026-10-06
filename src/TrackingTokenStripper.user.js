@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網站追蹤碼移除工具
-// @version      1.14
+// @version      1.14.1
 // @description  移除大多數網站附加在超連結上的 Query String 追蹤碼
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -11,6 +11,7 @@
 // @author       Will Huang
 // @match        *://*/*
 // @run-at       document-start
+// @grant        none
 // ==/UserScript==
 
 (function () {
@@ -52,7 +53,11 @@
             .removeByDomain('www.facebook.com', 'notif_ids[1]')
             .removeByDomain('www.facebook.com', 'notif_ids[2]')
             .removeByDomain('www.facebook.com', 'notif_ids[3]')
-            .removeByDomain('www.facebook.com', 'ref', 'notif')
+            // 注意：removeByDomain() 只接受兩個參數。這一行舊版寫成 removeByDomain('www.facebook.com', 'ref', 'notif')，
+            // 第三個參數 'notif' 一直都被忽略，實際效果是「移除任何值的 ref」。這裡維持這個實際行為，
+            // 只把不會生效、容易誤導的第三個參數拿掉；若只想移除 ref=notif，應改寫成 'ref=notif'。
+            // 也因為 ref 已整個被移除，下一行的 'ref=watch_permalink' 實際上不會再比對到任何東西，保留作為紀錄。
+            .removeByDomain('www.facebook.com', 'ref')
             .removeByDomain('www.facebook.com', 'ref=watch_permalink')
 
             // Dropbox
@@ -127,9 +132,11 @@
             .removeByDomainThatMatchAllKeys("www.latent.space", ['publication_id', 'post_id', 'isFreemail', 'r', 'token', 'triedRedirect'])
 
             // sendgrid.com
-            .remove('sendgrid.com', 'mc')
-            .remove('sendgrid.com', 'mcd')
-            .remove('sendgrid.com', 'cvosrc')
+            // 1.14 把這三個參數從「所有網站都移除」改成「只在 sendgrid.com 移除」時，誤用了 remove(name, value)，
+            // 變成「移除名為 sendgrid.com 且值為 mc 的參數」，實際上什麼都不會移除；這裡改回原本意圖的 removeByDomain()
+            .removeByDomain('sendgrid.com', 'mc')
+            .removeByDomain('sendgrid.com', 'mcd')
+            .removeByDomain('sendgrid.com', 'cvosrc')
 
             // Yahoo sites
             .remove('guce_referrer')
@@ -161,7 +168,11 @@
         if (s && location.href !== s) {
             // console.log('Changing URL', s);
             // location.href = s;
-            oldReplaceState.apply(history, [{}, '', s]);
+            // 第一個參數必須沿用目前的 history.state，不能傳入 {}
+            // 設計意圖：SPA 框架（Next.js、React Router、Vue Router 等）會把路由資訊存在 history.state 裡，
+            // 舊版每次移除追蹤碼都把它換成空物件 {}，之後按「上一頁／下一頁」時框架讀不到自己的狀態，
+            // 可能整頁重新載入或捲動位置錯亂。這裡只換網址，狀態原封不動。
+            oldReplaceState.apply(history, [history.state, '', s]);
         }
 
         function TrackingTokenStripper(url) {
