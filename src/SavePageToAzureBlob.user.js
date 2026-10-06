@@ -205,6 +205,34 @@
     }
 
     /**
+     * 取得可安全顯示或記錄的錯誤訊息（已遮蔽 SAS 簽章）。
+     *
+     * 設計意圖：gmFetch() 產生的錯誤雖已先行遮蔽，但發佈流程中還有其他來源的例外，
+     * 例如 Firefox 的 new URL() 會把無法解析的原始輸入（可能就是 SAS URL）放進錯誤訊息。
+     * 凡是要寫進頁面狀態提示條、alert() 或 console 的錯誤，一律經過這裡，
+     * 不必逐一判斷例外的來源是否安全。
+     *
+     * @param {unknown} err - 任意例外物件或值
+     * @returns {string} 已遮蔽 sig 的錯誤訊息
+     */
+    function describeError(err) {
+        return redactSasSignature(err?.message ?? String(err));
+    }
+
+    /**
+     * 取得可安全寫入 console 的錯誤詳細資訊（含 stack，已遮蔽 SAS 簽章）。
+     *
+     * 原本直接把例外物件交給 console.error()，DevTools 會原樣展開 message 與 stack；
+     * 改為輸出遮蔽後的字串，保留排查需要的呼叫堆疊，同時避免 sig 出現在 console。
+     *
+     * @param {unknown} err - 任意例外物件或值
+     * @returns {string} 已遮蔽 sig 的 stack（沒有 stack 時退回訊息）
+     */
+    function describeErrorForLog(err) {
+        return redactSasSignature(err?.stack || describeError(err));
+    }
+
+    /**
      * 從 GM_xmlhttpRequest 的 responseHeaders 字串中取出指定標頭的值。
      *
      * @param {string} headers - HTTP response headers 的原始字串
@@ -755,7 +783,7 @@
 
             // 確認資源大小在可接受範圍
             if (response.response.byteLength > MAX_INLINE_SIZE_BYTES) {
-                console.warn(`[SavePageToAzureBlob] 資源超過大小上限，略過內嵌：${absoluteUrl}`);
+                console.warn(`[SavePageToAzureBlob] 資源超過大小上限，略過內嵌：${redactSasSignature(absoluteUrl)}`);
                 return absoluteUrl;
             }
 
@@ -772,7 +800,9 @@
             return `data:${mimeType};base64,${btoa(binary)}`;
         } catch (err) {
             // 任何錯誤皆降級為保留原始絕對 URL
-            console.warn(`[SavePageToAzureBlob] 無法轉換資源（${err.message}）：${absoluteUrl}`);
+            // 頁面資源本身也可能是帶 SAS 的網址（例如在 Infinitybin 或 Azure Storage 頁面上製作快照），
+            // 寫入 console 前一律遮蔽 sig。
+            console.warn(`[SavePageToAzureBlob] 無法轉換資源（${describeError(err)}）：${redactSasSignature(absoluteUrl)}`);
             return absoluteUrl;
         }
     }
@@ -842,7 +872,7 @@
                 // a.css 引入 b.css、b.css 又引入 a.css 時，原本會無限遞迴並持續發出請求。
                 // 瀏覽器本身會忽略循環引用，這裡比照辦理：保留原始宣告、不再展開。
                 if (importChain.has(absUrl)) {
-                    console.warn(`[SavePageToAzureBlob] 偵測到循環 @import，略過展開：${absUrl}`);
+                    console.warn(`[SavePageToAzureBlob] 偵測到循環 @import，略過展開：${redactSasSignature(absUrl)}`);
                 } else {
                     const importedCssResponse = await gmFetch({ method: 'GET', url: absUrl, responseType: 'text' });
                     // 遞迴處理引入的 CSS，並以其絕對 URL 作為新的 baseUrl
@@ -861,7 +891,7 @@
                 }
             } catch (err) {
                 // @import 展開失敗時保留原始宣告，不中斷整體處理
-                console.warn(`[SavePageToAzureBlob] @import 展開失敗（${err.message}）：${importedUrl}`);
+                console.warn(`[SavePageToAzureBlob] @import 展開失敗（${describeError(err)}）：${redactSasSignature(importedUrl)}`);
             }
 
             importReplacements.push(replacement);
@@ -1098,9 +1128,12 @@
                       videoPosterEls.length + iconLinks.length;
         let current = 0;
 
+        // 進度訊息會顯示在頁面上的狀態提示條（一般 DOM 節點，目前網頁的 JavaScript 讀得到），
+        // 其中「處理樣式表：xxx」等訊息取自資源網址的最後一段，可能帶著含 sig 的查詢字串，
+        // 因此統一在這裡遮蔽，不必在每個呼叫點各自處理。
         const progress = (msg) => {
             current++;
-            onProgress?.(current, total, msg);
+            onProgress?.(current, total, redactSasSignature(msg));
         };
 
         // ── 處理 <link rel="stylesheet"> → 抓取並展開為 <style> ──
@@ -1121,7 +1154,7 @@
                 try {
                     link.href = new URL(href, pageUrl).href;
                 } catch { /* 無效 URL，保留原樣 */ }
-                console.warn(`[SavePageToAzureBlob] 樣式表內嵌失敗（${err.message}）：${href}`);
+                console.warn(`[SavePageToAzureBlob] 樣式表內嵌失敗（${describeError(err)}）：${redactSasSignature(href)}`);
             }
             progress(`處理樣式表：${href.split('/').pop()}`);
         }
@@ -1131,7 +1164,7 @@
             try {
                 styleEl.textContent = await inlineCssResources(styleEl.textContent, pageUrl, resourceCache);
             } catch (err) {
-                console.warn(`[SavePageToAzureBlob] <style> 處理失敗：${err.message}`);
+                console.warn(`[SavePageToAzureBlob] <style> 處理失敗：${describeError(err)}`);
             }
             progress('處理內嵌樣式');
         }
@@ -1697,8 +1730,9 @@
                 }
             } catch (err) {
                 // 擷取或發佈失敗時顯示錯誤，並提供複製建議
-                statusBar.update(`❌ 操作失敗：${err.message}`);
-                console.error('[SavePageToAzureBlob] 操作失敗：', err);
+                // 錯誤訊息會寫進頁面上的狀態提示條，必須先遮蔽 SAS 簽章（見 describeError()）。
+                statusBar.update(`❌ 操作失敗：${describeError(err)}`);
+                console.error('[SavePageToAzureBlob] 操作失敗：', describeErrorForLog(err));
                 await delay(6000);
             } finally {
                 statusBar.remove();
@@ -1773,8 +1807,9 @@
                     statusBar = createStatusBar('');
                     activeStatusBar = statusBar;
                 }
-                statusBar.update(`❌ 內容發佈失敗：${err.message}`);
-                console.error('[SavePageToAzureBlob] 內容發佈失敗：', err);
+                // 錯誤訊息會寫進頁面上的狀態提示條，必須先遮蔽 SAS 簽章（見 describeError()）。
+                statusBar.update(`❌ 內容發佈失敗：${describeError(err)}`);
+                console.error('[SavePageToAzureBlob] 內容發佈失敗：', describeErrorForLog(err));
                 await delay(6000);
             } finally {
                 statusBar?.remove();
@@ -1838,7 +1873,8 @@
                 throw new Error('SAS URL 似乎缺少 sig 參數，請確認複製的是完整的 SAS URL。');
             }
         } catch (err) {
-            alert(`SAS URL 驗證失敗：\n${err.message}\n\n請重新設定。`);
+            // Firefox 的 new URL() 會把無法解析的原始輸入放進錯誤訊息，同樣先遮蔽 sig 再顯示。
+            alert(`SAS URL 驗證失敗：\n${describeError(err)}\n\n請重新設定。`);
             return;
         }
 
