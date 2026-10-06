@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網頁狀態與任意內容發佈到 Infinitybin
-// @version      0.3.0
+// @version      0.3.1
 // @description  透過 Tampermonkey 選單將目前網頁狀態或任意文字內容發佈到 Azure Blob Storage-backed Infinitybin，並設定正確檔名與 Content-Type
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -182,6 +182,41 @@
     let activeSaveOperation = null;
     let activeStatusBar = null;
 
+    // ===== 工具：遮蔽 SAS 簽章 =====
+
+    /**
+     * 將文字中所有 SAS 查詢參數 sig= 的值替換為 REDACTED。
+     *
+     * 設計意圖：
+     *   - 上傳用的 PUT 網址帶有完整 SAS Token；原本請求失敗時，錯誤訊息直接內含該網址，
+     *     接著被寫進頁面右下角的狀態提示條與 console.error()。狀態提示條是一般 DOM 節點，
+     *     目前網頁的任何 JavaScript（包含第三方廣告或追蹤腳本）都能讀到它的文字，
+     *     等於把可寫入 Container 的憑證交給當前網站。
+     *   - SAS 中真正構成授權的是 HMAC 簽章 sig；sv、sp、se 等參數不具機密性，
+     *     保留下來反而有助於判斷權限不足或 Token 過期，因此只遮蔽 sig 的值。
+     *   - 以字串取代而不經 URL 解析，可同時處理一般訊息、JSON.stringify 的輸出，
+     *     以及無法被 URL() 解析的片段，也不會改變其餘參數的編碼形式。
+     *
+     * @param {string} text - 可能含有 SAS URL 的文字
+     * @returns {string} 已遮蔽簽章的文字
+     */
+    function redactSasSignature(text) {
+        return String(text ?? '').replace(/([?&]sig=)[^&#\s"']*/gi, '$1REDACTED');
+    }
+
+    /**
+     * 從 GM_xmlhttpRequest 的 responseHeaders 字串中取出指定標頭的值。
+     *
+     * @param {string} headers - HTTP response headers 的原始字串
+     * @param {string} name - 標頭名稱（不分大小寫）
+     * @returns {string} 標頭值；不存在時回傳空字串
+     */
+    function getResponseHeaderValue(headers, name) {
+        const prefix = `${name.toLowerCase()}:`;
+        const line = (headers || '').split(/\r?\n/).find(h => h.toLowerCase().startsWith(prefix));
+        return line ? line.slice(prefix.length).trim() : '';
+    }
+
     // ===== 工具：Promise 化 GM_xmlhttpRequest =====
 
     /**
@@ -189,10 +224,15 @@
      * 統一處理 onload / onerror / ontimeout / onabort 回呼，
      * 讓後續程式碼可使用 async/await 語法。
      *
+     * 錯誤訊息中的網址一律先經 redactSasSignature() 遮蔽，
+     * 呼叫端可放心把 err.message 顯示在頁面上或寫入 console。
+     *
      * @param {object} options - 傳入 GM_xmlhttpRequest 的選項物件
      * @returns {Promise<object>} 解析後的 GM_xmlhttpRequest response 物件
      */
     function gmFetch(options) {
+        const safeUrl = redactSasSignature(options.url);
+
         return new Promise((resolve, reject) => {
             GM_xmlhttpRequest({
                 timeout: REQUEST_TIMEOUT_MS,
@@ -202,12 +242,27 @@
                     if (response.status >= 200 && response.status < 400) {
                         resolve(response);
                     } else {
-                        reject(new Error(`HTTP ${response.status}: ${options.url}`));
+                        // Azure Storage 會以 x-ms-error-code 標頭說明失敗原因
+                        // （例如 AuthorizationPermissionMismatch 代表 SAS 缺少 c/w 權限、
+                        // AuthenticationFailed 多半是 Token 過期或簽章錯誤），附在訊息中方便排查；
+                        // 一般網站資源沒有這個標頭時維持原本格式。
+                        const azureErrorCode = getResponseHeaderValue(response.responseHeaders, 'x-ms-error-code');
+                        const codeSuffix = azureErrorCode ? ` (${azureErrorCode})` : '';
+                        reject(new Error(`HTTP ${response.status}${codeSuffix}: ${safeUrl}`));
                     }
                 },
-                onerror(err)  { reject(new Error(`Network error: ${options.url} — ${JSON.stringify(err)}`)); },
-                ontimeout()   { reject(new Error(`Timeout: ${options.url}`)); },
-                onabort()     { reject(new Error(`Aborted: ${options.url}`)); }
+                onerror(err) {
+                    // 錯誤物件的 finalUrl 等欄位同樣含有完整 SAS URL，序列化後也要遮蔽。
+                    let detail = '';
+                    try {
+                        detail = JSON.stringify(err);
+                    } catch {
+                        detail = String(err);
+                    }
+                    reject(new Error(`Network error: ${safeUrl} — ${redactSasSignature(detail)}`));
+                },
+                ontimeout()   { reject(new Error(`Timeout: ${safeUrl}`)); },
+                onabort()     { reject(new Error(`Aborted: ${safeUrl}`)); }
             });
         });
     }
@@ -836,28 +891,64 @@
             }
         });
 
-        // ── 將當前表單值對應到 DOM 屬性（clone 之前先埋值）──
-        // cloneNode(true) 複製 DOM 屬性，但不複製 JS property（.value / .checked），
-        // 因此需先將當前值寫回屬性，才能確保 clone 後的快照保留使用者輸入內容。
-        document.querySelectorAll('input, textarea, select').forEach(el => {
-            if (el.tagName === 'INPUT') {
-                if (el.type === 'checkbox' || el.type === 'radio') {
-                    el.checked ? el.setAttribute('checked', '') : el.removeAttribute('checked');
-                } else {
-                    el.setAttribute('value', el.value);
+        /**
+         * 把原始頁面表單欄位的「目前值」寫進 clone 中對應節點的屬性。
+         *
+         * 設計意圖：
+         *   - outerHTML 只序列化 DOM 屬性，不含 JS property（.value / .checked / .selected），
+         *     因此必須把目前值寫回屬性，快照才會保留使用者的輸入內容。
+         *   - 原本是在 clone 之前直接改寫「原始頁面」的屬性：會改掉欄位的 defaultValue
+         *     （之後網站呼叫 form.reset() 會重設成快照當下的值而非原始預設值）、
+         *     讓網站自己的 MutationObserver 收到大量屬性變動，也違反「所有修改都在
+         *     clone 上進行，不影響原始頁面」的原則。改為只寫入 clone。
+         *   - 密碼欄位一律不保留值（連既有的 value 屬性也移除）：快照會發佈到可公開
+         *     讀取的 Blob URL，若把已輸入的密碼寫進 HTML，等於把密碼公開在網路上。
+         *   - 檔案欄位的 value 只是 "C:\fakepath\檔名"，寫進屬性也無法還原選取的檔案，
+         *     反而洩漏本機檔名，因此略過。
+         *
+         * @param {Element} liveField - 原始頁面中的 input / textarea / select
+         * @param {Element} clonedField - clone 中位於相同位置的對應元素
+         */
+        function syncFormFieldStateToClone(liveField, clonedField) {
+            const tagName = liveField.localName;
+
+            if (tagName === 'input') {
+                const type = (liveField.type || '').toLowerCase();
+                if (type === 'checkbox' || type === 'radio') {
+                    liveField.checked ? clonedField.setAttribute('checked', '') : clonedField.removeAttribute('checked');
+                } else if (type === 'password') {
+                    clonedField.removeAttribute('value');
+                } else if (type !== 'file') {
+                    clonedField.setAttribute('value', liveField.value);
                 }
-            } else if (el.tagName === 'TEXTAREA') {
-                el.textContent = el.value;
-            } else if (el.tagName === 'SELECT') {
-                // 為每個 <option> 同步 selected 屬性
-                Array.from(el.options).forEach(opt => {
-                    opt.selected ? opt.setAttribute('selected', '') : opt.removeAttribute('selected');
+            } else if (tagName === 'textarea') {
+                clonedField.textContent = liveField.value;
+            } else if (tagName === 'select') {
+                // 為每個 <option> 同步 selected 屬性；clone 的 options 與原始頁面一一對應
+                Array.from(liveField.options).forEach((opt, optionIndex) => {
+                    const clonedOption = clonedField.options?.[optionIndex];
+                    if (!clonedOption) return;
+                    opt.selected ? clonedOption.setAttribute('selected', '') : clonedOption.removeAttribute('selected');
                 });
             }
-        });
+        }
+
+        // 先記下原始頁面的表單欄位，clone 後依文件順序配對。
+        const FORM_FIELD_SELECTOR = 'input, textarea, select';
+        const liveFormFields = [...document.querySelectorAll(FORM_FIELD_SELECTOR)];
 
         // ── 深度克隆整個 <html> 節點，後續所有修改都在 clone 上進行，不影響原始頁面 ──
         const root = document.documentElement.cloneNode(true);
+
+        // ── 將當前表單值寫入 clone 的屬性（必須緊接在 clone 之後、移除任何節點之前）──
+        // cloneNode(true) 完整保留樹狀結構，querySelectorAll 的文件順序與數量必然一致，
+        // 因此可用索引一對一配對；數量不符時（理論上不會發生）寧可略過也不錯置欄位值。
+        const clonedFormFields = root.querySelectorAll(FORM_FIELD_SELECTOR);
+        if (clonedFormFields.length === liveFormFields.length) {
+            clonedFormFields.forEach((clonedField, index) => {
+                syncFormFieldStateToClone(liveFormFields[index], clonedField);
+            });
+        }
 
         // ── 移除快照工具自身注入的狀態提示條（不應出現在最終快照中）──
         // 狀態提示條在序列化開始前就已插入 document.body，
