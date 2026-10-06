@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         104: 自動隱藏智能客服浮動選單
-// @version      0.1.0
+// @version      0.1.1
 // @description  自動偵測並移除 104 VIP 站的浮動智能客服選單（支援 SPA 網頁結構）
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -10,8 +10,8 @@
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/104HideSidebar.user.js
 // @author       Will Huang
 // @match        https://vip.104.com.tw/*
-// @icon         https://www.google.com/s2/favicons?sz=64&domain=104.com.tw
 // @run-at       document-idle
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=104.com.tw
 // @grant        none
 // ==/UserScript==
 
