@@ -10,7 +10,10 @@
 #HotIf WinActive("ahk_class Chrome_WidgetWin_1")
 
 ; ---------- Ctrl+W ----------
-^w::{
+; 熱鍵加上 $ 前綴：下方會用 Send("^w") 把同一組按鍵送回 Chrome，
+; $ 會強制以鍵盤掛鉤（keyboard hook）實作這個熱鍵，Send 送出的按鍵就不會再觸發熱鍵本身。
+; 沒有 $ 時是否會自我觸發取決於 AutoHotkey 實作熱鍵的方式，明確加上可避免按鍵被吞掉或遞迴觸發。
+$^w::{
     title := WinGetTitle("A")
     ; https://github.dev/*
     ; https://*.github.dev/*
@@ -23,7 +26,8 @@
 }
 
 ; ---------- Ctrl+F4 ----------
-^F4::{
+; 與 Ctrl+W 相同，因為會 Send("^F4") 送回同一組按鍵，所以加上 $ 前綴避免自我觸發
+$^F4::{
     title := WinGetTitle("A")
     ; https://github.dev/*
     ; https://*.github.dev/*
