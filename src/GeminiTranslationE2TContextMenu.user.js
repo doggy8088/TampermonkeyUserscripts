@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 翻譯選取文字的內容 (英翻中)
-// @version      1.8.0
+// @version      1.8.1
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行翻譯 (英翻中)
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -2107,8 +2107,543 @@
     }
   });
 
+  // lib/html2markdown.cjs
+  var require_html2markdown = __commonJS({
+    "lib/html2markdown.cjs"(exports, module) {
+      "use strict";
+      function hasClassAttribute(node, className) {
+        if (!node || typeof node.getAttribute !== "function") {
+          return false;
+        }
+        var classAttr = node.getAttribute("class") || "";
+        return new RegExp("\\b" + className + "\\b").test(classAttr);
+      }
+      function sanitizeHtmlForMarkdown(html2) {
+        if (!html2 || typeof html2 !== "string") {
+          return "";
+        }
+        if (typeof DOMParser === "undefined") {
+          return html2;
+        }
+        var doc;
+        try {
+          doc = new DOMParser().parseFromString(
+            "<!doctype html><html><body>" + html2 + "</body></html>",
+            "text/html"
+          );
+        } catch (error) {
+          return html2;
+        }
+        var root = doc.body || doc.documentElement;
+        if (!root || typeof root.getElementsByTagName !== "function") {
+          return html2;
+        }
+        if (typeof root.insertBefore !== "function") {
+          var stringCleaned = html2;
+          stringCleaned = stringCleaned.replace(
+            /<div\b[^>]*\bclass="[^"]*\bmarkdown-heading\b[^"]*"[^>]*>([\s\S]*?)<\/div>/gi,
+            "$1"
+          );
+          stringCleaned = stringCleaned.replace(
+            /<a\b[^>]*\bclass="[^"]*\banchor\b[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
+            ""
+          );
+          stringCleaned = stringCleaned.replace(
+            /<a\b[^>]*aria-label="Permalink:[^"]*"[^>]*>[\s\S]*?<\/a>/gi,
+            ""
+          );
+          return stringCleaned;
+        }
+        var elements = Array.from(root.getElementsByTagName("*"));
+        var anchorsToRemove = [];
+        var wrappersToUnwrap = [];
+        for (var i = 0; i < elements.length; i++) {
+          var element = elements[i];
+          var nodeName = element.nodeName;
+          if (nodeName === "A") {
+            var ariaLabel = typeof element.getAttribute === "function" ? element.getAttribute("aria-label") : null;
+            if (hasClassAttribute(element, "anchor") || ariaLabel && /^Permalink:/i.test(ariaLabel)) {
+              anchorsToRemove.push(element);
+            }
+          } else if (nodeName === "DIV" && hasClassAttribute(element, "markdown-heading")) {
+            wrappersToUnwrap.push(element);
+          }
+        }
+        anchorsToRemove.forEach(function(anchor) {
+          if (anchor && anchor.parentNode) {
+            anchor.parentNode.removeChild(anchor);
+          }
+        });
+        wrappersToUnwrap.forEach(function(wrapper) {
+          var parent = wrapper.parentNode;
+          if (!parent) {
+            return;
+          }
+          while (wrapper.firstChild) {
+            parent.insertBefore(wrapper.firstChild, wrapper);
+          }
+          parent.removeChild(wrapper);
+        });
+        return root.innerHTML || html2;
+      }
+      function isHTML(str) {
+        if (!str || typeof str !== "string") {
+          return false;
+        }
+        if (typeof DOMParser === "undefined") {
+          return /<\/?[a-z][\s\S]*>/i.test(str);
+        }
+        var doc = new DOMParser().parseFromString(str, "text/html");
+        return Array.from(doc.body.childNodes).some(function(node) {
+          return node.nodeType === 1;
+        });
+      }
+      var toMarkdown = function(e, n) {
+        return e();
+      }(function() {
+        return function e(n, t, r) {
+          function o(a2, c) {
+            if (!t[a2]) {
+              if (!n[a2]) {
+                var l = "function" == typeof __require && __require;
+                if (!c && l)
+                  return l(a2, true);
+                if (i)
+                  return i(a2, true);
+                var u = Error("Cannot find module '" + a2 + "'");
+                throw u.code = "MODULE_NOT_FOUND", u;
+              }
+              var f = t[a2] = { exports: {} };
+              n[a2][0].call(f.exports, function(e2) {
+                var t2;
+                return o(n[a2][1][e2] || e2);
+              }, f, f.exports, e, n, t, r);
+            }
+            return t[a2].exports;
+          }
+          for (var i = "function" == typeof __require && __require, a = 0; a < r.length; a++)
+            o(r[a]);
+          return o;
+        }({ 1: [function(e, n, t) {
+          "use strict";
+          var r, o, i = e("./lib/md-converters"), a = e("./lib/gfm-converters"), c = e("./lib/html-parser"), l = e("collapse-whitespace"), u = ["address", "article", "aside", "audio", "blockquote", "body", "canvas", "center", "dd", "dir", "div", "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "frameset", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "html", "isindex", "li", "main", "menu", "nav", "noframes", "noscript", "ol", "output", "p", "pre", "section", "table", "tbody", "td", "tfoot", "th", "thead", "tr", "ul"];
+          function f(e2) {
+            return -1 !== u.indexOf(e2.nodeName.toLowerCase());
+          }
+          var s = ["area", "base", "br", "col", "command", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"];
+          function d(e2) {
+            return -1 !== s.indexOf(e2.nodeName.toLowerCase());
+          }
+          function p(e2) {
+            for (var n2 = "", t2 = 0; t2 < e2.childNodes.length; t2++)
+              if (1 === e2.childNodes[t2].nodeType)
+                n2 += e2.childNodes[t2]._replacement;
+              else {
+                if (3 !== e2.childNodes[t2].nodeType)
+                  continue;
+                n2 += e2.childNodes[t2].data;
+              }
+            return n2;
+          }
+          function m(e2, n2) {
+            if ("string" == typeof n2)
+              return n2 === e2.nodeName.toLowerCase();
+            if (Array.isArray(n2))
+              return -1 !== n2.indexOf(e2.nodeName.toLowerCase());
+            if ("function" == typeof n2)
+              return n2.call(r, e2);
+            throw TypeError("`filter` needs to be a string, array, or function");
+          }
+          function h(e2, n2) {
+            var t2, r2, o2;
+            return "left" === e2 ? (t2 = n2.previousSibling, r2 = / $/) : (t2 = n2.nextSibling, r2 = /^ /), t2 && (3 === t2.nodeType ? o2 = r2.test(t2.nodeValue) : 1 !== t2.nodeType || f(t2) || (o2 = r2.test(t2.textContent))), o2;
+          }
+          function g(e2) {
+            var n2 = "", t2 = "";
+            if (!f(e2)) {
+              var r2 = /^[ \r\n\t]/.test(e2.innerHTML), o2 = /[ \r\n\t]$/.test(e2.innerHTML);
+              r2 && !h("left", e2) && (n2 = " "), o2 && !h("right", e2) && (t2 = " ");
+            }
+            return { leading: n2, trailing: t2 };
+          }
+          function v(e2) {
+            var n2, t2 = p(e2);
+            if (!d(e2) && !/A|TH|TD/.test(e2.nodeName) && /^\s*$/i.test(t2)) {
+              e2._replacement = "";
+              return;
+            }
+            for (var i2 = 0; i2 < o.length; i2++) {
+              var a2 = o[i2];
+              if (m(e2, a2.filter)) {
+                if ("function" != typeof a2.replacement)
+                  throw TypeError("`replacement` needs to be a function that returns a string");
+                var c2 = g(e2);
+                (c2.leading || c2.trailing) && (t2 = t2.trim()), n2 = c2.leading + a2.replacement.call(r, t2, e2) + c2.trailing;
+                break;
+              }
+            }
+            e2._replacement = n2;
+          }
+          (r = function(e2, n2) {
+            if (n2 = n2 || {}, "string" != typeof e2)
+              throw TypeError(e2 + " is not a string");
+            var t2, r2, u2, s2 = (t2 = e2 = e2.replace(/(>[\r\n\s]*)(\d+)\.(&nbsp;| )/g, "$1$2\\.$3"), r2 = new c().parseFromString(t2, "text/html"), l(r2.documentElement, f), r2).body, d2 = function e3(n3) {
+              for (var t3, r3, o2, i2 = [n3], a2 = []; i2.length > 0; )
+                for (a2.push(t3 = i2.shift()), r3 = t3.childNodes, o2 = 0; o2 < r3.length; o2++)
+                  1 === r3[o2].nodeType && i2.push(r3[o2]);
+              return a2.shift(), a2;
+            }(s2);
+            o = i.slice(0), n2.gfm && (o = a.concat(o)), n2.converters && (o = n2.converters.concat(o));
+            for (var m2 = d2.length - 1; m2 >= 0; m2--)
+              v(d2[m2]);
+            return (u2 = p(s2)).replace(/^[\t\r\n]+|[\t\r\n\s]+$/g, "").replace(/\n\s+\n/g, "\n\n").replace(/\n{3,}/g, "\n\n");
+          }).isBlock = f, r.isVoid = d, r.outer = function e2(n2, t2) {
+            return n2.cloneNode(false).outerHTML.replace("><", ">" + t2 + "<");
+          }, n.exports = r;
+        }, { "./lib/gfm-converters": 2, "./lib/html-parser": 3, "./lib/md-converters": 4, "collapse-whitespace": 7 }], 2: [function(e, n, t) {
+          "use strict";
+          function r(e2, n2) {
+            var t2 = Array.prototype.indexOf.call(n2.parentNode.childNodes, n2), r2 = " ";
+            return 0 === t2 && (r2 = "| "), r2 + e2 + " |";
+          }
+          var o = /highlight highlight-(\S+)/;
+          n.exports = [{ filter: "br", replacement: function() {
+            return "\n";
+          } }, { filter: ["del", "s", "strike"], replacement: function(e2) {
+            return "~~" + e2 + "~~";
+          } }, { filter: function(e2) {
+            return "checkbox" === e2.type && "LI" === e2.parentNode.nodeName;
+          }, replacement: function(e2, n2) {
+            return (n2.checked ? "[x]" : "[ ]") + " ";
+          } }, { filter: ["th", "td"], replacement: function(e2, n2) {
+            return r(e2, n2);
+          } }, { filter: "tr", replacement: function(e2, n2) {
+            var t2 = "", o2 = { left: ":--", right: "--:", center: ":-:" };
+            if ("THEAD" === n2.parentNode.nodeName)
+              for (var i = 0; i < n2.childNodes.length; i++) {
+                var a = n2.childNodes[i].attributes.align, c = "---";
+                a && (c = o2[a.value] || c), t2 += r(c, n2.childNodes[i]);
+              }
+            return "\n" + e2 + (t2 ? "\n" + t2 : "");
+          } }, { filter: "table", replacement: function(e2) {
+            return "\n\n" + e2 + "\n\n";
+          } }, { filter: ["thead", "tbody", "tfoot"], replacement: function(e2) {
+            return e2;
+          } }, { filter: function(e2) {
+            return "PRE" === e2.nodeName && e2.firstChild && "CODE" === e2.firstChild.nodeName;
+          }, replacement: function(e2, n2) {
+            return "\n\n```\n" + n2.firstChild.textContent.trim() + "\n```\n\n";
+          } }, { filter: function(e2) {
+            return "PRE" === e2.nodeName && "DIV" === e2.parentNode.nodeName && o.test(e2.parentNode.className);
+          }, replacement: function(e2, n2) {
+            return "\n\n```" + n2.parentNode.className.match(o)[1] + "\n" + n2.textContent + "\n```\n\n";
+          } }, { filter: function(e2) {
+            return "DIV" === e2.nodeName && o.test(e2.className);
+          }, replacement: function(e2) {
+            return "\n\n" + e2 + "\n\n";
+          } }];
+        }, {}], 3: [function(e, n, t) {
+          var r = "undefined" != typeof window ? window : this;
+          n.exports = !function e2() {
+            var n2 = r.DOMParser, t2 = false;
+            try {
+              new n2().parseFromString("", "text/html") && (t2 = true);
+            } catch (o) {
+            }
+            return t2;
+          }() ? function n2() {
+            var t2 = function() {
+            };
+            if ("undefined" == typeof document) {
+              var r2 = e("jsdom");
+              t2.prototype.parseFromString = function(e2) {
+                return r2.jsdom(e2, { features: { FetchExternalResources: [], ProcessExternalResources: false } });
+              };
+            } else
+              !function e2() {
+                var n3 = false;
+                try {
+                  document.implementation.createHTMLDocument("").open();
+                } catch (t3) {
+                  window.ActiveXObject && (n3 = true);
+                }
+                return n3;
+              }() ? t2.prototype.parseFromString = function(e2) {
+                var n3 = document.implementation.createHTMLDocument("");
+                return n3.open(), n3.write(e2), n3.close(), n3;
+              } : t2.prototype.parseFromString = function(e2) {
+                var n3 = new window.ActiveXObject("htmlfile");
+                return n3.designMode = "on", n3.open(), n3.write(e2), n3.close(), n3;
+              };
+            return t2;
+          }() : r.DOMParser;
+        }, { jsdom: 6 }], 4: [function(e, n, t) {
+          "use strict";
+          n.exports = [{ filter: "p", replacement: function(e2) {
+            return "\n\n" + e2 + "\n\n";
+          } }, { filter: "br", replacement: function() {
+            return "  \n";
+          } }, { filter: ["h1", "h2", "h3", "h4", "h5", "h6"], replacement: function(e2, n2) {
+            for (var t2 = n2.nodeName.charAt(1), r = "", o = 0; o < t2; o++)
+              r += "#";
+            return "\n\n" + r + " " + e2 + "\n\n";
+          } }, { filter: "hr", replacement: function() {
+            return "\n\n* * *\n\n";
+          } }, { filter: ["em", "i"], replacement: function(e2) {
+            return "_" + e2 + "_";
+          } }, { filter: ["strong", "b"], replacement: function(e2) {
+            return "**" + e2 + "**";
+          } }, { filter: function(e2) {
+            var n2 = e2.previousSibling || e2.nextSibling, t2 = "PRE" === e2.parentNode.nodeName && !n2;
+            return "CODE" === e2.nodeName && !t2;
+          }, replacement: function(e2) {
+            return "`" + e2 + "`";
+          } }, { filter: function(e2) {
+            return "A" === e2.nodeName && e2.getAttribute("href");
+          }, replacement: function(e2, n2) {
+            var t2 = n2.title ? ' "' + n2.title + '"' : "";
+            return "[" + e2 + "](" + n2.getAttribute("href") + t2 + ")";
+          } }, { filter: "img", replacement: function(e2, n2) {
+            var t2 = n2.alt || "image", r = n2.getAttribute("src") || "", o = n2.title || "";
+            return r ? "![" + t2 + "](" + r + (o ? ' "' + o + '"' : "") + ")" : "";
+          } }, { filter: function(e2) {
+            return "PRE" === e2.nodeName && "CODE" === e2.firstChild.nodeName;
+          }, replacement: function(e2, n2) {
+            return "\n\n    " + n2.firstChild.textContent.replace(/\n/g, "\n    ") + "\n\n";
+          } }, { filter: "blockquote", replacement: function(e2) {
+            return "\n\n" + (e2 = (e2 = (e2 = e2.trim()).replace(/\n{3,}/g, "\n\n")).replace(/^/gm, "> ")) + "\n\n";
+          } }, { filter: "li", replacement: function(e2, n2) {
+            e2 = e2.replace(/^\s+/, "").replace(/\n/gm, "\n    ");
+            var t2 = "*   ", r = n2.parentNode, o = Array.prototype.indexOf.call(r.children, n2) + 1;
+            return (t2 = /ol/i.test(r.nodeName) ? o + ".  " : "*   ") + e2;
+          } }, { filter: ["ul", "ol"], replacement: function(e2, n2) {
+            for (var t2 = [], r = 0; r < n2.childNodes.length; r++)
+              t2.push(n2.childNodes[r]._replacement);
+            return /li/i.test(n2.parentNode.nodeName) ? "\n" + t2.join("\n") : "\n\n" + t2.join("\n") + "\n\n";
+          } }, { filter: function(e2) {
+            return this.isBlock(e2);
+          }, replacement: function(e2, n2) {
+            return "\n\n" + e2 + "\n\n";
+          } }, { filter: function() {
+            return true;
+          }, replacement: function(e2, n2) {
+            return e2;
+          } }];
+        }, {}], 5: [function(e, n, t) {
+          n.exports = ["address", "article", "aside", "audio", "blockquote", "canvas", "dd", "div", "dl", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main", "nav", "noscript", "ol", "output", "p", "pre", "section", "table", "tfoot", "ul", "video"];
+        }, {}], 6: [function(e, n, t) {
+        }, {}], 7: [function(e, n, t) {
+          "use strict";
+          var r = e("void-elements");
+          Object.keys(r).forEach(function(e2) {
+            r[e2.toUpperCase()] = 1;
+          });
+          var o = {};
+          function i(e2) {
+            return !!(e2 && o[e2.nodeName]);
+          }
+          function a(e2) {
+            return !!(e2 && r[e2.nodeName]);
+          }
+          function c(e2) {
+            var n2 = e2.nextSibling || e2.parentNode;
+            return e2.parentNode.removeChild(e2), n2;
+          }
+          function l(e2, n2) {
+            return e2 && e2.parentNode === n2 || "PRE" === n2.nodeName ? n2.nextSibling || n2.parentNode : n2.firstChild || n2.nextSibling || n2.parentNode;
+          }
+          e("block-elements").forEach(function(e2) {
+            o[e2.toUpperCase()] = 1;
+          }), n.exports = function e2(n2, t2) {
+            if (n2.firstChild && "PRE" !== n2.nodeName) {
+              "function" != typeof t2 && (t2 = i);
+              for (var r2 = null, o2 = false, u = null, f = l(u, n2); f !== n2; ) {
+                if (3 === f.nodeType) {
+                  var s = f.data.replace(/[ \r\n\t]+/g, " ");
+                  if ((!r2 || / $/.test(r2.data)) && !o2 && " " === s[0] && (s = s.substr(1)), !s) {
+                    f = c(f);
+                    continue;
+                  }
+                  f.data = s, r2 = f;
+                } else if (1 === f.nodeType)
+                  t2(f) || "BR" === f.nodeName ? (r2 && (r2.data = r2.data.replace(/ $/, "")), r2 = null, o2 = false) : a(f) && (r2 = null, o2 = true);
+                else {
+                  f = c(f);
+                  continue;
+                }
+                var d = l(u, f);
+                u = f, f = d;
+              }
+              r2 && (r2.data = r2.data.replace(/ $/, ""), r2.data || c(r2));
+            }
+          };
+        }, { "block-elements": 5, "void-elements": 8 }], 8: [function(e, n, t) {
+          n.exports = { area: true, base: true, br: true, col: true, embed: true, hr: true, img: true, input: true, keygen: true, link: true, menuitem: true, meta: true, param: true, source: true, track: true, wbr: true };
+        }, {}] }, {}, [1])(1);
+      });
+      function escapeMarkdown(str) {
+        return str.replace(/[\u2212\u2022\u00b7\u25aa]/g, "-").replace(/[\u2013\u2015]/g, "--").replace(/\u2014/g, "---").replace(/\u2026/g, "...").replace(/[ ]+\n/g, "\n").replace(/\s*\\\n/g, "\\\n").replace(/\s*\\\n\s*\\\n/g, "\n\n").replace(/\s*\\\n\n/g, "\n\n").replace(/\n-\n/g, "\n").replace(/\n\n\s*\\\n/g, "\n\n").replace(/\n\n\n*/g, "\n\n").replace(/[ ]+$/gm, "").replace(/^\s+|[\s\\]+$/g, "").replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, " ").replace(/[\u200B\uFEFF]/g, "");
+      }
+      var pandoc = [
+        {
+          // GitHub injects input[type=checkbox] for task lists. We normalize to
+          // "[ ] " or "[x] " here so list formatting remains stable in both
+          // browser and Node DOM implementations.
+          filter: function(node) {
+            if (!node || node.nodeName !== "INPUT") {
+              return false;
+            }
+            var type = typeof node.getAttribute === "function" ? node.getAttribute("type") : node.type;
+            return (type || "").toLowerCase() === "checkbox" && node.parentNode && node.parentNode.nodeName === "LI";
+          },
+          replacement: function(content, node) {
+            var isChecked = Boolean(node && node.checked);
+            if (!isChecked && node && typeof node.getAttribute === "function") {
+              isChecked = node.getAttribute("checked") !== null;
+            }
+            return isChecked ? "[x] " : "[ ] ";
+          }
+        },
+        {
+          filter: "h1",
+          replacement: function(content, node) {
+            return "# " + content + "\n\n";
+          }
+        },
+        {
+          filter: "h2",
+          replacement: function(content, node) {
+            return "## " + content + "\n\n";
+          }
+        },
+        {
+          filter: "sup",
+          replacement: function(content) {
+            return "^" + content + "^";
+          }
+        },
+        {
+          filter: "sub",
+          replacement: function(content) {
+            return "~" + content + "~";
+          }
+        },
+        {
+          filter: "br",
+          replacement: function() {
+            return "\\\n";
+          }
+        },
+        {
+          // Match the original markdown style that uses plain "---" rules.
+          filter: "hr",
+          replacement: function() {
+            return "\n\n---\n\n";
+          }
+        },
+        {
+          filter: ["em", "i", "cite", "var"],
+          replacement: function(content) {
+            return "*" + content + "*";
+          }
+        },
+        {
+          filter: function(node) {
+            var hasSiblings = node.previousSibling || node.nextSibling;
+            var isCodeBlock = node.parentNode.nodeName === "PRE" && !hasSiblings;
+            var isCodeElem = node.nodeName === "CODE" || node.nodeName === "KBD" || node.nodeName === "SAMP" || node.nodeName === "TT";
+            return isCodeElem && !isCodeBlock;
+          },
+          replacement: function(content) {
+            return "`" + content + "`";
+          }
+        },
+        {
+          filter: function(node) {
+            return node.nodeName === "A" && node.getAttribute("href");
+          },
+          replacement: function(content, node) {
+            var url = node.getAttribute("href");
+            var titlePart = node.title ? ' "' + node.title + '"' : "";
+            if (content === "") {
+              return "";
+            } else if (content === url) {
+              return "<" + url + ">";
+            } else if (url === "mailto:" + content) {
+              return "<" + content + ">";
+            } else {
+              return "[" + content + "](" + url + titlePart + ")";
+            }
+          }
+        },
+        {
+          // The default to-markdown list indentation uses 4 spaces. We
+          // intentionally align indentation with the original authoring style:
+          // 2 spaces under unordered lists and 3+ spaces under ordered lists.
+          // We do this by indenting continuation lines by the marker length.
+          filter: "li",
+          replacement: function(content, node) {
+            content = content.replace(/^\s+/, "").replace(/\n+$/, "\n");
+            var parent = node.parentNode;
+            var index = Array.prototype.indexOf.call(parent.children, node) + 1;
+            var marker = "- ";
+            if (/ol/i.test(parent.nodeName)) {
+              var startAttr = typeof parent.getAttribute === "function" ? parent.getAttribute("start") : null;
+              var startIndex = startAttr ? parseInt(startAttr, 10) : 1;
+              if (!startAttr || isNaN(startIndex)) {
+                startIndex = 1;
+              }
+              marker = startIndex + index - 1 + ". ";
+            }
+            var indent = " ".repeat(marker.length);
+            content = content.replace(/\n(?!$)/gm, "\n" + indent);
+            return marker + content;
+          }
+        }
+      ];
+      function normalizeMarkdown(markdown) {
+        if (!markdown) {
+          return "";
+        }
+        var normalized = markdown;
+        normalized = normalized.replace(/^(#{1,6}\s+)(\s*)(.*?)(\s*)$/gm, "$1$3");
+        normalized = normalized.replace(/^(#{1,6} .*)\\\.(?= )/gm, "$1.");
+        normalized = normalized.replace(/^(#{1,2}|#{4,6}) ([^\n]+)\n(?!\n)/gm, "$1 $2\n\n");
+        normalized = normalized.replace(/^(### (?!\d+\.)[^\n]+)\n(?!\n)/gm, function(match, heading) {
+          if (/Template/.test(heading)) {
+            return heading + "\n";
+          }
+          return heading + "\n\n";
+        });
+        normalized = normalized.replace(/^(### \d+\.[^\n]*)\n\n/gm, "$1\n");
+        normalized = normalized.replace(/^(\s*(?:[-*+]|\d+\.)\s+)\[(?:\s*)\]/gm, "$1[ ]");
+        normalized = normalized.replace(/^(\s*(?:[-*+]|\d+\.)\s+)\[(?:\s*x\s*)\]/gmi, "$1[x]");
+        normalized = normalized.replace(/^(\s*[-*+])[ \t]+/gm, "$1 ");
+        normalized = normalized.replace(/^(\s*[-*+])\s*\n\s+/gm, "$1 ");
+        normalized = normalized.replace(/^(\s*[-*+]\s+.*?)[ \t]+$/gm, "$1");
+        normalized = normalized.replace(/^(\s*\d+)\.\s+/gm, "$1. ");
+        normalized = normalized.replace(/^(\s*(?:[-*+]|\d+\.)\s+\[(?: |x)\])\s{2,}/gmi, "$1 ");
+        normalized = normalized.replace(/^[ \t]*(-\s*-\s*-|\*\s*\*\s*\*)[ \t]*$/gm, "---");
+        normalized = normalized.replace(/:\n\n(?=\s*[-*+]\s)/g, ":\n");
+        normalized = escapeMarkdown(normalized);
+        normalized = normalized.replace(/\s*$/, "\n");
+        return normalized;
+      }
+      function html2markdown2(html2) {
+        var cleanedHtml = sanitizeHtmlForMarkdown(html2);
+        var markdown = cleanedHtml;
+        if (isHTML(cleanedHtml)) {
+          markdown = toMarkdown(cleanedHtml, { converters: pandoc, gfm: true });
+        }
+        return normalizeMarkdown(markdown);
+      }
+      module.exports = html2markdown2;
+    }
+  });
+
   // GeminiTranslationE2TContextMenu.user.src.js
   var import_readability = __toESM(require_readability());
+  var import_html2markdown = __toESM(require_html2markdown());
   function getHTMLfromSelectorOrContent() {
     let selection = document.getSelection();
     let html2 = "";
@@ -2150,388 +2685,6 @@
     }
     return html2;
   }
-  var html2markdown = function(html2) {
-    let toMarkdown = function(e, n) {
-      return e();
-    }(function() {
-      return function e(n, t, r) {
-        function o(a2, c) {
-          if (!t[a2]) {
-            if (!n[a2]) {
-              var l = "function" == typeof __require && __require;
-              if (!c && l)
-                return l(a2, true);
-              if (i)
-                return i(a2, true);
-              var u = Error("Cannot find module '" + a2 + "'");
-              throw u.code = "MODULE_NOT_FOUND", u;
-            }
-            var f = t[a2] = { exports: {} };
-            n[a2][0].call(f.exports, function(e2) {
-              var t2;
-              return o(n[a2][1][e2] || e2);
-            }, f, f.exports, e, n, t, r);
-          }
-          return t[a2].exports;
-        }
-        for (var i = "function" == typeof __require && __require, a = 0; a < r.length; a++)
-          o(r[a]);
-        return o;
-      }({ 1: [function(e, n, t) {
-        "use strict";
-        var r, o, i = e("./lib/md-converters"), a = e("./lib/gfm-converters"), c = e("./lib/html-parser"), l = e("collapse-whitespace"), u = ["address", "article", "aside", "audio", "blockquote", "body", "canvas", "center", "dd", "dir", "div", "dl", "dt", "fieldset", "figcaption", "figure", "footer", "form", "frameset", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "html", "isindex", "li", "main", "menu", "nav", "noframes", "noscript", "ol", "output", "p", "pre", "section", "table", "tbody", "td", "tfoot", "th", "thead", "tr", "ul"];
-        function f(e2) {
-          return -1 !== u.indexOf(e2.nodeName.toLowerCase());
-        }
-        var s = ["area", "base", "br", "col", "command", "embed", "hr", "img", "input", "keygen", "link", "meta", "param", "source", "track", "wbr"];
-        function d(e2) {
-          return -1 !== s.indexOf(e2.nodeName.toLowerCase());
-        }
-        function p(e2) {
-          for (var n2 = "", t2 = 0; t2 < e2.childNodes.length; t2++)
-            if (1 === e2.childNodes[t2].nodeType)
-              n2 += e2.childNodes[t2]._replacement;
-            else {
-              if (3 !== e2.childNodes[t2].nodeType)
-                continue;
-              n2 += e2.childNodes[t2].data;
-            }
-          return n2;
-        }
-        function m(e2, n2) {
-          if ("string" == typeof n2)
-            return n2 === e2.nodeName.toLowerCase();
-          if (Array.isArray(n2))
-            return -1 !== n2.indexOf(e2.nodeName.toLowerCase());
-          if ("function" == typeof n2)
-            return n2.call(r, e2);
-          throw TypeError("`filter` needs to be a string, array, or function");
-        }
-        function h(e2, n2) {
-          var t2, r2, o2;
-          return "left" === e2 ? (t2 = n2.previousSibling, r2 = / $/) : (t2 = n2.nextSibling, r2 = /^ /), t2 && (3 === t2.nodeType ? o2 = r2.test(t2.nodeValue) : 1 !== t2.nodeType || f(t2) || (o2 = r2.test(t2.textContent))), o2;
-        }
-        function g(e2) {
-          var n2 = "", t2 = "";
-          if (!f(e2)) {
-            var r2 = /^[ \r\n\t]/.test(e2.innerHTML), o2 = /[ \r\n\t]$/.test(e2.innerHTML);
-            r2 && !h("left", e2) && (n2 = " "), o2 && !h("right", e2) && (t2 = " ");
-          }
-          return { leading: n2, trailing: t2 };
-        }
-        function v(e2) {
-          var n2, t2 = p(e2);
-          if (!d(e2) && !/A|TH|TD/.test(e2.nodeName) && /^\s*$/i.test(t2)) {
-            e2._replacement = "";
-            return;
-          }
-          for (var i2 = 0; i2 < o.length; i2++) {
-            var a2 = o[i2];
-            if (m(e2, a2.filter)) {
-              if ("function" != typeof a2.replacement)
-                throw TypeError("`replacement` needs to be a function that returns a string");
-              var c2 = g(e2);
-              (c2.leading || c2.trailing) && (t2 = t2.trim()), n2 = c2.leading + a2.replacement.call(r, t2, e2) + c2.trailing;
-              break;
-            }
-          }
-          e2._replacement = n2;
-        }
-        (r = function(e2, n2) {
-          if (n2 = n2 || {}, "string" != typeof e2)
-            throw TypeError(e2 + " is not a string");
-          var t2, r2, u2, s2 = (t2 = e2 = e2.replace(/(>[\r\n\s]*)(\d+)\.(&nbsp;| )/g, "$1$2\\.$3"), r2 = new c().parseFromString(t2, "text/html"), l(r2.documentElement, f), r2).body, d2 = function e3(n3) {
-            for (var t3, r3, o2, i2 = [n3], a2 = []; i2.length > 0; )
-              for (a2.push(t3 = i2.shift()), r3 = t3.childNodes, o2 = 0; o2 < r3.length; o2++)
-                1 === r3[o2].nodeType && i2.push(r3[o2]);
-            return a2.shift(), a2;
-          }(s2);
-          o = i.slice(0), n2.gfm && (o = a.concat(o)), n2.converters && (o = n2.converters.concat(o));
-          for (var m2 = d2.length - 1; m2 >= 0; m2--)
-            v(d2[m2]);
-          return (u2 = p(s2)).replace(/^[\t\r\n]+|[\t\r\n\s]+$/g, "").replace(/\n\s+\n/g, "\n\n").replace(/\n{3,}/g, "\n\n");
-        }).isBlock = f, r.isVoid = d, r.outer = function e2(n2, t2) {
-          return n2.cloneNode(false).outerHTML.replace("><", ">" + t2 + "<");
-        }, n.exports = r;
-      }, { "./lib/gfm-converters": 2, "./lib/html-parser": 3, "./lib/md-converters": 4, "collapse-whitespace": 7 }], 2: [function(e, n, t) {
-        "use strict";
-        function r(e2, n2) {
-          var t2 = Array.prototype.indexOf.call(n2.parentNode.childNodes, n2), r2 = " ";
-          return 0 === t2 && (r2 = "| "), r2 + e2 + " |";
-        }
-        var o = /highlight highlight-(\S+)/;
-        n.exports = [{ filter: "br", replacement: function() {
-          return "\n";
-        } }, { filter: ["del", "s", "strike"], replacement: function(e2) {
-          return "~~" + e2 + "~~";
-        } }, { filter: function(e2) {
-          return "checkbox" === e2.type && "LI" === e2.parentNode.nodeName;
-        }, replacement: function(e2, n2) {
-          return (n2.checked ? "[x]" : "[ ]") + " ";
-        } }, { filter: ["th", "td"], replacement: function(e2, n2) {
-          return r(e2, n2);
-        } }, { filter: "tr", replacement: function(e2, n2) {
-          var t2 = "", o2 = { left: ":--", right: "--:", center: ":-:" };
-          if ("THEAD" === n2.parentNode.nodeName)
-            for (var i = 0; i < n2.childNodes.length; i++) {
-              var a = n2.childNodes[i].attributes.align, c = "---";
-              a && (c = o2[a.value] || c), t2 += r(c, n2.childNodes[i]);
-            }
-          return "\n" + e2 + (t2 ? "\n" + t2 : "");
-        } }, { filter: "table", replacement: function(e2) {
-          return "\n\n" + e2 + "\n\n";
-        } }, { filter: ["thead", "tbody", "tfoot"], replacement: function(e2) {
-          return e2;
-        } }, { filter: function(e2) {
-          return "PRE" === e2.nodeName && e2.firstChild && "CODE" === e2.firstChild.nodeName;
-        }, replacement: function(e2, n2) {
-          return "\n\n```\n" + n2.firstChild.textContent.trim() + "\n```\n\n";
-        } }, { filter: function(e2) {
-          return "PRE" === e2.nodeName && "DIV" === e2.parentNode.nodeName && o.test(e2.parentNode.className);
-        }, replacement: function(e2, n2) {
-          return "\n\n```" + n2.parentNode.className.match(o)[1] + "\n" + n2.textContent + "\n```\n\n";
-        } }, { filter: function(e2) {
-          return "DIV" === e2.nodeName && o.test(e2.className);
-        }, replacement: function(e2) {
-          return "\n\n" + e2 + "\n\n";
-        } }];
-      }, {}], 3: [function(e, n, t) {
-        var r = "undefined" != typeof window ? window : this;
-        n.exports = !function e2() {
-          var n2 = r.DOMParser, t2 = false;
-          try {
-            new n2().parseFromString("", "text/html") && (t2 = true);
-          } catch (o) {
-          }
-          return t2;
-        }() ? function n2() {
-          var t2 = function() {
-          };
-          if ("undefined" == typeof document) {
-            var r2 = e("jsdom");
-            t2.prototype.parseFromString = function(e2) {
-              return r2.jsdom(e2, { features: { FetchExternalResources: [], ProcessExternalResources: false } });
-            };
-          } else
-            !function e2() {
-              var n3 = false;
-              try {
-                document.implementation.createHTMLDocument("").open();
-              } catch (t3) {
-                window.ActiveXObject && (n3 = true);
-              }
-              return n3;
-            }() ? t2.prototype.parseFromString = function(e2) {
-              var n3 = document.implementation.createHTMLDocument("");
-              return n3.open(), n3.write(e2), n3.close(), n3;
-            } : t2.prototype.parseFromString = function(e2) {
-              var n3 = new window.ActiveXObject("htmlfile");
-              return n3.designMode = "on", n3.open(), n3.write(e2), n3.close(), n3;
-            };
-          return t2;
-        }() : r.DOMParser;
-      }, { jsdom: 6 }], 4: [function(e, n, t) {
-        "use strict";
-        n.exports = [{ filter: "p", replacement: function(e2) {
-          return "\n\n" + e2 + "\n\n";
-        } }, { filter: "br", replacement: function() {
-          return "  \n";
-        } }, { filter: ["h1", "h2", "h3", "h4", "h5", "h6"], replacement: function(e2, n2) {
-          for (var t2 = n2.nodeName.charAt(1), r = "", o = 0; o < t2; o++)
-            r += "#";
-          return "\n\n" + r + " " + e2 + "\n\n";
-        } }, { filter: "hr", replacement: function() {
-          return "\n\n* * *\n\n";
-        } }, { filter: ["em", "i"], replacement: function(e2) {
-          return "_" + e2 + "_";
-        } }, { filter: ["strong", "b"], replacement: function(e2) {
-          return "**" + e2 + "**";
-        } }, { filter: function(e2) {
-          var n2 = e2.previousSibling || e2.nextSibling, t2 = "PRE" === e2.parentNode.nodeName && !n2;
-          return "CODE" === e2.nodeName && !t2;
-        }, replacement: function(e2) {
-          return "`" + e2 + "`";
-        } }, { filter: function(e2) {
-          return "A" === e2.nodeName && e2.getAttribute("href");
-        }, replacement: function(e2, n2) {
-          var t2 = n2.title ? ' "' + n2.title + '"' : "";
-          return "[" + e2 + "](" + n2.getAttribute("href") + t2 + ")";
-        } }, { filter: "img", replacement: function(e2, n2) {
-          var t2 = n2.alt || "image", r = n2.getAttribute("src") || "", o = n2.title || "";
-          return r ? "![" + t2 + "](" + r + (o ? ' "' + o + '"' : "") + ")" : "";
-        } }, { filter: function(e2) {
-          return "PRE" === e2.nodeName && "CODE" === e2.firstChild.nodeName;
-        }, replacement: function(e2, n2) {
-          return "\n\n    " + n2.firstChild.textContent.replace(/\n/g, "\n    ") + "\n\n";
-        } }, { filter: "blockquote", replacement: function(e2) {
-          return "\n\n" + (e2 = (e2 = (e2 = e2.trim()).replace(/\n{3,}/g, "\n\n")).replace(/^/gm, "> ")) + "\n\n";
-        } }, { filter: "li", replacement: function(e2, n2) {
-          e2 = e2.replace(/^\s+/, "").replace(/\n/gm, "\n    ");
-          var t2 = "*   ", r = n2.parentNode, o = Array.prototype.indexOf.call(r.children, n2) + 1;
-          return (t2 = /ol/i.test(r.nodeName) ? o + ".  " : "*   ") + e2;
-        } }, { filter: ["ul", "ol"], replacement: function(e2, n2) {
-          for (var t2 = [], r = 0; r < n2.childNodes.length; r++)
-            t2.push(n2.childNodes[r]._replacement);
-          return /li/i.test(n2.parentNode.nodeName) ? "\n" + t2.join("\n") : "\n\n" + t2.join("\n") + "\n\n";
-        } }, { filter: function(e2) {
-          return this.isBlock(e2);
-        }, replacement: function(e2, n2) {
-          return "\n\n" + e2 + "\n\n";
-        } }, { filter: function() {
-          return true;
-        }, replacement: function(e2, n2) {
-          return e2;
-        } }];
-      }, {}], 5: [function(e, n, t) {
-        n.exports = ["address", "article", "aside", "audio", "blockquote", "canvas", "dd", "div", "dl", "fieldset", "figcaption", "figure", "footer", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hgroup", "hr", "main", "nav", "noscript", "ol", "output", "p", "pre", "section", "table", "tfoot", "ul", "video"];
-      }, {}], 6: [function(e, n, t) {
-      }, {}], 7: [function(e, n, t) {
-        "use strict";
-        var r = e("void-elements");
-        Object.keys(r).forEach(function(e2) {
-          r[e2.toUpperCase()] = 1;
-        });
-        var o = {};
-        function i(e2) {
-          return !!(e2 && o[e2.nodeName]);
-        }
-        function a(e2) {
-          return !!(e2 && r[e2.nodeName]);
-        }
-        function c(e2) {
-          var n2 = e2.nextSibling || e2.parentNode;
-          return e2.parentNode.removeChild(e2), n2;
-        }
-        function l(e2, n2) {
-          return e2 && e2.parentNode === n2 || "PRE" === n2.nodeName ? n2.nextSibling || n2.parentNode : n2.firstChild || n2.nextSibling || n2.parentNode;
-        }
-        e("block-elements").forEach(function(e2) {
-          o[e2.toUpperCase()] = 1;
-        }), n.exports = function e2(n2, t2) {
-          if (n2.firstChild && "PRE" !== n2.nodeName) {
-            "function" != typeof t2 && (t2 = i);
-            for (var r2 = null, o2 = false, u = null, f = l(u, n2); f !== n2; ) {
-              if (3 === f.nodeType) {
-                var s = f.data.replace(/[ \r\n\t]+/g, " ");
-                if ((!r2 || / $/.test(r2.data)) && !o2 && " " === s[0] && (s = s.substr(1)), !s) {
-                  f = c(f);
-                  continue;
-                }
-                f.data = s, r2 = f;
-              } else if (1 === f.nodeType)
-                t2(f) || "BR" === f.nodeName ? (r2 && (r2.data = r2.data.replace(/ $/, "")), r2 = null, o2 = false) : a(f) && (r2 = null, o2 = true);
-              else {
-                f = c(f);
-                continue;
-              }
-              var d = l(u, f);
-              u = f, f = d;
-            }
-            r2 && (r2.data = r2.data.replace(/ $/, ""), r2.data || c(r2));
-          }
-        };
-      }, { "block-elements": 5, "void-elements": 8 }], 8: [function(e, n, t) {
-        n.exports = { area: true, base: true, br: true, col: true, embed: true, hr: true, img: true, input: true, keygen: true, link: true, menuitem: true, meta: true, param: true, source: true, track: true, wbr: true };
-      }, {}] }, {}, [1])(1);
-    });
-    let isHTML = function(str) {
-      var doc = new DOMParser().parseFromString(str, "text/html");
-      return Array.from(doc.body.childNodes).some((node) => node.nodeType === 1);
-    };
-    let escape = function(str) {
-      return str.replace(/[\u2018\u2019\u00b4]/g, "'").replace(/[\u201c\u201d\u2033]/g, '"').replace(/[\u2212\u2022\u00b7\u25aa]/g, "-").replace(/[\u2013\u2015]/g, "--").replace(/\u2014/g, "---").replace(/\u2026/g, "...").replace(/[ ]+\n/g, "\n").replace(/\s*\\\n/g, "\\\n").replace(/\s*\\\n\s*\\\n/g, "\n\n").replace(/\s*\\\n\n/g, "\n\n").replace(/\n-\n/g, "\n").replace(/\n\n\s*\\\n/g, "\n\n").replace(/\n\n\n*/g, "\n\n").replace(/[ ]+$/gm, "").replace(/^\s+|[\s\\]+$/g, "").replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, " ").replace(/[\u200B\uFEFF]/g, "");
-    };
-    let pandoc = [
-      {
-        filter: "h1",
-        replacement: function(content, node) {
-          return "# " + content + "\n\n";
-        }
-      },
-      {
-        filter: "h2",
-        replacement: function(content, node) {
-          return "## " + content + "\n\n";
-        }
-      },
-      {
-        filter: "sup",
-        replacement: function(content) {
-          return "^" + content + "^";
-        }
-      },
-      {
-        filter: "sub",
-        replacement: function(content) {
-          return "~" + content + "~";
-        }
-      },
-      {
-        filter: "br",
-        replacement: function() {
-          return "\\\n";
-        }
-      },
-      {
-        filter: "hr",
-        replacement: function() {
-          return "\n\n***\n\n";
-        }
-      },
-      {
-        filter: ["em", "i", "cite", "var"],
-        replacement: function(content) {
-          return "*" + content + "*";
-        }
-      },
-      {
-        filter: function(node) {
-          var hasSiblings = node.previousSibling || node.nextSibling;
-          var isCodeBlock = node.parentNode.nodeName === "PRE" && !hasSiblings;
-          var isCodeElem = node.nodeName === "CODE" || node.nodeName === "KBD" || node.nodeName === "SAMP" || node.nodeName === "TT";
-          return isCodeElem && !isCodeBlock;
-        },
-        replacement: function(content) {
-          return "`" + content + "`";
-        }
-      },
-      {
-        filter: function(node) {
-          return node.nodeName === "A" && node.getAttribute("href");
-        },
-        replacement: function(content, node) {
-          var url = node.getAttribute("href");
-          var titlePart = node.title ? ' "' + node.title + '"' : "";
-          if (content === "") {
-            return "";
-          } else if (content === url) {
-            return "<" + url + ">";
-          } else if (url === "mailto:" + content) {
-            return "<" + content + ">";
-          } else {
-            return "[" + content + "](" + url + titlePart + ")";
-          }
-        }
-      },
-      {
-        filter: "li",
-        replacement: function(content, node) {
-          content = content.replace(/^\s+/, "").replace(/\n/gm, "\n  ");
-          var prefix = "- ";
-          var parent = node.parentNode;
-          var parentParent = parent.parentNode;
-          var index = Array.prototype.indexOf.call(parent.children, node) + 1;
-          prefix = /ol/i.test(parent.nodeName) ? index + ".  " : "- ";
-          return prefix + content;
-        }
-      }
-    ];
-    let markdown = html2;
-    if (isHTML(html2)) {
-      markdown = toMarkdown(html2, { converters: pandoc, gfm: true });
-    }
-    return escape(markdown);
-  };
   function b64EncodeUnicode(str) {
     const bytes = new TextEncoder().encode(str);
     const base64 = window.btoa(String.fromCharCode(...new Uint8Array(bytes)));
@@ -2539,7 +2692,7 @@
   }
   var html = getHTMLfromSelectorOrContent();
   if (!!html) {
-    markdown = html2markdown(html);
+    markdown = (0, import_html2markdown.default)(html);
     let prompt = "Please translate the following text into Traditional Chinese, ensuring that the words and phrases are commonly used in Taiwan. No explanations and additional information of the translations are required. Ensure the translations' completeness. Here is the text:\n```\n{input}\n```";
     let url = `https://gemini.google.com/app#autoSubmit=1&prompt=${encodeURIComponent(b64EncodeUnicode(prompt.replace("{input}", markdown)))}`;
     GM_openInTab(url, false);
