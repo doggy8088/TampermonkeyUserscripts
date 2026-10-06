@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         表單快照與人類模擬回填
-// @version      0.2.0
+// @version      0.2.1
 // @description  透過選單命令儲存目前頁面表單快照，可人類化回填，並支援匯出/匯入全部快照資料以跨電腦移轉
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -315,6 +315,16 @@
             if (!isApplyingSnapshot) return;
             if (event.key !== APPLY_ABORT_KEY) return;
             if (applyAbortRequested) return;
+
+            // 只接受使用者真正按下的 Esc。腳本本身在自訂下拉選單找不到選項時，
+            // 會對欄位 dispatch 合成的 Escape keydown 來關閉面板；該事件會冒泡、
+            // 在 capture 階段經過 window，原本會被誤判為「使用者要求中止」，
+            // 導致只要有一個自訂選單比對失敗，整批回填就被中斷。合成事件的
+            // isTrusted 一律為 false，以此區分即可。
+            if (!event.isTrusted) return;
+
+            // IME 組字中按 Esc 是取消組字，不代表要停止回填。
+            if (event.isComposing) return;
 
             applyAbortRequested = true;
             showToast('⏹️ 偵測到 Esc，正在停止回填...', { duration: 1200, closable: true });
@@ -1013,14 +1023,31 @@
     }
 
     async function typeTextLikeCharacters(element, targetValue) {
+        // number、date、time、month、week、datetime-local 等型別的 value setter
+        // 會執行瀏覽器的 value sanitization：逐字輸入時的中間狀態（例如 "1."、"-"、
+        // "2024-0"）不是合法值，指派後會立刻被清成空字串。原本每個字元都以
+        // 「讀回目前值 + 新字元」累加，於是 "1.5" 只剩 "5"、"-3" 只剩 "3"，
+        // 日期與時間欄位更是永遠組不出完整值，回填後卻仍回報成功。
+        //
+        // 這裡只在「setter 同步把非空值清成空字串」時記住原本想寫入的字串，
+        // 下一個字元若欄位仍是空的就接續該字串；其餘情況照舊讀回欄位目前值，
+        // 保留網站在 input 事件中自行改寫內容（遮罩格式化、輸入逗號後轉成標籤
+        // 並清空欄位等）時與真人輸入一致的行為。
+        let sanitizedPendingValue = null;
+
         for (const char of targetValue) {
             throwIfApplyAbortRequested();
             dispatchKeyboardEvent(element, 'keydown', char);
             dispatchKeyboardEvent(element, 'keypress', char);
             dispatchBeforeInputEvent(element, char, 'insertText');
 
-            const nextValue = `${getTextLikeValue(element)}${char}`;
+            const currentValue = getTextLikeValue(element);
+            const baseValue = sanitizedPendingValue !== null && currentValue === ''
+                ? sanitizedPendingValue
+                : currentValue;
+            const nextValue = `${baseValue}${char}`;
             setTextLikeValue(element, nextValue);
+            sanitizedPendingValue = getTextLikeValue(element) === '' ? nextValue : null;
 
             dispatchInputEvent(element, char, 'insertText');
             dispatchKeyboardEvent(element, 'keyup', char);
