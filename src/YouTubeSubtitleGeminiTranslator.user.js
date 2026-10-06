@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         YouTube: Gemini 即時字幕翻譯助手
-// @version      0.1.3
+// @version      0.1.4
 // @description  攔截 YouTube 英文字幕並使用 Gemini 即時翻譯為繁體中文，翻譯時自動帶入影片標題、描述與前 20 句字幕上下文
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -652,34 +652,44 @@
     }
 
     function renderTranslationOverlay(lines) {
-        const overlay = ensureTranslationOverlay();
-        if (!overlay) {
-            return;
-        }
-
         const normalizedLines = Array.from(new Set((lines || [])
             .map((line) => normalizeSubtitleText(line))
             .filter(Boolean)));
 
         if (normalizedLines.length === 0) {
-            overlay.innerHTML = '';
-            overlay.classList.add(DOM_TRANSLATION_OVERLAY_HIDDEN_CLASS);
+            // 清空時只處理「已經存在」的 overlay，不為了清空而建立新節點。
+            // 停用翻譯或尚未設定 API Key 時，updateCaptionPresentationMode() 也會走到這裡；
+            // 舊版會因此在每個 YouTube 頁面都插入一個永遠用不到的隱藏 overlay。
+            const existingOverlay = document.getElementById(DOM_TRANSLATION_OVERLAY_ID);
+            if (!existingOverlay) {
+                return;
+            }
+
+            existingOverlay.replaceChildren();
+            existingOverlay.classList.add(DOM_TRANSLATION_OVERLAY_HIDDEN_CLASS);
             return;
         }
 
-        overlay.innerHTML = normalizedLines
-            .map((line) => `<span class="yt-gemini-translation-line">${escapeHtml(line)}</span>`)
-            .join('');
-        overlay.classList.remove(DOM_TRANSLATION_OVERLAY_HIDDEN_CLASS);
-    }
+        const overlay = ensureTranslationOverlay();
+        if (!overlay) {
+            return;
+        }
 
-    function escapeHtml(text) {
-        return String(text)
-            .replace(/&/g, '&amp;')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
-            .replace(/"/g, '&quot;')
-            .replace(/'/g, '&#39;');
+        // YouTube 啟用 Trusted Types（require-trusted-types-for 'script'），
+        // 對 innerHTML 指派任何字串（包含空字串）都會丟出 TypeError。
+        // 舊版以 innerHTML 渲染，導致翻譯結果永遠無法顯示，錯誤還會中斷呼叫端的流程；
+        // 若剛好有其他腳本建立了「原樣放行」的 default policy，才會碰巧能動。
+        // 改以 createElement + textContent 建立每一行字幕：不經過 HTML 解析、不需要任何 policy，
+        // Gemini 回傳的文字一律視為純文字，也就不再需要 escapeHtml() 自行跳脫。
+        const lineElements = normalizedLines.map((line) => {
+            const lineElement = document.createElement('span');
+            lineElement.className = 'yt-gemini-translation-line';
+            lineElement.textContent = line;
+            return lineElement;
+        });
+
+        overlay.replaceChildren(...lineElements);
+        overlay.classList.remove(DOM_TRANSLATION_OVERLAY_HIDDEN_CLASS);
     }
 
     function installTimedtextXhrObserver() {
@@ -891,6 +901,14 @@
                     return;
                 }
 
+                // 這個觀察器涵蓋整份文件（含 characterData），YouTube 的留言、播放時間、推薦清單
+                // 每秒都會產生大量變動。尚未設定 API Key 時，字幕處理流程唯一會做的事就是提示一次
+                // 「尚未設定 Gemini API Key」；提示過之後再掃描每一筆 mutation 只是白白消耗主執行緒。
+                // configureApiKey() 會重設 warnedMissingApiKey，因此之後設定或清空金鑰都會恢復正常處理。
+                if (!apiKey && warnedMissingApiKey) {
+                    return;
+                }
+
                 if (!containsCaptionMutation(mutations)) {
                     return;
                 }
@@ -918,13 +936,21 @@
     }
 
     function containsCaptionMutation(mutations) {
-        return mutations.some((mutation) => {
+        // 觀察範圍是整份文件，單一批次常有上百筆 mutation；這裡直接以 for...of 走訪 NodeList，
+        // 不再為每一筆 mutation 都用 Array.from() 複製一份 addedNodes 陣列，判斷結果與舊版完全相同。
+        for (const mutation of mutations) {
             if (isCaptionRelatedNode(mutation.target)) {
                 return true;
             }
 
-            return Array.from(mutation.addedNodes || []).some((node) => isCaptionRelatedNode(node));
-        });
+            for (const node of mutation.addedNodes || []) {
+                if (isCaptionRelatedNode(node)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     function isCaptionRelatedNode(node) {
@@ -1447,8 +1473,8 @@
         const cached = videoContextCache.get(videoId);
         const latestContext = {
             videoId,
-            title: readVideoTitle(),
-            description: truncateText(readVideoDescription(), MAX_DESCRIPTION_LENGTH)
+            title: readVideoTitle(videoId),
+            description: truncateText(readVideoDescription(videoId), MAX_DESCRIPTION_LENGTH)
         };
 
         if (cached && cached.title === latestContext.title && cached.description === latestContext.description) {
@@ -1460,15 +1486,36 @@
         return latestContext;
     }
 
-    function readVideoTitle() {
+    // ytInitialPlayerResponse 只會在「整頁載入」時由伺服器輸出一次，YouTube 以 SPA 切換影片時並不會更新它；
+    // <meta name="title">、og:title 與 meta description 同樣停留在整頁載入時那支影片的內容。
+    // 舊版讀取標題與描述時沒有比對 videoId，從影片 A 點進影片 B 之後，送給 Gemini 的
+    // 「影片標題／影片描述摘要」仍然是 A 的，翻譯上下文會被前一支影片污染。
+    // 這裡沿用 selectEnglishCaptionTrack() 相同的判斷：只有確定 videoId 不一致時才視為過期資料，
+    // 改從會隨換頁更新的 DOM 與 document.title 取得；videoId 未知（'unknown-video'）時維持舊行為。
+    function getPlayerResponseForVideo(videoId) {
         const playerResponse = window.ytInitialPlayerResponse;
+        const responseVideoId = playerResponse?.videoDetails?.videoId || '';
+        const isKnownVideoId = Boolean(videoId) && videoId !== 'unknown-video';
+        const isStale = isKnownVideoId && Boolean(responseVideoId) && responseVideoId !== videoId;
+
+        return {
+            playerResponse: isStale ? null : playerResponse,
+            isStale,
+        };
+    }
+
+    function readVideoTitle(videoId = '') {
+        const { playerResponse, isStale } = getPlayerResponseForVideo(videoId);
         const titleFromPlayer = playerResponse?.videoDetails?.title;
         if (titleFromPlayer) {
             return titleFromPlayer.trim();
         }
 
-        const titleFromMeta = document.querySelector('meta[name="title"]')?.getAttribute('content')
-            || document.querySelector('meta[property="og:title"]')?.getAttribute('content');
+        // 整頁載入資料已過期時，meta 標籤也一樣是舊影片的，直接跳過改讀 DOM。
+        const titleFromMeta = isStale
+            ? ''
+            : document.querySelector('meta[name="title"]')?.getAttribute('content')
+                || document.querySelector('meta[property="og:title"]')?.getAttribute('content');
         if (titleFromMeta) {
             return titleFromMeta.trim();
         }
@@ -1481,8 +1528,8 @@
         return document.title.replace(/\s*-\s*YouTube$/i, '').trim();
     }
 
-    function readVideoDescription() {
-        const playerResponse = window.ytInitialPlayerResponse;
+    function readVideoDescription(videoId = '') {
+        const { playerResponse, isStale } = getPlayerResponseForVideo(videoId);
         const descriptionRuns = playerResponse?.microformat?.playerMicroformatRenderer?.description?.runs;
         const descriptionFromPlayer = playerResponse?.videoDetails?.shortDescription
             || playerResponse?.microformat?.playerMicroformatRenderer?.description?.simpleText
@@ -1495,6 +1542,11 @@
             || document.querySelector('yt-attributed-string#description-text')?.textContent;
         if (descriptionFromDom) {
             return descriptionFromDom.trim();
+        }
+
+        // 整頁載入資料已過期時，meta description 也是舊影片的；寧可不帶描述，也不要帶錯描述。
+        if (isStale) {
+            return '';
         }
 
         const descriptionFromMeta = document.querySelector('meta[name="description"]')?.getAttribute('content') || '';
@@ -1532,9 +1584,13 @@
 
         const responseData = await gmXmlHttpJson({
             method: 'POST',
-            url: `${GEMINI_API_ROOT}/${selectedModel}:generateContent?key=${encodeURIComponent(apiKey)}`,
+            // API Key 改由 x-goog-api-key header 傳遞（Gemini API 官方文件目前採用的方式），
+            // 不再以 ?key= 放在網址上：網址會出現在 Tampermonkey 的請求紀錄、DevTools 網路面板、
+            // 代理伺服器與錯誤回報中，金鑰容易在截圖或分享紀錄時意外外流；header 則不會留在網址裡。
+            url: `${GEMINI_API_ROOT}/${selectedModel}:generateContent`,
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'x-goog-api-key': apiKey
             },
             data: JSON.stringify({
                 contents: [
