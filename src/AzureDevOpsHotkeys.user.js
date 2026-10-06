@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 優化快速鍵操作
-// @version      1.0.1
+// @version      1.0.2
 // @description  讓 Azure DevOps Services 的快速鍵操作貼近 Visual Studio Code 與 Vim 操作
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -8,12 +8,13 @@
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsHotkeys.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsHotkeys.user.js
+// @author       Will Huang
 // @match        *://*.visualstudio.com/*
 // @match        *://dev.azure.com/*
 // @exclude      https://marketplace.visualstudio.com/*
-// @author       Will Huang
 // @run-at       document-idle
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=dev.azure.com
+// @grant        none
 // ==/UserScript==
 
 // https://www.tampermonkey.net/documentation.php#_run_at
@@ -29,15 +30,16 @@
     };
 
     (function () {
-        'use strict';
 
         console.log('Current URL: ', window.location.href);
 
         var [orgBaseUrl, orgName, urlType] = getOrgInfo();
         console.log(`Organization Info: orgBaseUrl = ${orgBaseUrl}, orgName = ${orgName}, urlType = ${urlType}`);
 
+        // 不屬於任何組織的頁面（例如 app.vssps.visualstudio.com、dev.azure.com 根目錄）本來就沒有
+        // 可用的快速鍵。原本在這裡 throw Error，每次載入都會在主控台留下未捕捉的例外，改為安靜結束。
         if (!orgBaseUrl) {
-            throw new Error('無法取得 Azure DevOps 網址');
+            return;
         }
 
         var [projectUrl, projectName, isRepos, repoUrlBase] = getProjectInfo();
@@ -45,7 +47,33 @@
 
         let keySequence = '';
 
+        // 按鍵序列只需要保留最後幾個字元即可：目前最長的比對字尾是 'Enter'（5 個字元），
+        // 其餘都是 2 個字元的 g? 序列。限制長度可避免整個工作階段中字串無止盡地累加。
+        const MAX_KEY_SEQUENCE_LENGTH = 16;
+
+        // 代表「按下了其他具名按鍵」的分隔字元，不會出現在任何快速鍵序列中。
+        const KEY_SEQUENCE_BREAK = '\u0000';
+
         document.addEventListener('keydown', function (event) {
+
+            // 輸入法（注音、倉頡等）組字中的按鍵一律不處理。組字時按下的 Enter/Escape 是用來確認或
+            // 取消選字，原本會被下方「INPUT + Enter/Escape 就 blur()」的邏輯攔截，導致在搜尋框輸入中文時
+            // 一確認選字焦點就跑掉。keyCode 229 是部分瀏覽器（例如 Safari）在組字結束那一下的標記。
+            // 組字只會發生在輸入框內，因此比照一般打字的情況重設按鍵序列。
+            if (event.isComposing || event.keyCode === 229) {
+                resetKeySequence();
+                return;
+            }
+
+            // contenteditable 編輯器（例如 New Boards Hub 工作項目的描述、討論欄位）與 select 下拉選單
+            // 也是輸入情境。原本只檢查 INPUT/TEXTAREA，在這些地方打字時，"go"、"gs"（things）、
+            // "gr"（great）這類常見的字母組合會直接導覽離開頁面，j/k 也會移動並點擊背後清單的項目，
+            // Ctrl+B 則會在套用粗體的同時收合側邊欄。這些元素用不到 INPUT/TEXTAREA 專屬的
+            // Esc/Enter/Alt+/ 處理，因此直接重設序列並結束。
+            if (isEditableContext(event.target)) {
+                resetKeySequence();
+                return;
+            }
 
             var isTyping = false;
 
@@ -60,7 +88,11 @@
             // 按下 Ctrl+B 可以切換側邊欄 (只有 Wiki 頁面才有這個按鈕)
             if (!isTyping && event.ctrlKey && event.key === 'b') {
                 console.log('按下 Ctrl+B 可以切換側邊欄');
-                toggleSidePane();
+                if (toggleSidePane()) {
+                    // 確實切換了側邊欄才接手 Ctrl+B，並阻止瀏覽器的預設行為
+                    // （例如 Firefox 的 Ctrl+B 會同時開啟書籤側邊欄）。找不到切換按鈕時維持原狀。
+                    event.preventDefault();
+                }
             }
 
             //  有任何一個修飾鍵被按下時，就不要處理事件
@@ -99,7 +131,7 @@
                             var idx = parseInt(event.key) - 1;
                             var projectCards = document.querySelectorAll('.project-card');
                             if (projectCards[idx]) {
-                                projectCards[idx].querySelector('a').click();
+                                projectCards[idx].querySelector('a')?.click();
                             }
                             event.preventDefault();
                             break;
@@ -124,7 +156,8 @@
                             console.log('按下 ESC 鍵，回到頁首並移除焦點')
                             var mainContent = document.getElementById('skip-to-main-content');
                             console.log('mainContent', mainContent)
-                            var scrollbar = mainContent.querySelector('.custom-scrollbar');
+                            // 頁面改版或尚未載入完成時可能沒有 #skip-to-main-content，避免 null 存取丟出例外。
+                            var scrollbar = mainContent?.querySelector('.custom-scrollbar');
                             console.log('scrollbar', scrollbar)
                             if (scrollbar) {
                                 scrollbar.scrollTo(0, 0);
@@ -133,14 +166,15 @@
 
                         case 'Enter':
                             var projectList = document.querySelector('.project-list');
-                            var projectRows = projectList.querySelectorAll('tr.project-row');
+                            // 沒有專案清單（例如首頁顯示的是卡片檢視）時，原本會因 null 存取丟出 TypeError。
+                            var projectRows = projectList?.querySelectorAll('tr.project-row');
                             if (projectRows) {
                                 var projectRowsArray = [...projectRows];
                                 console.log(`目前共有 ${projectRowsArray.length} 個專案`);
                                 var focusedIndex = projectRowsArray.findIndex((row) => row.classList.contains('focused'));
                                 console.log(`目前焦點在第 ${focusedIndex} 個專案`)
                                 if (projectRowsArray[focusedIndex]) {
-                                    projectRowsArray[focusedIndex].querySelector('a').click();
+                                    projectRowsArray[focusedIndex].querySelector('a')?.click();
                                 }
                             }
                             break;
@@ -149,7 +183,8 @@
                             var projectList = document.querySelector('.project-list');
                             if (projectList) {
                                 var projectRows = projectList.querySelectorAll('tr.project-row');
-                                if (projectRows) {
+                                // NodeList 永遠是 truthy，必須檢查長度；空清單時原本會存取 undefined 而丟出例外。
+                                if (projectRows && projectRows.length > 0) {
                                     var projectRowsArray = [...projectRows];
                                     console.log(`目前共有 ${projectRowsArray.length} 個專案`);
                                     var focusedIndex = projectRowsArray.findIndex((row) => row.classList.contains('focused'));
@@ -159,6 +194,11 @@
                                     } else {
                                         projectRowsArray[focusedIndex].classList.remove('focused');
                                         focusedIndex++;
+                                        // 已在最後一列時繞回第一列，與 k 在第一列時繞到最後一列的行為對稱。
+                                        // 原本會存取不存在的列而丟出 TypeError，焦點因此消失，要再按一次 j 才會回到第一列。
+                                        if (focusedIndex >= projectRowsArray.length) {
+                                            focusedIndex = 0;
+                                        }
                                     }
                                     console.log(`移動焦點到第 ${focusedIndex} 個專案`)
                                     projectRowsArray[focusedIndex].focus();
@@ -174,7 +214,8 @@
                             var projectList = document.querySelector('.project-list');
                             if (projectList) {
                                 var projectRows = projectList.querySelectorAll('tr.project-row');
-                                if (projectRows) {
+                                // NodeList 永遠是 truthy，必須檢查長度；空清單時原本會存取 undefined 而丟出例外。
+                                if (projectRows && projectRows.length > 0) {
                                     var projectRowsArray = [...projectRows];
                                     console.log(`目前共有 ${projectRowsArray.length} 個專案`);
                                     var focusedIndex = projectRowsArray.findIndex((row) => row.classList.contains('focused'));
@@ -289,7 +330,14 @@
                     return;
                 }
 
-                keySequence += event.key;
+                // 只把「單一字元」的按鍵與 Enter 原樣累加進序列。CapsLock、NumLock、ScrollLock 等具名按鍵
+                // 的名稱剛好以 k 結尾，原本整串名稱被接進序列後會被 endsWith('k') 誤判成 k 快速鍵
+                // （macOS 以 CapsLock 切換中英輸入法時尤其常見，一按就移動清單的游標）。其他具名按鍵
+                // （方向鍵、Tab、Escape…）改以分隔字元代替，維持「中間按了其他鍵就會打斷 g? 序列」的原有語意。
+                // Chrome 自動填入表單時送出的 keydown 可能沒有 key 屬性，因此以空字串防呆。
+                const key = event.key || '';
+                const keyToken = (key.length === 1 || key === 'Enter') ? key : KEY_SEQUENCE_BREAK;
+                keySequence = (keySequence + keyToken).slice(-MAX_KEY_SEQUENCE_LENGTH);
                 console.log(`keySequence: \"${keySequence}\"`);
 
                 // 記錄一下內建的命令
@@ -366,7 +414,8 @@
 
                     // 若使用者按下 Enter 鍵，就執行光棒的 click 事件
                     if (keySequence.endsWith('Enter')) {
-                        get_current_leftpane_cursor().click();
+                        // 尚未用 j/k 選取任何頁面時沒有游標，原本會因 null 存取丟出 TypeError。
+                        get_current_leftpane_cursor()?.click();
                         focusWikiViewContainer();
                         return resetKeySequence();
                     }
@@ -374,7 +423,8 @@
                     // 若使用者按下 f 鍵，就將游標移至 Filter pages by title 欄位
                     if (keySequence.endsWith('f')) {
                         const splitterPane = get_splitter_pane();
-                        splitterPane.querySelector('input[role="searchbox"]')?.focus();
+                        // 左側頁面樹不存在時（例如已收合）避免 null 存取丟出例外。
+                        splitterPane?.querySelector('input[role="searchbox"]')?.focus();
                         event.preventDefault();
                         return resetKeySequence();
                     }
@@ -392,16 +442,22 @@
                 }
 
                 // 全站所有的 Table 都可以用這個快速鍵導覽
+                // moveGeneralTableItemsCursor() 移動成功時，原本會因為呼叫作用域外的 resetKeySequence()
+                // 而丟出 ReferenceError，「意外地」跳過後面的 Grid/TreeGrid 導覽。現在改用回傳值明確表達
+                // 「已處理」，保留只移動一種清單的實際行為：帶有 aria-label 的 treegrid 同時也符合
+                // table[aria-label]，若兩者都執行，會在移動焦點的同時又點擊同一張表的儲存格。
                 if (keySequence.endsWith('j')) {
-                    moveGeneralTableItemsCursor('down');
-                    moveGeneralGridItemsCursor('down');
-                    moveGeneralTreeGridItemsCursor('down');
+                    if (!moveGeneralTableItemsCursor('down')) {
+                        moveGeneralGridItemsCursor('down');
+                        moveGeneralTreeGridItemsCursor('down');
+                    }
                     return resetKeySequence();
                 }
                 if (keySequence.endsWith('k')) {
-                    moveGeneralTableItemsCursor('up');
-                    moveGeneralGridItemsCursor('up');
-                    moveGeneralTreeGridItemsCursor('up');
+                    if (!moveGeneralTableItemsCursor('up')) {
+                        moveGeneralGridItemsCursor('up');
+                        moveGeneralTreeGridItemsCursor('up');
+                    }
                     return resetKeySequence();
                 }
             }
@@ -417,7 +473,7 @@
                     if (theButton) {
                         console.log('切換 splitterPane 的按鈕已找到', theButton);
                         theButton.click();
-                        return;
+                        return true;
                     }
                 }
 
@@ -428,9 +484,12 @@
                     if (theButton) {
                         console.log('切換 navigationPane 的按鈕已找到', theButton);
                         theButton.click();
-                        return
+                        return true;
                     }
                 }
+
+                // 回傳 false 表示這個頁面沒有可切換的側邊欄，呼叫端就不會攔截 Ctrl+B。
+                return false;
             }
         });
 
@@ -441,6 +500,16 @@
         focusWikiViewContainer();
 
     })();
+
+    /**
+     * 判斷按鍵目標是否為 INPUT/TEXTAREA 以外的輸入情境：select 下拉選單與 contenteditable 編輯器。
+     * isContentEditable 會沿用祖先的 contenteditable 設定，也能正確處理 contenteditable="false" 的區塊。
+     */
+    function isEditableContext(target) {
+        if (!target || target.nodeType !== Node.ELEMENT_NODE) return false;
+        if (target.tagName === 'SELECT') return true;
+        return target.isContentEditable === true;
+    }
 
     function getOrgInfo() {
 
@@ -680,8 +749,7 @@
         return !!window.location.href.match(regex);
     }
 
-    function isInProjectPipelinesArtifacts
-        () {
+    function isInProjectPipelinesArtifacts() {
         var [baseUrl] = getProjectInfo();
         var baseUrlRegex = escapeRegExp(baseUrl);
         const regex = new RegExp(`^${baseUrlRegex}/_artifacts`, 'i');
@@ -689,7 +757,6 @@
     }
 
     function getProjectInfo() {
-        'use strict';
 
         let urlBase;
         let projectUrlBase;
@@ -813,7 +880,8 @@
     }
 
     function get_current_leftpane_cursor() {
-        return get_splitter_pane().querySelector('tr[aria-selected="true"]');
+        // 沒有左側頁面樹時回傳 null，交由呼叫端以 ?. 判斷，避免 null 存取丟出例外。
+        return get_splitter_pane()?.querySelector('tr[aria-selected="true"]') ?? null;
     }
 
     function focusWikiViewContainer() {
@@ -829,7 +897,11 @@
 
     function moveWikiItemsCursor(direction = 'down') {
         const splitterPane = get_splitter_pane();
+        // 左側頁面樹不存在（已收合或尚未載入）或沒有任何頁面時直接結束；
+        // 原本會在 null 或空清單上存取屬性而丟出 TypeError。
+        if (!splitterPane) return;
         const allItems = splitterPane.querySelectorAll(`tr[data-row-index]`);
+        if (!allItems.length) return;
         // get last index
         const lastIndex = parseInt(allItems[allItems.length - 1].getAttribute('data-row-index'));
 
@@ -838,6 +910,7 @@
 
         if (!currentItem) {
             const nextItem = splitterPane.querySelector(`tr[data-row-index="0"]`);
+            if (!nextItem) return;
             nextItem.setAttribute('aria-selected', 'true');
             nextItem.classList.add('selected');
         } else {
@@ -863,6 +936,9 @@
 
             const nextItem = splitterPane.querySelector(`tr[data-row-index="${nextIndex}"]`);
             console.log("nextItem", nextItem);
+
+            // 頁面樹以虛擬捲動呈現時，目標列可能尚未產生；找不到就保留目前的選取，不要把游標弄丟。
+            if (!nextItem) return;
 
             currentItem.removeAttribute('aria-selected');
             currentItem.classList.remove('selected');
@@ -906,9 +982,12 @@
                 console.log(`${label} > links > focusedIndex > focused:`, focusedIndex);
                 rows[focusedIndex].classList.add('focused');
                 rows[focusedIndex].focus();
-                return resetKeySequence();
+                // 原本在這裡 return resetKeySequence()，但 resetKeySequence 定義在內層 IIFE，
+                // 從這裡呼叫會丟出 ReferenceError。按鍵序列已由呼叫端重設，這裡只需回報「已處理」。
+                return true;
             }
         }
+        return false;
     }
 
     function moveGeneralGridItemsCursor(direction = 'down') {
