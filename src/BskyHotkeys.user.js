@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Bluesky: 好用的鍵盤快速鍵集合
-// @version      0.2.0
+// @version      0.2.1
 // @description  在 bsky.app 按下 gh 優先點擊 Profile，找不到再開啟 doggy8088 的個人頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -11,6 +11,7 @@
 // @author       Will Huang
 // @match        https://bsky.app/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bsky.app
+// @grant        none
 // ==/UserScript==
 
 (function () {
@@ -28,6 +29,13 @@
 
     document.addEventListener('keydown', (event) => {
         if (event.repeat) return;
+        // 中文、日文等輸入法組字期間的按鍵是送給輸入法選字用的，不能累積成快速鍵序列。
+        // keyCode 229 是部分瀏覽器在組字期間回報的值，isComposing 尚未設定時也能攔下來；
+        // 同時清空序列，避免組字前按下的 g 與組字結束後的 h 被誤判成 gh。
+        if (event.isComposing || event.keyCode === 229) {
+            resetSequence();
+            return;
+        }
         if (shouldIgnoreEvent(event)) {
             resetSequence();
             return;
