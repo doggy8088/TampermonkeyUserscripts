@@ -11,6 +11,7 @@
   - `cd dev/Readability && npm install && npm run build` to bundle the Readability-based context-menu scripts and sync them into `src/`.
   - `cd dev/ChatGPTVoiceInput && npm install && npm run build` for the voice input script.
   - `cd dev/dom-to-image && npm install && npm run build` for the DOM snapshot helper.
+  - `cd dev/SimplifiedToTraditionalChinese && npm run build` regenerates the `<generated:detection-chars>` block in `src/SimplifiedToTraditionalChinese.user.js` from OpenCC's dictionaries; rerun it whenever that script's OpenCC `@require` version changes, and route all edits to that block through the generator.
 - After a build, verify the generated `*.user.js` appears in `src/` and retains the expected version header.
 
 ## Coding Style & Naming Conventions

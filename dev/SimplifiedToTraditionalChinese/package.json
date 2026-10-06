@@ -1,0 +1,10 @@
+{
+  "name": "simplifiedtotraditionalchinese",
+  "version": "1.0.0",
+  "private": true,
+  "description": "從 OpenCC 字典產生 SimplifiedToTraditionalChinese.user.js 的簡繁偵測字表",
+  "scripts": {
+    "build": "node generate-detection-chars.js"
+  },
+  "license": "MIT"
+}

@@ -20,135 +20,119 @@ const termMapping = {
 
 ## 解決方案
 
+> 本文件已依 1.1.0 版的實作更新。舊版使用的 `WeakSet convertedNodes`、`isConverting` 旗標與 `mayContainTerms()` 已被取代，原因見各節說明。
+
 ### 1. 在初始化時過濾無效規則
 
 ```javascript
-function initTermRegex() {
-    if (!termRegex) {
-        // 收集所有目標值（轉換後的台灣用語）
-        const targetValues = new Set(Object.values(termMapping));
+function buildTermRegex() {
+    // 過濾掉來源與目標相同的無效規則（例如 '索引': '索引'）
+    const sourceTerms = Object.keys(termMapping).filter(source => termMapping[source] !== source);
 
-        // 只保留「來源值 !== 目標值」的有效規則
-        const sourceTerms = Object.keys(termMapping).filter(source => {
-            const target = termMapping[source];
-            // 過濾掉來源和目標相同的無效規則
-            if (source === target) return false;
-            return true;
-        });
-
-        // 建立正規表達式
-        const sortedTerms = sourceTerms
-            .sort((a, b) => b.length - a.length)
-            .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
-
-        termRegex = new RegExp(sortedTerms.join('|'), 'g');
-        termFirstChars = new Set(sourceTerms.map(term => term[0]));
+    // 沒有可替換詞彙時不建立正規表達式（空的 RegExp 會匹配每個字元間隙）
+    if (sourceTerms.length === 0) {
+        return null;
     }
+
+    // 由長到短排序，讓長詞優先匹配
+    const pattern = sourceTerms
+        .sort((a, b) => b.length - a.length)
+        .map(term => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('|');
+
+    return new RegExp(pattern, 'g');
 }
 ```
 
 **關鍵點：**
 - 過濾掉 `source === target` 的規則（如 `'索引': '索引'`）
-- 只將有效的來源詞加入正規表達式
-- 減少不必要的匹配，提升效能
+- 只將有效的來源詞加入正規表達式，一次 `replace()` 處理所有詞彙
+- 與 OpenCC 轉換器一起延遲建立（`ensureConverterReady()`），非白名單頁面不需要付出建立成本
 
-### 2. 使用 WeakSet 追蹤已轉換節點
-
-```javascript
-const convertedNodes = new WeakSet();
-
-function traverse(elm) {
-    if (elm.nodeType === Node.TEXT_NODE) {
-        // 檢查是否已轉換
-        if (convertedNodes.has(elm)) {
-            return; // 跳過已轉換的節點
-        }
-
-        const originalText = elm.nodeValue;
-        const convertedText = convertText(originalText);
-
-        if (convertedText !== originalText) {
-            elm.nodeValue = convertedText;
-            convertedNodes.add(elm); // 標記為已轉換
-        }
-    }
-}
-```
-
-**優勢：**
-- 每個文字節點只轉換一次
-- WeakSet 自動處理垃圾回收，不會記憶體洩漏
-- O(1) 查詢效能
-
-### 3. 轉換過程中防止自觸發
-
-```javascript
-let isConverting = false;
-
-const observer = new MutationObserver((mutations) => {
-    // 忽略自己造成的 DOM 變化
-    if (isConverting) return;
-
-    // ... 處理 mutations
-});
-
-// 執行轉換時
-isConverting = true;
-// ... 執行轉換邏輯
-isConverting = false;
-```
-
-**作用：**
-- 防止 MutationObserver 監聽到自己造成的變化
-- 避免無限循環
-- 減少不必要的處理
-
-### 4. 單次替換保證
+### 2. 詞庫只套用在「確實由簡體轉換而來」的文字
 
 ```javascript
 function convertText(text) {
-    // ... OpenCC 簡繁轉換
+    if (!converter || !text || !CJK_CHAR_REGEX.test(text)) return text;
+    if (!isSimplifiedChinese(text)) return text;
 
-    if (termRegex && (hasSimplifiedChars || needsTermReplacement)) {
-        // 記錄已完成的替換
-        const replaced = new Set();
+    const convertedText = converter(text);
 
-        convertedText = convertedText.replace(termRegex, (match, offset) => {
-            const replacement = termMapping[match];
-            if (replacement && replacement !== match) {
-                replaced.add(replacement); // 記錄替換結果
-                return replacement;
-            }
-            return match;
-        });
-    }
+    // OpenCC 沒有改動任何字，代表其實沒有需要轉換的簡體字，詞庫也不套用
+    if (convertedText === text) return text;
 
-    return convertedText;
+    // replace 只掃描一次，替換結果不會被同一次 replace 再匹配，不會產生連鎖替換
+    return termRegex
+        ? convertedText.replace(termRegex, match => termMapping[match])
+        : convertedText;
 }
 ```
+
+**作用：**
+- 已經是繁體的「演算法」不會通過簡體偵測，也不會被 OpenCC 改動，因此詞庫完全不會碰它
+- 單次 `replace()` 保證每個位置最多替換一次
+
+### 3. 以 WeakMap 記錄「處理後的值」
+
+```javascript
+const processedTextValues = new WeakMap();
+
+function convertTextNode(node) {
+    const text = node.nodeValue;
+    // 內容和上次處理後的值相同：代表沒變過，或正是我們自己寫入的值
+    if (processedTextValues.get(node) === text) return;
+    if (!text || !CJK_CHAR_REGEX.test(text)) return;
+
+    const convertedText = convertText(text);
+    if (convertedText !== text) node.nodeValue = convertedText;
+    processedTextValues.set(node, convertedText);
+}
+```
+
+**為什麼取代 WeakSet：**
+- 舊版 `WeakSet` 只要節點轉換過一次就永遠跳過；但 React、Vue 常「就地」更新同一個文字節點（例如「加载中」→「加载完成」），第二次出現的簡體字就不會被轉換
+- 記錄「值」而不是「節點」：內容沒變就跳過（防止重複轉換），內容被網站改掉就重新轉換
+- WeakMap 同樣會隨節點回收自動釋放，不會記憶體洩漏
+
+### 4. 用 `takeRecords()` 丟棄自己造成的變動
+
+```javascript
+function flushPendingMutations() {
+    // ... 轉換 pendingNodes 與 pendingAttributeElements
+
+    // 丟棄「自己改寫 DOM」所產生、尚未送達的 mutation 紀錄
+    observer.takeRecords();
+}
+```
+
+**為什麼取代 isConverting 旗標：**
+- MutationObserver 的回呼是非同步（microtask）送達的。舊版在同步轉換結束時就把 `isConverting` 設回 `false`，等自己造成的紀錄送到時旗標早已失效，每次轉換後都會再白跑一輪
+- `takeRecords()` 直接清空佇列中尚未送達的紀錄；轉換過程是同步執行的，期間網頁程式碼沒有機會改動 DOM，所以清掉的只會是自己造成的紀錄
 
 ## 轉換流程圖
 
 ```
 輸入文字: "这是一个算法"
     ↓
+[簡體偵測 isSimplifiedChinese] → 是簡體
+    ↓
 [OpenCC 簡轉繁]
     ↓
-"這是一個算法"
+"這是一個演算法"（與原文不同 → 繼續套用詞庫）
     ↓
-[詞彙替換 - termRegex.replace()]
+[詞彙替換 - termRegex.replace()，單次掃描]
     ↓
-匹配到 "算法" → 查詢 termMapping["算法"] = "演算法"
+寫回節點，並記錄 processedTextValues.set(textNode, "這是一個演算法")
     ↓
-替換: "這是一個演算法"
+[自己造成的 mutation] → observer.takeRecords() 丟棄
     ↓
-[標記節點為已轉換]
+[之後再次走訪]
     ↓
-convertedNodes.add(textNode)
+檢查: nodeValue === 記錄值 → 跳過
     ↓
-[後續更新]
+[網站把內容改成新的簡體字]
     ↓
-檢查: convertedNodes.has(textNode) = true → 跳過
+檢查: nodeValue !== 記錄值 → 重新轉換
 ```
 
 ## 測試案例
@@ -184,18 +168,23 @@ convertedNodes.add(textNode)
 
 ## 效能考量
 
-1. **初始化過濾**：一次性過濾，不影響執行期效能
-2. **WeakSet 查詢**：O(1) 時間複雜度
-3. **防抖機制**：100ms 延遲批次處理
-4. **快速檢查**：`mayContainTerms()` 避免不必要的正則運算
+1. **延遲初始化**：OpenCC 轉換器與詞庫正規表達式在第一次需要轉換時才建立
+2. **WeakMap 查詢**：O(1)，內容未變的節點直接跳過
+3. **同步處理新內容**：在 MutationObserver 回呼內（畫面繪製前）就完成轉換，不會先看到簡體再閃成繁體；同一個 task 內同步處理超過 20 次就改為 50ms 延後批次，避免與網頁的觀察器互相觸發而卡死
+4. **attributeFilter**：只觀察白名單屬性，class、style 等高頻變動在瀏覽器端就被濾掉
+5. **TreeWalker**：以原生 TreeWalker 走訪，排除區域用 `FILTER_REJECT` 整棵子樹跳過
 
 ## 相容性
 
-- ✅ Chrome 36+
-- ✅ Firefox 34+
-- ✅ Edge 12+
-- ✅ Safari 9+
-- ❌ IE 11 以下（不支援 WeakSet）
+腳本使用的最新 API 為 `Node.isConnected`，因此最低需求為：
+
+- ✅ Chrome 54+
+- ✅ Firefox 49+
+- ✅ Edge 79+（Chromium 版）
+- ✅ Safari 10+
+- ❌ IE 11（不支援腳本使用的 ES2015+ 語法，例如箭頭函式與展開運算子）
+
+Navigation API（`window.navigation`）只用於 GitHub 路由偵測的輔助，不支援的瀏覽器會自動略過。
 
 ## 測試檔案
 
@@ -210,11 +199,11 @@ convertedNodes.add(textNode)
 
 ## 總結
 
-透過以下四個機制的組合，完全解決了詞彙循環轉換的問題：
+透過以下四個機制的組合，解決詞彙循環轉換與重複轉換的問題：
 
 1. ✅ **初始化過濾**：排除無效規則
-2. ✅ **節點追蹤**：WeakSet 防止重複轉換
-3. ✅ **自觸發防護**：isConverting 旗標
-4. ✅ **單次保證**：每次替換只執行一次
+2. ✅ **只對簡體來源套用詞庫**：已是繁體的內容不會被詞庫改動
+3. ✅ **值追蹤**：WeakMap 記錄處理後的值，既防止重複轉換，也不會漏掉網站後續更新的內容
+4. ✅ **自觸發防護**：`takeRecords()` 丟棄自己造成的 mutation 紀錄
 
 確保使用者看到的轉換結果是穩定、正確且高效的！
