@@ -700,11 +700,19 @@
      * 或抓取失敗（網路錯誤、逾時、HTTP 錯誤等），
      * 將直接回傳原始絕對 URL，確保頁面仍可正常顯示。
      *
+     * 傳入 resourceCache 時，同一次快照中相同的絕對網址只會下載一次：
+     * 同一張背景圖常被數十個 style 屬性或多條 CSS 規則重複引用，
+     * 原本每次出現都重新下載與 base64 編碼；連不上的主機更會每次都等滿
+     * REQUEST_TIMEOUT_MS（30 秒）才放棄，被引用 N 次就多等 N 倍時間。
+     * 快取存放的是 Promise，並行或先後請求同一網址時都會共用同一個結果
+     * （成功的 Data URI 或失敗後的原始絕對 URL）。
+     *
      * @param {string} url      - 欲轉換的資源 URL（可為相對路徑）
      * @param {string} baseUrl  - 解析相對 URL 時使用的基準 URL，預設為 location.href
+     * @param {Map<string, Promise<string>>} [resourceCache] - 單次快照專用的下載結果快取
      * @returns {Promise<string>} Data URI 字串，或原始絕對 URL（轉換失敗時）
      */
-    async function toDataUri(url, baseUrl) {
+    async function toDataUri(url, baseUrl, resourceCache) {
         if (!url) return url;
 
         // 已是 Data URI，直接回傳
@@ -721,6 +729,23 @@
         // blob: URL 屬於另一個 origin，GM_xmlhttpRequest 無法跨域取得，直接略過
         if (absoluteUrl.startsWith('blob:')) return absoluteUrl;
 
+        if (!resourceCache) {
+            return fetchAsDataUri(absoluteUrl);
+        }
+
+        if (!resourceCache.has(absoluteUrl)) {
+            resourceCache.set(absoluteUrl, fetchAsDataUri(absoluteUrl));
+        }
+        return resourceCache.get(absoluteUrl);
+    }
+
+    /**
+     * 下載單一絕對網址並轉成 Data URI；任何失敗都降級為回傳原始絕對 URL，永不 reject。
+     *
+     * @param {string} absoluteUrl - 已解析的絕對網址
+     * @returns {Promise<string>} Data URI 字串，或原始絕對 URL（轉換失敗時）
+     */
+    async function fetchAsDataUri(absoluteUrl) {
         try {
             const response = await gmFetch({
                 method: 'GET',
@@ -752,6 +777,36 @@
         }
     }
 
+    /**
+     * 依照 matchAll() 的結果，一次組出替換後的新字串。
+     *
+     * 設計意圖：
+     *   - 原本對每個比對結果呼叫 cssText.replace(match[0], replacement)，有兩個問題：
+     *     1) replacement 為字串時，其中的 $$、$&、$`、$' 會被當成特殊替換樣式，
+     *        引入的 CSS 只要含有 content: "$$" 之類的文字就會被改寫或插入多餘內容；
+     *     2) 每次 replace 都會複製整段越來越長的 CSS（Data URI 動輒數十 KB），
+     *        數百個 url() 時是 O(n²) 的字串複製，實測 1000 個 30KB 圖片約需 3.7 秒。
+     *   - 改為依比對位置由前往後切片拼接：只掃描一次、不解析 $ 樣式，
+     *     且每個替換精準對應到自己的位置，不會誤改到前面同字串的其他出現處。
+     *
+     * @param {string} text - 原始文字
+     * @param {Array<RegExpMatchArray>} matches - 依出現順序排列的比對結果（需含 index）
+     * @param {Array<string|null>} replacements - 與 matches 對應的替換文字；null 代表保留原文
+     * @returns {string} 替換後的文字
+     */
+    function replaceMatchesInOrder(text, matches, replacements) {
+        let result = '';
+        let lastIndex = 0;
+
+        matches.forEach((match, index) => {
+            const replacement = replacements[index];
+            result += text.slice(lastIndex, match.index) + (replacement ?? match[0]);
+            lastIndex = match.index + match[0].length;
+        });
+
+        return result + text.slice(lastIndex);
+    }
+
     // ===== 核心：遞迴內嵌 CSS 文字中的所有外部資源 =====
 
     /**
@@ -764,54 +819,88 @@
      *
      * @param {string} cssText - 待處理的 CSS 文字內容
      * @param {string} baseUrl - 解析 CSS 中相對路徑所使用的基準 URL
+     * @param {Map<string, Promise<string>>} [resourceCache] - 單次快照專用的下載結果快取
+     * @param {Set<string>} [importChain] - 目前遞迴路徑上已展開的樣式表絕對網址，用來偵測循環 @import
      * @returns {Promise<string>} 所有資源皆內嵌後的 CSS 文字
      */
-    async function inlineCssResources(cssText, baseUrl) {
+    async function inlineCssResources(cssText, baseUrl, resourceCache, importChain = new Set()) {
         // ── 第一步：展開 @import 規則（遞迴處理） ──
         // 比對兩種語法：@import url("...") 與 @import "..."
         const importRegex = /@import\s+(?:url\(\s*(['"]?)([^'")]+)\1\s*\)|(['"])([^'"]+)\3)\s*([^;]*);/g;
         const importMatches = [...cssText.matchAll(importRegex)];
+        const importReplacements = [];
 
         for (const match of importMatches) {
             // 取出 import 的 URL（url() 語法存在 match[2]，引號語法存在 match[4]）
             const importedUrl = match[2] || match[4];
             const mediaQuery = match[5] ? match[5].trim() : '';
+            let replacement = null;
 
             try {
                 const absUrl = new URL(importedUrl, baseUrl).href;
-                const importedCssResponse = await gmFetch({ method: 'GET', url: absUrl, responseType: 'text' });
-                // 遞迴處理引入的 CSS，並以其絕對 URL 作為新的 baseUrl
-                let importedCss = await inlineCssResources(importedCssResponse.responseText, absUrl);
 
-                // 若原本有 media query，用 @media 包裝引入的 CSS
-                if (mediaQuery) {
-                    importedCss = `@media ${mediaQuery} {\n${importedCss}\n}`;
+                // a.css 引入 b.css、b.css 又引入 a.css 時，原本會無限遞迴並持續發出請求。
+                // 瀏覽器本身會忽略循環引用，這裡比照辦理：保留原始宣告、不再展開。
+                if (importChain.has(absUrl)) {
+                    console.warn(`[SavePageToAzureBlob] 偵測到循環 @import，略過展開：${absUrl}`);
+                } else {
+                    const importedCssResponse = await gmFetch({ method: 'GET', url: absUrl, responseType: 'text' });
+                    // 遞迴處理引入的 CSS，並以其絕對 URL 作為新的 baseUrl
+                    let importedCss = await inlineCssResources(
+                        importedCssResponse.responseText,
+                        absUrl,
+                        resourceCache,
+                        new Set(importChain).add(absUrl)
+                    );
+
+                    // 若原本有 media query，用 @media 包裝引入的 CSS
+                    if (mediaQuery) {
+                        importedCss = `@media ${mediaQuery} {\n${importedCss}\n}`;
+                    }
+                    replacement = importedCss;
                 }
-                cssText = cssText.replace(match[0], importedCss);
             } catch (err) {
                 // @import 展開失敗時保留原始宣告，不中斷整體處理
                 console.warn(`[SavePageToAzureBlob] @import 展開失敗（${err.message}）：${importedUrl}`);
             }
+
+            importReplacements.push(replacement);
+        }
+
+        if (importMatches.length > 0) {
+            cssText = replaceMatchesInOrder(cssText, importMatches, importReplacements);
         }
 
         // ── 第二步：將 url() 中的所有外部資源替換為 Data URI ──
         // 比對 url('...') 與 url("...") 與 url(...) 三種語法
         const urlRegex = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
         const urlMatches = [...cssText.matchAll(urlRegex)];
+        const urlReplacements = [];
 
         for (const match of urlMatches) {
             const resourceUrl = match[2].trim();
-            // 已是 Data URI，跳過
-            if (resourceUrl.startsWith('data:')) continue;
+            let replacement = null;
 
-            const dataUri = await toDataUri(resourceUrl, baseUrl);
-            // 僅在成功轉換時（回傳 Data URI 而非原始 URL）才進行替換，確保冪等性
-            if (dataUri !== resourceUrl && !dataUri.startsWith(resourceUrl)) {
-                cssText = cssText.replace(match[0], `url("${dataUri}")`);
+            // 已是 Data URI，跳過。
+            // url(#id) 是指向同一份文件內 SVG 元素（漸層、clipPath、mask、filter）的片段參照，
+            // 不是外部資源；原本會被解析成「目前網頁網址#id」而下載整份 HTML，
+            // 再以 data:text/html 取代，反而破壞 SVG 的填色與遮罩，並讓快照暴增。
+            if (!resourceUrl.startsWith('data:') && !resourceUrl.startsWith('#')) {
+                const dataUri = await toDataUri(resourceUrl, baseUrl, resourceCache);
+                // 僅在成功轉換時（回傳 Data URI 而非原始 URL）才進行替換，確保冪等性
+                if (dataUri !== resourceUrl && !dataUri.startsWith(resourceUrl)) {
+                    replacement = `url("${dataUri}")`;
+                }
             }
+
+            urlReplacements.push(replacement);
         }
 
-        return cssText;
+        if (urlMatches.length === 0) {
+            return cssText;
+        }
+
+        return replaceMatchesInOrder(cssText, urlMatches, urlReplacements);
     }
 
     // ===== 核心：序列化當前頁面為完全獨立的 HTML 字串 =====
@@ -839,6 +928,10 @@
      */
     async function serializePage(onProgress) {
         const pageUrl = location.href;
+
+        // 本次快照專用的資源下載快取（絕對網址 → Data URI 或失敗時的原始網址）。
+        // 生命週期只到這個函式結束，不跨快照保留，避免佔用記憶體或沿用過期的資源內容。
+        const resourceCache = new Map();
 
         /**
          * 將相對 URL 轉為基於原始頁面的絕對 URL，必要時保留「#」書籤連結。
@@ -1017,7 +1110,7 @@
             try {
                 const absHref = new URL(href, pageUrl).href;
                 const response = await gmFetch({ method: 'GET', url: absHref, responseType: 'text' });
-                const inlinedCss = await inlineCssResources(response.responseText, absHref);
+                const inlinedCss = await inlineCssResources(response.responseText, absHref, resourceCache, new Set([absHref]));
                 const styleEl = document.createElement('style');
                 styleEl.textContent = inlinedCss;
                 // 保留 media 屬性（如 media="print"）
@@ -1036,7 +1129,7 @@
         // ── 處理 <style> 塊中的 url() ──
         for (const styleEl of styleElements) {
             try {
-                styleEl.textContent = await inlineCssResources(styleEl.textContent, pageUrl);
+                styleEl.textContent = await inlineCssResources(styleEl.textContent, pageUrl, resourceCache);
             } catch (err) {
                 console.warn(`[SavePageToAzureBlob] <style> 處理失敗：${err.message}`);
             }
@@ -1047,7 +1140,7 @@
         for (const img of imgElements) {
             const src = img.getAttribute('src');
             if (src) {
-                img.setAttribute('src', await toDataUri(src, pageUrl));
+                img.setAttribute('src', await toDataUri(src, pageUrl, resourceCache));
             }
             // srcset 含多個候選 URL，全部清除以確保瀏覽器只使用已內嵌的 src
             img.removeAttribute('srcset');
@@ -1063,7 +1156,7 @@
         for (const video of videoPosterEls) {
             const poster = video.getAttribute('poster');
             if (poster) {
-                video.setAttribute('poster', await toDataUri(poster, pageUrl));
+                video.setAttribute('poster', await toDataUri(poster, pageUrl, resourceCache));
             }
             // video / audio 的 src 不內嵌（媒體體積通常過大），改為絕對 URL 保留連結
             const mediaSrc = video.getAttribute('src');
@@ -1077,7 +1170,7 @@
         for (const link of iconLinks) {
             const href = link.getAttribute('href');
             if (href) {
-                link.setAttribute('href', await toDataUri(href, pageUrl));
+                link.setAttribute('href', await toDataUri(href, pageUrl, resourceCache));
             }
             progress(`處理網站圖示：${href?.split('/').pop()}`);
         }
@@ -1086,7 +1179,7 @@
         for (const el of elementsWithStyleAttr) {
             const styleValue = el.getAttribute('style');
             if (styleValue && styleValue.includes('url(')) {
-                el.setAttribute('style', await inlineCssResources(styleValue, pageUrl));
+                el.setAttribute('style', await inlineCssResources(styleValue, pageUrl, resourceCache));
             }
         }
 
@@ -1198,6 +1291,11 @@
         }
 
         if (ArrayBuffer.isView(content)) {
+            // 檢視範圍剛好涵蓋整個 buffer 時（例如 TextEncoder.encode() 的結果）直接沿用，
+            // 不必為了數十 MB 的快照再複製一份。
+            if (content.byteOffset === 0 && content.byteLength === content.buffer.byteLength) {
+                return content.buffer;
+            }
             return content.buffer.slice(content.byteOffset, content.byteOffset + content.byteLength);
         }
 
@@ -1432,7 +1530,8 @@
 
             panel.append(title, message, target, hint, cancelButton);
             overlay.appendChild(panel);
-            document.body.appendChild(overlay);
+            // 檢視 XML/SVG 等沒有 <body> 的文件時退回 documentElement，避免直接丟出 TypeError。
+            (document.body || document.documentElement).appendChild(overlay);
 
             target.addEventListener('paste', onPaste);
             document.addEventListener('keydown', onKeyDown, true);
@@ -1478,7 +1577,9 @@
         });
 
         bar.textContent = initialMessage;
-        document.body.appendChild(bar);
+        // 沒有 <body> 的文件（XML、SVG）退回 documentElement；原本會在建立提示條時丟出
+        // TypeError，而且發生在防重入鎖設定之前，使用者完全看不到任何回饋。
+        (document.body || document.documentElement).appendChild(bar);
 
         return {
             update: (msg) => { bar.textContent = msg; },
@@ -1568,11 +1669,15 @@
                     statusBar.update(`🔄 處理中 ${pct}%（${current}/${total}）\n${msg}`);
                 });
 
-                const sizeKb = Math.round(new TextEncoder().encode(htmlContent).byteLength / 1024);
+                // 只做一次 UTF-8 編碼：同一份位元組既用來顯示大小，也直接交給上傳。
+                // 原本先編碼一次算大小後丟棄，uploadToAzureBlob() 內又再編碼一次；
+                // 內嵌大量圖片的快照常達數十 MB，等於多做一次大型配置與複製。
+                const htmlBytes = new TextEncoder().encode(htmlContent);
+                const sizeKb = Math.round(htmlBytes.byteLength / 1024);
                 statusBar.update(`📤 正在發佈到 Infinitybin（${sizeKb.toLocaleString()} KB），請稍候...`);
 
                 // ── 發佈到 Infinitybin（Azure Blob）──
-                const cleanUrl = await uploadToAzureBlob(htmlContent, sasUrl, {
+                const cleanUrl = await uploadToAzureBlob(htmlBytes, sasUrl, {
                     blobNamePrefix: 'snapshot',
                     extension: 'html',
                     contentType: getTextContentType('html')
