@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網頁連結檢查器
-// @version      1.1.1
+// @version      1.1.2
 // @description  手動檢查目前網頁中可見的 IMG 與 CSS 圖片、超連結、影片與音訊網址，圖片須回傳 image/* MIME 類型，可檢查全部或僅外部連結並以框線標示結果
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -2726,6 +2726,11 @@
             'Close Link Checker report'
         );
 
+        /*
+         * 關閉只把報表從頁面移除，不中止背景檢查：使用者常會先關掉置中的
+         * 報表，觀察頁面上的框線隨檢查進度變化。檢查期間再次執行選單時，
+         * checkVisibleLinks() 會透過 activeReportHost 把同一份報表接回頁面。
+         */
         close.addEventListener(
             'click',
             () => host.remove()
@@ -3189,6 +3194,10 @@
                 host
             );
 
+        // 記住目前這一輪檢查的報表，供檢查進行中再次觸發選單時重新顯示。
+        activeReportHost =
+            host;
+
         /*
          * ========================================================
          * Filtering
@@ -3522,10 +3531,49 @@
     let running =
         false;
 
+    /*
+     * 目前進行中這一輪檢查所使用的報表宿主元素（檢查結束後重設為 null）。
+     * 檢查進行中時使用者若按 × 關閉報表，背景請求仍會繼續；原本此時再次
+     * 執行選單會因 running 防重入而「完全沒有反應」，看起來像腳本失效。
+     * 保留參考後即可把同一份仍在更新中的報表重新接回頁面。
+     */
+    let activeReportHost =
+        null;
+
+    /*
+     * 單筆驗證若發生非預期例外，轉成「無法確認」結果而不是讓例外往外拋。
+     * 原本例外會讓 runPool 的 Promise.all 提早 reject：finally 立刻把 running
+     * 設回 false，但其餘 runner 仍在背景執行；此時若再啟動新一輪檢查，舊 runner
+     * 會把舊資料寫進新的 elementStatuses 與框線。同時出錯的那一列會永遠停在
+     * Checking、統計數字也無法達到總數。歸類為 skipped 與網路錯誤的既有語意一致：
+     * 無法證明資源有效，也不能斷定它失效。
+     */
+    async function validateRecordSafely(
+        record,
+        cache
+    ) {
+        try {
+            return await validateRecord(record, cache);
+        } catch (error) {
+            console.warn('[LinkChecker] 驗證資源時發生非預期錯誤：', record.url, error);
+
+            return {
+                status: 'skipped',
+                httpStatus: '',
+                note: `Validation error: ${error?.message || error}`
+            };
+        }
+    }
+
     async function checkVisibleLinks(
         mode
     ) {
         if (running) {
+            // 檢查仍在進行：重新顯示被關閉的報表，讓使用者看得到目前進度。
+            if (activeReportHost && !activeReportHost.isConnected) {
+                document.documentElement.append(activeReportHost);
+            }
+
             return;
         }
 
@@ -3591,7 +3639,7 @@
                     index
                 ) => {
                     const result =
-                        await validateRecord(
+                        await validateRecordSafely(
                             record,
                             cache
                         );
@@ -3627,6 +3675,10 @@
         } finally {
             running =
                 false;
+
+            // 檢查結束後不再需要重新接回報表；釋放參考，避免已關閉的報表 DOM 被保留在記憶體。
+            activeReportHost =
+                null;
         }
     }
 
