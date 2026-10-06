@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ChatGPT: 好用的鍵盤快速鍵集合
-// @version      0.14.5
+// @version      0.14.6
 // @description  按下 Ctrl+Delete 快速刪除當下聊天記錄、按下 Ctrl+B 快速切換側邊欄
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -11,10 +11,23 @@
 // @author       Will Huang
 // @match        https://chatgpt.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=openai.com
+// @grant        none
 // ==/UserScript==
 
 (function () {
     'use strict';
+
+    // 除錯訊息開關：側邊欄切換有「內建快捷鍵 → data-testid → 第一顆按鈕 → aria-label」多層備援，
+    // 平常每按一次 Ctrl+B 就印出好幾行 log 只會干擾 Console；需要追查是哪一層生效時再改成 true。
+    // 「找不到元素」這類代表功能失效的訊息不受此開關影響，一律以 console.warn 輸出。
+    const DEBUG = false;
+    const LOG_PREFIX = '[ChatGPTHotkeys]';
+
+    function debugLog(...args) {
+        if (DEBUG) {
+            console.log(LOG_PREFIX, ...args);
+        }
+    }
 
     function isMatchingKey(event, keyCheck) {
         if (typeof keyCheck !== 'string') {
@@ -54,9 +67,19 @@
     let lastSidebarToggleAt = 0;
 
     async function handleCtrlDelete(event) {
-        if (isInInputMode(event.target) && !!event.target.textContent && !confirm('是否要刪除本篇聊天記錄？')) {
+        // 焦點在輸入區且已有內容時，Ctrl+Delete 很可能是想「刪除下一個字」，所以先確認再刪聊天記錄。
+        // ChatGPT 的輸入框是 ProseMirror 的 contenteditable，內容在 textContent；但若退回成
+        // <textarea>/<input>，textContent 只是初始內容、使用者輸入的文字在 value，
+        // 只看 textContent 會誤判為空白而略過確認直接刪除，因此優先讀取字串型別的 value。
+        const target = event.target;
+        const currentText = typeof target.value === 'string' ? target.value : target.textContent;
+        if (isInInputMode(target) && !!currentText && !confirm('是否要刪除本篇聊天記錄？')) {
             return;
         }
+
+        // 確定要接手刪除聊天記錄後，必須在第一個 await 之前呼叫 preventDefault()：
+        // 事件派送在第一個 await 就結束了，之後才呼叫已經來不及，輸入框會同時被刪掉一個字。
+        event.preventDefault();
 
         const optionButtonFound = await simulateKeyPress(
             () => document.querySelector('button[data-testid="conversation-options-button"]'),
@@ -115,6 +138,16 @@
     }
 
     async function tryToggleBySelector(selector, beforeState) {
+        // 這裡是在「探測」哪一顆側邊欄按鈕存在，不是在等待某個動作之後才會出現的元素。
+        // simulateMouseClick() 預設會用 waitForElement() 最多等 3 秒，若直接交給它處理，
+        // 每個不存在的 selector 都會白等 3 秒（清單最長有 13 個 selector，最壞情況要等數十秒），
+        // 這段期間 isSidebarToggleInProgress 一直鎖住，使用者再按 Ctrl+B 都沒反應；
+        // 更糟的是使用者在等待期間自己用滑鼠開關側邊欄，延遲出現的按鈕會被補點一下又切回去。
+        // 因此先立即檢查一次，不存在就直接換下一個 selector（與 0.14.0 以前先判斷再點擊的行為一致）。
+        if (!document.querySelector(selector)) {
+            return false;
+        }
+
         const clicked = await simulateMouseClick(() => document.querySelector(selector));
         if (!clicked) {
             return false;
@@ -169,7 +202,7 @@
             dispatchKeyboardShortcut(target, eventInit);
             await delay(50);
             if (getCloseSidebarExpandedState() !== beforeExpandedState) {
-                console.log('Built-in shortcut toggled sidebar');
+                debugLog('Built-in shortcut toggled sidebar');
                 return true;
             }
         }
@@ -225,7 +258,7 @@
         for (const selector of dataTestIdSelectors) {
             const toggled = await tryToggleBySelector(selector, beforeState);
             if (toggled) {
-                console.log('Clicking sidebar button by data-testid selector', selector);
+                debugLog('Clicking sidebar button by data-testid selector', selector);
                 return;
             }
         }
@@ -237,7 +270,7 @@
             if (clicked) {
                 await delay(33);
                 if (readSidebarToggleState() !== beforeState) {
-                    console.log('Clicking first button (state closed)');
+                    debugLog('Clicking first button (state closed)');
                     return;
                 }
             }
@@ -257,7 +290,7 @@
         for (const selector of ariaLabelSelectors) {
             const toggled = await tryToggleBySelector(selector, beforeState);
             if (toggled) {
-                console.log('Clicking sidebar button by aria-label selector', selector);
+                debugLog('Clicking sidebar button by aria-label selector', selector);
                 return;
             }
         }
@@ -276,16 +309,34 @@
         const searchButton = document.querySelector('button[data-testid="composer-button-search"]');
         const deepResearchButton = document.querySelector('button[data-testid="composer-button-deep-research"]');
         const createImageButton = document.querySelector('button[data-testid="composer-button-create-image"]');
-        if (searchButton.ariaPressed === 'false' && deepResearchButton.ariaPressed === 'false' && createImageButton.ariaPressed === 'false') {
+
+        // 三顆模式按鈕必須同時存在才能判斷目前狀態。舊版直接讀 null.ariaPressed，
+        // 只要 ChatGPT 改版少了任何一顆，每按一次 Alt+S 就丟一次 TypeError（未處理的 Promise rejection），
+        // 而且在丟例外之前不會點到任何按鈕；這裡改為提早返回，行為相同但不再丟例外。
+        if (!searchButton || !deepResearchButton || !createImageButton) {
+            return;
+        }
+
+        // 確定會接手 Alt+S 才阻止預設行為：macOS 的 Option+S 會輸入「ß」，
+        // 不阻止的話切換模式的同時還會在輸入框多打一個字元。
+        // 找不到按鈕時不呼叫，讓使用者仍可正常用 Option+S 輸入 ß。
+        event.preventDefault();
+
+        // 先一次讀出三顆按鈕的狀態，再用 else-if 只做「一次」轉換：
+        // 無 → 搜尋 → 深入研究 → 建立圖片 → 無。
+        // 舊版四個 if 每次都重新讀取 ariaPressed，若 React 在 click() 後同步更新屬性，
+        // 一次按鍵就會連鎖觸發多個分支而跳過中間的模式；先讀狀態可確保一次按鍵只前進一格。
+        const searchPressed = searchButton.ariaPressed;
+        const deepResearchPressed = deepResearchButton.ariaPressed;
+        const createImagePressed = createImageButton.ariaPressed;
+
+        if (searchPressed === 'false' && deepResearchPressed === 'false' && createImagePressed === 'false') {
             searchButton.click();
-        }
-        if (searchButton.ariaPressed === 'true' && deepResearchButton.ariaPressed === 'false' && createImageButton.ariaPressed === 'false') {
+        } else if (searchPressed === 'true' && deepResearchPressed === 'false' && createImagePressed === 'false') {
             deepResearchButton.click();
-        }
-        if (searchButton.ariaPressed === 'false' && deepResearchButton.ariaPressed === 'true' && createImageButton.ariaPressed === 'false') {
+        } else if (searchPressed === 'false' && deepResearchPressed === 'true' && createImagePressed === 'false') {
             createImageButton.click();
-        }
-        if (searchButton.ariaPressed === 'false' && deepResearchButton.ariaPressed === 'false' && createImageButton.ariaPressed === 'true') {
+        } else if (searchPressed === 'false' && deepResearchPressed === 'false' && createImagePressed === 'true') {
             createImageButton.click();
         }
     }
@@ -317,9 +368,23 @@
 
     // 使用 capture 階段先攔截按鍵，避免站台自身快捷鍵先 stopPropagation 造成熱鍵失效。
     document.addEventListener("keydown", async (event) => {
+        // 輸入法（注音、倉頡、日文 IME…）組字期間的按鍵屬於輸入法，不應觸發任何熱鍵。
+        // isComposing 只在 compositionstart 之後才為 true，開始組字的第一個 keydown
+        // 會以 keyCode 229（key 為 "Process"）送出；isMatchingKey() 會退而比對 event.code，
+        // 這種事件仍可能被誤判為 KeyB/KeyS，所以兩個條件都要擋。
+        if (event.isComposing || event.keyCode === 229) {
+            return;
+        }
+
         for (const { test, handler } of hotkeyHandlers) {
             if (test(event)) {
-                await handler(event);
+                // handler 都是 async；任何一個 selector 因改版失效而丟出例外時，
+                // 統一在這裡接住並加上前綴，避免變成難以追查的 Uncaught (in promise)。
+                try {
+                    await handler(event);
+                } catch (error) {
+                    console.warn(LOG_PREFIX, 'Hotkey handler failed:', error);
+                }
                 break;
             }
         }
@@ -336,10 +401,6 @@
             return true;
         }
         return false;
-    }
-
-    function isCtrlOrMetaKeyPressed(event) {
-        return event.ctrlKey || event.metaKey;
     }
 
     async function delay(ms) {
@@ -363,7 +424,8 @@
     async function simulateMouseClick(getElement, retryInterval = 33, maxWait = 3000) {
         const element = await waitForElement(getElement, retryInterval, maxWait);
         if (!element) {
-            console.log('simulateMouseClick: element not found after max wait time');
+            // 等滿 maxWait 仍找不到元素代表選擇器可能已因改版失效，屬於需要被看見的訊息。
+            console.warn(LOG_PREFIX, 'simulateMouseClick: element not found after max wait time');
             return false;
         }
 
@@ -372,7 +434,7 @@
             cancelable: true
         });
 
-        console.log('simulateMouseClick', element);
+        debugLog('simulateMouseClick', element);
         element.dispatchEvent(mouseEvent);
         return true;
     }
@@ -380,7 +442,7 @@
     async function simulateKeyPress(getElement, key, retryInterval = 33, maxWait = 3000) {
         const element = await waitForElement(getElement, retryInterval, maxWait);
         if (!element) {
-            console.log('simulateKeyPress: element not found after max wait time');
+            console.warn(LOG_PREFIX, 'simulateKeyPress: element not found after max wait time');
             return false;
         }
 
@@ -390,7 +452,7 @@
             key: key
         });
 
-        console.log('simulateKeyPress', element);
+        debugLog('simulateKeyPress', element);
         element.dispatchEvent(keyEvent);
         return true;
     }
