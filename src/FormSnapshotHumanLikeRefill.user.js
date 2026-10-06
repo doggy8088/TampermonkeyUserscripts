@@ -56,6 +56,13 @@
     ].join(', ');
 
     const INPUT_TYPES_TO_SKIP = new Set(['hidden', 'submit', 'reset', 'button', 'image', 'file']);
+
+    // getFieldKind() 可能回傳的所有欄位種類，用於回填時驗證候選元素與快照是否同類。
+    const KNOWN_FIELD_KINDS = new Set([
+        'input', 'checkbox', 'radio', 'textarea',
+        'select-one', 'select-multiple', 'custom-select-one', 'contenteditable'
+    ]);
+
     const TEXT_LIKE_INPUT_TYPES = new Set([
         'text', 'search', 'url', 'tel', 'email', 'password',
         'number', 'date', 'datetime-local', 'month', 'time', 'week'
@@ -159,10 +166,18 @@
 
         const retryQueue = [];
 
+        // 第 1、2 輪已成功回填或本來就相符的欄位。readonly 後補階段會再檢查一次
+        // 所有 input/textarea（用來補回被框架還原的值），但這些欄位已計入結果，
+        // 不可再算成「readonly 後補」，否則成功數會重複累加、略過數被錯誤扣減。
+        const settledFieldSnapshots = new Set();
+
         const applySingleField = async (fieldSnapshot, waitTimeoutMs) => {
             const element = await waitForTruthy(() => {
-                const candidate = findElementByLocator(fieldSnapshot.locator);
-                return candidate && canFillElement(candidate) ? candidate : null;
+                const candidate = findElementByLocator(fieldSnapshot.locator, fieldSnapshot.kind);
+                // 欄位種類必須與快照相容，避免以文字輸入流程改寫 checkbox/radio 的 value。
+                return candidate && canFillElement(candidate) && isFieldKindCompatible(candidate, fieldSnapshot.kind)
+                    ? candidate
+                    : null;
             }, { timeoutMs: waitTimeoutMs, intervalMs: 120 });
 
             if (!element) {
@@ -198,11 +213,13 @@
                     }
 
                     if (firstPass.status === 'already-matched') {
+                        settledFieldSnapshots.add(fieldSnapshot);
                         continue;
                     }
 
                     if (firstPass.status === 'applied') {
                         stats.applied++;
+                        settledFieldSnapshots.add(fieldSnapshot);
                         const gapDelay = getGapDelayRangeByFieldKind(fieldSnapshot.kind);
                         await sleep(randomInt(gapDelay.min, gapDelay.max));
                         throwIfApplyAbortRequested();
@@ -244,6 +261,7 @@
                     const retryPass = await applySingleField(fieldSnapshot, RETRY_PASS_FIELD_WAIT_MS);
                     if (retryPass.status === 'applied') {
                         stats.applied++;
+                        settledFieldSnapshots.add(fieldSnapshot);
                         const gapDelay = getGapDelayRangeByFieldKind(fieldSnapshot.kind);
                         await sleep(randomInt(gapDelay.min, gapDelay.max));
                         throwIfApplyAbortRequested();
@@ -251,6 +269,7 @@
                     }
 
                     if (retryPass.status === 'already-matched') {
+                        settledFieldSnapshots.add(fieldSnapshot);
                         continue;
                     }
 
@@ -267,7 +286,7 @@
             }
 
             const readonlySynced = shouldRunReadonlySync
-                ? await syncReadonlySnapshotFields(snapshot.fields)
+                ? await syncReadonlySnapshotFields(snapshot.fields, settledFieldSnapshots)
                 : 0;
             if (readonlySynced > 0) {
                 stats.readonlySynced = readonlySynced;
@@ -624,7 +643,14 @@
         }
     }
 
-    function findElementByLocator(locator) {
+    /**
+     * 依快照中的 locator 尋找目前頁面上的對應欄位。
+     *
+     * @param {object} locator - buildLocator() 產生的定位資訊
+     * @param {string} [expectedKind] - 快照欄位種類；只用來驗證最後的 globalIndex 位置推測
+     * @returns {HTMLElement|null} 找到的欄位
+     */
+    function findElementByLocator(locator, expectedKind = '') {
         const normalizedLocator = normalizeLocator(locator);
         if (!normalizedLocator) return null;
 
@@ -661,12 +687,42 @@
             }
         }
 
+        // 最後手段：以快照當時在頁面中的欄位順序推測。頁面欄位增減後，同一個索引
+        // 可能落在完全不同的欄位上（例如原本是文字框，現在是 checkbox），原本不做任何
+        // 檢查就直接回傳，文字回填流程便會把字串寫進 checkbox 的 value，悄悄改壞
+        // 表單送出的資料。因此至少要求標籤名稱與欄位種類相同；刻意不比對 id/name，
+        // 因為這個退路本來就是用來處理 Angular 等框架每次載入都重新產生 id 的情況。
         const fields = getFormFields();
         if (normalizedLocator.globalIndex >= 0 && normalizedLocator.globalIndex < fields.length) {
-            return fields[normalizedLocator.globalIndex];
+            const byIndex = fields[normalizedLocator.globalIndex];
+            const tagMatches = !normalizedLocator.tagName || byIndex.tagName.toLowerCase() === normalizedLocator.tagName;
+            if (tagMatches && isFieldKindCompatible(byIndex, expectedKind)) {
+                return byIndex;
+            }
         }
 
         return null;
+    }
+
+    /**
+     * 判斷元素目前的欄位種類是否與快照記錄的 kind 相容。
+     *
+     * 快照中的 kind 一律由 getFieldKind() 產生，同一個欄位在快照與回填時會得到相同結果。
+     * input 與 textarea 視為同一類：兩者都由 applyTextLikeValue() 處理，網站把單行輸入框
+     * 改成可自動長高的 textarea 時仍可照常回填；真正要擋下的是把文字寫進 checkbox、
+     * radio 或下拉選單這類「種類不同、回填方式也不同」的元素。
+     * 為了相容手動編輯或舊版匯入資料，kind 缺漏或不是已知種類時不做限制，維持原本的
+     * 寬鬆行為（交給 applyFieldSnapshot 的 default 分支處理）。
+     *
+     * @param {HTMLElement} element - 候選欄位
+     * @param {string} kind - 快照欄位種類
+     * @returns {boolean} 是否可用該快照回填此元素
+     */
+    function isFieldKindCompatible(element, kind) {
+        if (!KNOWN_FIELD_KINDS.has(kind)) return true;
+
+        const toKindGroup = (value) => (value === 'input' || value === 'textarea' ? 'text-like' : value);
+        return toKindGroup(getFieldKind(element)) === toKindGroup(kind);
     }
 
     function findElementByRoleAriaLocator(locator) {
@@ -2450,7 +2506,14 @@
         });
     }
 
-    async function syncReadonlySnapshotFields(fieldSnapshots) {
+    /**
+     * 對 readonly 但可程式化寫入的欄位（日期挑選器等）補做一次值同步。
+     *
+     * @param {Array<object>} fieldSnapshots - 快照中的全部欄位
+     * @param {Set<object>} [settledFieldSnapshots] - 前兩輪已成功回填或原本即相符的欄位
+     * @returns {Promise<number>} 本階段新增成功的欄位數（不含已計入的欄位）
+     */
+    async function syncReadonlySnapshotFields(fieldSnapshots, settledFieldSnapshots = new Set()) {
         if (!Array.isArray(fieldSnapshots) || fieldSnapshots.length === 0) return 0;
 
         let syncedCount = 0;
@@ -2464,8 +2527,10 @@
             const targetValue = String(fieldSnapshot.value ?? '');
             if (!targetValue) continue;
 
+            // 已計入結果的欄位仍要同步（框架可能在失焦後把值還原），但不重複計數：
+            // syncSingleReadonlyFieldSnapshot() 在值已相符時也會回傳 true。
             const synced = await syncSingleReadonlyFieldSnapshot(fieldSnapshot, targetValue);
-            if (synced) {
+            if (synced && !settledFieldSnapshots.has(fieldSnapshot)) {
                 syncedCount++;
             }
         }
@@ -2480,7 +2545,7 @@
             throwIfApplyAbortRequested();
 
             let element = null;
-            const immediateCandidate = findElementByLocator(fieldSnapshot.locator);
+            const immediateCandidate = findElementByLocator(fieldSnapshot.locator, fieldSnapshot.kind);
 
             if (immediateCandidate instanceof HTMLInputElement || immediateCandidate instanceof HTMLTextAreaElement) {
                 if (!canFillElement(immediateCandidate)) {
@@ -2494,7 +2559,7 @@
                 element = immediateCandidate;
             } else {
                 element = await waitForTruthy(() => {
-                    const candidate = findElementByLocator(fieldSnapshot.locator);
+                    const candidate = findElementByLocator(fieldSnapshot.locator, fieldSnapshot.kind);
                     if (!(candidate instanceof HTMLInputElement || candidate instanceof HTMLTextAreaElement)) return null;
                     if (!canFillElement(candidate)) return null;
                     if (!candidate.readOnly) return null;
