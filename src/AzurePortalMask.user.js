@@ -136,8 +136,10 @@ div.fxs-avatarmenu-tenant {
      *
      * 原本的觀察器有幾個問題：
      * - 只處理「target 是 DIV」的 childList 變動，並且只掃描 target 的子孫、不檢查 target 自己。
-     *   因此 DIV 的文字被就地更新成 GUID（Knockout 等框架常直接改文字節點），或 GUID 被插入
-     *   <td>、<li>、<span> 等非 DIV 的容器時，都不會被隱碼，敏感資料直接外露。
+     *   因此以下情況中，文字剛好是 GUID 的 DIV 都不會被隱碼，敏感資料直接外露：
+     *   1) DIV 的文字被就地更新成 GUID（Knockout 等框架常直接改文字節點）；
+     *   2) GUID 被插入 DIV 底下的 <span>、<td>、<li> 等非 DIV 子元素：變動的 target 不是 DIV，
+     *      整筆 mutation 被略過，外層那個文字剛好是 GUID 的 DIV 也就沒有被重新檢查。
      * - characterData 變動時取 m.target.parentNode，若文字節點已被移除就是 null，
      *   呼叫 querySelectorAll 會丟出 TypeError，中斷整批 mutation 的處理，後面的資料也跟著漏掉。
      * - 每次變動都對 target 整棵子樹 querySelectorAll('DIV')，並逐一計算每個 DIV 的 textContent；
@@ -149,6 +151,12 @@ div.fxs-avatarmenu-tenant {
      *   某一層的文字超過 GUID 長度時，更上層也不可能剛好是 GUID，就可以停止，只需檢查少數幾層。
      * 每批次以 Set 去除重複，同一個元素只檢查一次；處理仍在觀察器回呼中同步完成
      * （在瀏覽器繪製前），不會先閃現未隱碼的內容。
+     *
+     * 涵蓋範圍：會被加上隱碼 class 的仍然只有 tagNamesToMatch 所列的元素（目前只有 DIV），
+     * 與初次掃描的範圍一致；上面的往上檢查只是為了找到「文字剛好是 GUID 的 DIV 祖先」。
+     * 若 GUID 所在的元素沒有這樣的 DIV 祖先（例如直接放在表格儲存格 <td> 中、外層 DIV 還有其他文字），
+     * 依舊不會被隱碼。這是沿用原本設定的涵蓋範圍，刻意不在本次擴大，避免改變隱碼的對象；
+     * 若需要涵蓋，請在 tagNamesToMatch 加入對應的標籤名稱（大寫），初次掃描與觀察器會一併生效。
      */
     const observer = new MutationObserver(mutations => {
         const tested = new Set();
