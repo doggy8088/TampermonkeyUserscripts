@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gemini: 總結選取文字的內容
-// @version      1.8.0
+// @version      1.8.1
 // @description  自動將當前頁面的選取範圍送到 Gemini 進行總結
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -8,11 +8,11 @@
 // @website      https://www.facebook.com/will.fans
 // @source       https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiSummarizeSelectionContextMenu.user.js
 // @namespace    https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GeminiSummarizeSelectionContextMenu.user.js
-// @match        *://*/*
 // @author       Will Huang
+// @match        *://*/*
 // @run-at       context-menu
-// @grant        GM_openInTab
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=gemini.google.com
+// @grant        GM_openInTab
 // ==/UserScript==
 (() => {
   var __create = Object.create;
@@ -2109,11 +2109,20 @@
 
   // GeminiSummarizeSelectionContextMenu.user.src.js
   var import_readability = __toESM(require_readability());
+  function toAbsoluteUrl(url) {
+    if (url.startsWith("//")) {
+      return window.location.protocol + url;
+    }
+    return window.location.origin + url;
+  }
+  function escapeHtml(text) {
+    return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
   function getHTMLfromSelectorOrContent() {
     let selection = document.getSelection();
     let html2 = "";
     let container = document.createElement("div");
-    if (selection.rangeCount > 0) {
+    if (selection && selection.rangeCount > 0) {
       let range = selection.getRangeAt(0);
       container.appendChild(range.cloneContents());
       if (!!container) {
@@ -2125,7 +2134,7 @@
         images.forEach(function(img) {
           var src = img.getAttribute("src");
           if (src && src.startsWith("/")) {
-            var fullUrl = window.location.origin + src;
+            var fullUrl = toAbsoluteUrl(src);
             img.setAttribute("src", fullUrl);
           }
         });
@@ -2133,7 +2142,7 @@
         links.forEach(function(a) {
           var href = a.getAttribute("href");
           if (href && href.startsWith("/")) {
-            var fullUrl = window.location.origin + href;
+            var fullUrl = toAbsoluteUrl(href);
             a.setAttribute("href", fullUrl);
           }
         });
@@ -2146,7 +2155,11 @@
       }
       var documentClone = document.cloneNode(true);
       var article = new import_readability.Readability(documentClone).parse();
-      html2 = `<h1>${article.title}</h1>` + article.content;
+      if (!article || !article.content) {
+        console.warn("Readability \u7121\u6CD5\u5F9E\u76EE\u524D\u7684\u9801\u9762\u64F7\u53D6\u51FA\u6587\u7AE0\u5167\u5BB9\uFF0C\u8ACB\u5148\u9078\u53D6\u8981\u8655\u7406\u7684\u6587\u5B57\u7BC4\u570D\u5F8C\u518D\u57F7\u884C\u3002");
+        return "";
+      }
+      html2 = `<h1>${escapeHtml(article.title || "")}</h1>` + article.content;
     }
     return html2;
   }
@@ -2534,14 +2547,19 @@
   };
   function b64EncodeUnicode(str) {
     const bytes = new TextEncoder().encode(str);
-    const base64 = window.btoa(String.fromCharCode(...new Uint8Array(bytes)));
+    const CHUNK_SIZE = 32768;
+    let binary = "";
+    for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+      binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK_SIZE));
+    }
+    const base64 = window.btoa(binary);
     return base64;
   }
   var html = getHTMLfromSelectorOrContent();
   if (!!html) {
     markdown = html2markdown(html);
-    let prompt = "Please help me summarize the following text and list the key points. Then translate all the content into Traditional Chinese. No explanations and additional information of the translations are required. Do not add pronunciation annotations. Here is the text: Here is the text:\n```\n{input}\n```";
-    let url = `https://gemini.google.com/app#autoSubmit=1&prompt=${encodeURIComponent(b64EncodeUnicode(prompt.replace("{input}", markdown)))}`;
+    let prompt = "Please help me summarize the following text and list the key points. Then translate all the content into Traditional Chinese. No explanations and additional information of the translations are required. Do not add pronunciation annotations. Here is the text:\n```\n{input}\n```";
+    let url = `https://gemini.google.com/app#autoSubmit=1&prompt=${encodeURIComponent(b64EncodeUnicode(prompt.replace("{input}", () => markdown)))}`;
     GM_openInTab(url, false);
   }
   var markdown;
