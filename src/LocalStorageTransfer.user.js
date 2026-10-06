@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         偵錯工具: localStorage 複製/貼上
-// @version      0.2.0
+// @version      0.2.1
 // @description  透過選單命令快速匯出/匯入目前網站的 localStorage（方便在不同電腦/網站之間交換，用於偵錯）
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -14,6 +14,7 @@
 // @grant        GM_registerMenuCommand
 // @grant        GM_setClipboard
 // @grant        GM_notification
+// @grant        GM.notification
 // ==/UserScript==
 
 (function () {
@@ -56,6 +57,11 @@
      */
 
     const PAYLOAD_SCHEMA_VERSION = 1;
+
+    // 讀取剪貼簿前「聚焦頁面用的通知」最多等待多久（毫秒）
+    // 設計意圖：通知本身設定 timeout 1000ms，正常情況下約 1 秒就會結束；
+    // 這個上限只是保險，避免某些 userscript 管理器的通知 Promise 永遠不 resolve，導致「貼上」整個卡住。
+    const NOTIFICATION_WAIT_MAX_MS = 1500;
 
     function safeGetLocalStorageEntries() {
         // 意圖：把 localStorage 轉成「純資料物件」以便 JSON 化；同時避免原型污染問題。
@@ -139,6 +145,38 @@
         return false;
     }
 
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function focusPageByNotification() {
+        // 意圖：從 Tampermonkey 選單點選命令後，焦點還停在擴充功能的彈出視窗上，
+        // 而 `navigator.clipboard.readText()` 要求頁面本身取得焦點；
+        // 送出一則帶 highlight 的通知可以把焦點拉回目前分頁，等通知結束後再讀取剪貼簿。
+        //
+        // 設計決策：
+        // - 舊版直接呼叫 `GM.notification()`，但 metadata 只宣告了 `@grant GM_notification`；
+        //   在只提供 GM_* 版本的環境中 `GM.notification` 不存在，呼叫時丟出的 TypeError 會連帶跳過後面的
+        //   readText()，「貼上」永遠只能退回手動 prompt。現在補上 `@grant GM.notification`，
+        //   並在沒有 Promise 版本時退回 `GM_notification` 的 ondone 回呼。
+        // - 通知失敗只會記錄警告，不影響後續讀取剪貼簿（最差情況就是 readText 因未聚焦而失敗，再由 prompt 接手）。
+        // - 用 Promise.race 加上 NOTIFICATION_WAIT_MAX_MS 上限，避免通知 Promise 不 resolve 時卡住。
+        const details = { text: '正在讀取剪貼簿...', highlight: true, timeout: 1000 };
+        try {
+            let done = null;
+            if (typeof GM !== 'undefined' && typeof GM?.notification === 'function') {
+                done = GM.notification(details);
+            } else if (typeof GM_notification === 'function') {
+                done = new Promise(resolve => GM_notification({ ...details, ondone: resolve }));
+            }
+            if (done) {
+                await Promise.race([done, delay(NOTIFICATION_WAIT_MAX_MS)]);
+            }
+        } catch (err) {
+            console.warn('[LocalStorageTransfer] notification failed, continue reading clipboard.', err);
+        }
+    }
+
     async function readFromClipboard() {
         // 意圖：讀取剪貼簿在 userscript 生態系沒有一致、可靠的 GM_* API（且 GM_getClipboard 已棄用），
         // 因此只嘗試使用瀏覽器 Clipboard API，並在失敗時由呼叫端回退到 prompt。
@@ -146,13 +184,14 @@
         // 注意：
         // - `navigator.clipboard.readText()` 通常需要「安全來源」（HTTPS / localhost）與「使用者手勢」。
         // - Tampermonkey 的選單命令點擊通常會被視為使用者手勢，但仍可能被瀏覽器策略或權限阻擋。
+        if (!navigator.clipboard?.readText) return null;
+
+        // 強制聚焦頁面，唯有此才能確保 Clipboard API 有權限運作（失敗也會繼續嘗試讀取）。
+        await focusPageByNotification();
+
         try {
-            if (navigator.clipboard?.readText) {
-                // 強制聚焦頁面，唯有此才能確保 Clipboard API 有權限運作。
-                await GM.notification({ text: '正在讀取剪貼簿...', highlight: true, timeout: 1000 });
-                const text = await navigator.clipboard.readText();
-                if (typeof text === 'string' && text.trim().length > 0) return text;
-            }
+            const text = await navigator.clipboard.readText();
+            if (typeof text === 'string' && text.trim().length > 0) return text;
         } catch (err) {
             console.warn('[LocalStorageTransfer] navigator.clipboard.readText failed.', err);
         }
@@ -186,6 +225,19 @@
         return { ok: true, entries, meta: parsed };
     }
 
+    function toStorageString(value) {
+        // 意圖：把 entries 中的值轉成 localStorage 可以儲存的字串。
+        // - 字串：原樣寫入。本腳本「複製」產生的 payload，值一律是 localStorage.getItem() 取得的字串，
+        //   所以匯出再匯入的資料與舊版完全相同。
+        // - 物件與陣列：改用 JSON.stringify()。這只會出現在使用者「手動整理」的 JSON 中
+        //   （例如 { "settings": { "theme": "dark" } }），舊版用 String() 會存成毫無用處的
+        //   "[object Object]"（陣列則變成以逗號串接的 "a,b"），資料直接遺失；網站讀取時通常也是 JSON.parse()。
+        // - 數字、布林、null：維持 String()，結果與 JSON.stringify() 相同（例如 1 → "1"、null → "null"）。
+        if (typeof value === 'string') return value;
+        if (value !== null && typeof value === 'object') return JSON.stringify(value);
+        return String(value);
+    }
+
     function applyEntriesToLocalStorage(entries, { clearFirst }) {
         // 意圖：將 entries 寫入 localStorage；如果 clearFirst 為 true，先清空再寫入。
         // 注意：寫入可能因 quota 限制或瀏覽器政策而失敗，因此每個 key 都包 try/catch。
@@ -204,7 +256,7 @@
             try {
                 // localStorage 僅接受字串；為了最大容錯，非字串會轉成字串。
                 const value = entries[key];
-                localStorage.setItem(key, typeof value === 'string' ? value : String(value));
+                localStorage.setItem(key, toStorageString(value));
                 successCount++;
             } catch (err) {
                 failCount++;
