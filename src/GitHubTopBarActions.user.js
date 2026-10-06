@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         GitHub: Top Bar Actions（Alt+T / Alt+P）
-// @version      0.1.1
+// @version      0.1.2
 // @description  在 GitHub 頂部工具列加入主題切換、PRU 用量查看與 PAT 快速建立按鈕，並支援 Alt+T、Alt+P 快捷鍵
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -59,6 +59,11 @@
         }
     ];
 
+    // 避免連續點擊按鈕或同時按下快速鍵時重複送出切換請求；
+    // 每次請求都是以「當下的」data-color-mode 計算目標主題，重複送出只會多一次網路往返與重新整理。
+    // 宣告在 initialize() 之前，確保任何事件處理器執行時都不會碰到 let 的暫時性死區（TDZ）。
+    let isTogglingColorMode = false;
+
     initialize();
 
     function initialize() {
@@ -70,6 +75,10 @@
         document.addEventListener('keydown', async (ev) => {
             if (!ev.altKey || shouldIgnoreEventTarget(ev.target)) return;
 
+            // 輸入法組字期間的按鍵屬於輸入法，不當成快速鍵；
+            // Chrome 自動填入表單時也會派送沒有 key 的 keydown，直接呼叫 toLowerCase() 會丟出 TypeError。
+            if (ev.isComposing || typeof ev.key !== 'string') return;
+
             const matchedAction = actions.find(action => ev.key.toLowerCase() === action.hotkey);
             if (!matchedAction) return;
 
@@ -78,12 +87,24 @@
                 return;
             }
 
+            // 確定要接手這個快速鍵後才 preventDefault()，避免 Windows 版 Firefox 等瀏覽器
+            // 把 Alt+T / Alt+P 當成開啟功能表列的按鍵。必須在 await 之前呼叫，否則事件早已派送完畢。
+            ev.preventDefault();
+
+            // 長按 Alt+T / Alt+P 會產生大量重複的 keydown：Alt+P 會一口氣開出好幾個分頁，
+            // Alt+T 則會連續送出多次切換主題的 POST 請求，因此只處理第一次按下。
+            if (ev.repeat) return;
+
             await matchedAction.onClick();
         });
     }
 
     function shouldIgnoreEventTarget(target) {
-        return /^(?:input|select|textarea|button)$/i.test(target?.nodeName || '');
+        if (/^(?:input|select|textarea|button)$/i.test(target?.nodeName || '')) return true;
+
+        // GitHub 線上編輯檔案（CodeMirror）、部分留言與 Copilot 輸入框是 contenteditable 元素。
+        // 舊版沒有排除它們，在編輯器內按 Alt+T 會切換主題並重新整理頁面，尚未儲存的內容可能因此遺失。
+        return Boolean(target?.isContentEditable);
     }
 
     function startTopBarButtonSync(actions) {
@@ -112,7 +133,9 @@
             scheduleEnsureButtons();
         });
 
-        observer.observe(document.body, { childList: true, subtree: true });
+        // 觀察 document.documentElement 而不是 document.body：GitHub 的 Turbo 換頁若以新的 <body>
+        // 取代舊的，掛在舊 body 上的觀察器就收不到任何通知，按鈕被覆蓋後便不會再補回來。
+        observer.observe(document.documentElement, { childList: true, subtree: true });
     }
 
     function getHeaderActionsContainer() {
@@ -200,43 +223,63 @@
     }
 
     async function toggleColorMode() {
-        var htmlNode = document.querySelector('html');
-        var currentMode = htmlNode.getAttribute('data-color-mode');
-        var newMode = currentMode === 'dark' ? 'light' : 'dark';
+        if (isTogglingColorMode) return;
+        isTogglingColorMode = true;
 
-        var html = await fetch(THEME_SETTINGS_URL).then(response => response.text());
+        try {
+            var htmlNode = document.querySelector('html');
+            var currentMode = htmlNode.getAttribute('data-color-mode');
+            var newMode = currentMode === 'dark' ? 'light' : 'dark';
 
-        // 先取得變更顏色的那個表單 HTML
-        const regexForm = /<form aria-labelledby="color-mode-heading"[\s\S]*?<\/form>/;
-        const matchForm = html.match(regexForm);
-        const formHTML = matchForm ? matchForm[0] : null;
+            var settingsResponse = await fetch(THEME_SETTINGS_URL);
+            if (!settingsResponse.ok) {
+                console.error(`Failed to load appearance settings: HTTP ${settingsResponse.status}`);
+                return;
+            }
+            var html = await settingsResponse.text();
 
-        // 再取得該表單專用的 authenticity_token
-        const regex = /<input type="hidden" name="authenticity_token" value="([^"]+)"/;
-        const match = formHTML ? formHTML.match(regex) : null;
-        const authenticityToken = match ? match[1] : null;
+            // 先取得變更顏色的那個表單 HTML
+            const regexForm = /<form aria-labelledby="color-mode-heading"[\s\S]*?<\/form>/;
+            const matchForm = html.match(regexForm);
+            const formHTML = matchForm ? matchForm[0] : null;
 
-        // 使用 multipart/form-data 的方式送出表單
-        var formData = new FormData();
-        formData.append('_method', 'put');
-        formData.append('authenticity_token', authenticityToken);
-        formData.append('user_theme', newMode);
+            // 再取得該表單專用的 authenticity_token
+            const regex = /<input type="hidden" name="authenticity_token" value="([^"]+)"/;
+            const match = formHTML ? formHTML.match(regex) : null;
+            const authenticityToken = match ? match[1] : null;
 
-        return fetch(COLOR_MODE_SUBMIT_URL, {
-            method: 'POST',
-            body: formData
-        })
-            .then(response => {
-                if (response.ok) {
-                    htmlNode.setAttribute('data-color-mode', newMode);
-                    location.reload();
-                } else {
-                    console.error('Failed to change color mode');
-                }
-            })
-            .catch(error => {
-                console.error('An error occurred:', error);
+            // 找不到 token（例如未登入、或 GitHub 改版了設定頁的表單結構）時，
+            // 舊版仍會把字串 "null" 當成 authenticity_token 送出，必定被 GitHub 以 422 拒絕；
+            // 這裡直接停止並說明原因，比較容易判斷是哪一步失效。
+            if (!authenticityToken) {
+                console.error('Failed to change color mode: authenticity_token not found in appearance settings page');
+                return;
+            }
+
+            // 使用 multipart/form-data 的方式送出表單
+            var formData = new FormData();
+            formData.append('_method', 'put');
+            formData.append('authenticity_token', authenticityToken);
+            formData.append('user_theme', newMode);
+
+            var response = await fetch(COLOR_MODE_SUBMIT_URL, {
+                method: 'POST',
+                body: formData
             });
+
+            if (response.ok) {
+                htmlNode.setAttribute('data-color-mode', newMode);
+                location.reload();
+            } else {
+                console.error('Failed to change color mode');
+            }
+        } catch (error) {
+            // 舊版只有第二個 fetch 有 catch；讀取設定頁失敗時會變成 Unhandled Promise Rejection。
+            // 現在整個流程的網路錯誤都在這裡統一記錄。
+            console.error('An error occurred:', error);
+        } finally {
+            isTogglingColorMode = false;
+        }
     }
 
 })();
