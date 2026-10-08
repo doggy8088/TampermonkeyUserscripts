@@ -511,6 +511,16 @@
     </tr>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzureDevOpsHtmlPreview.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 完整預覽 Repos 中的 HTML 檔案</td>
+      <td>
+        在 Repos 檔案頁籤列加上「完整預覽 (內嵌)」與「完整預覽 (全螢幕)」按鈕，
+        於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔，不再只能看到靜態畫面
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/AzurePortalRemoveEllipsis.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td><a href="https://portal.azure.com/" target="_blank">Azure Portal</a>: 移除所有會出現 ... 的樣式</td>
