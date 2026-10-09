@@ -3199,15 +3199,16 @@ document.addEventListener('click',function(e){
     }
 
     /**
-     * 確保目前在 Preview 頁籤並回傳要被取代的 ADO 預覽區塊：
-     * HTML 是 srcdoc iframe，Markdown 是 ADO 自己渲染的 .markdown-preview-container；我們自己建立的 iframe 也算。
+     * 確保目前在 Preview 頁籤並回傳 ADO 自己的預覽區塊：
+     * HTML 是 srcdoc iframe，Markdown 是 ADO 自己渲染的 .markdown-preview-container；
+     * 不含我們自己建立的 iframe（呼叫前會先 clearInlinePreview）。
      * 若使用者在 Contents / History 等頁籤按下內嵌按鈕，先替他點 Preview 頁籤，
      * 再等待 SPA 把預覽區塊渲染出來（最多等 4 秒）。
      */
     async function ensurePreviewTarget(kind) {
         const selector = kind === 'md'
-            ? `iframe[${FRAME_ATTR}], .markdown-preview-container, .files-hub-content-preview`
-            : `iframe[${FRAME_ATTR}], iframe[srcdoc]`;
+            ? '.markdown-preview-container, .files-hub-content-preview'
+            : `iframe[srcdoc]:not([${FRAME_ATTR}])`;
         const find = () => document.querySelector(selector);
         let frame = find();
         if (frame) return frame;
@@ -3228,13 +3229,38 @@ document.addEventListener('click',function(e){
 
     // ---------- 1. 完整預覽 (內嵌) ----------
 
+    /*
+     * ADO 的預覽區塊是 React 管理的節點，不能用 replaceWith 拿掉：切換檔案時 React 要更新那個
+     * 已不在 DOM 裡的節點，整個區塊會變成「An unexpected error has occurred within this region of the page」。
+     * 做法：把原節點隱藏、把我們的 iframe 插在它後面；換檔案或 ADO 重建預覽區塊時再把 iframe 移除、恢復原節點。
+     */
+    let active = null; // { key, frame, old, oldDisplay }
+
+    const previewKey = (info) => `${info.path}|${new URLSearchParams(location.search).get('version') || ''}`;
+
+    function clearInlinePreview() {
+        if (!active) return;
+        active.frame.remove();
+        if (active.old.isConnected) active.old.style.display = active.oldDisplay;
+        active = null;
+    }
+
+    /** 由 MutationObserver 持續呼叫：網址換了檔案 / 分支，或 ADO 把原節點或我們的 iframe 拿掉，就清掉內嵌預覽 */
+    function reconcileInlinePreview() {
+        if (!active) return;
+        const info = parseLocation();
+        if (!info || previewKey(info) !== active.key || !active.old.isConnected || !active.frame.isConnected) clearInlinePreview();
+    }
+
     async function renderInline() {
         const info = parseLocation();
         if (!info) return;
+        clearInlinePreview();
 
         const nonce = getNonce();
         // 抓檔案（含相對路徑資源內嵌）與切換頁籤可同時進行
         const [html, old] = await Promise.all([buildDocument(info, nonce), ensurePreviewTarget(info.kind)]);
+        clearInlinePreview(); // 等待期間若使用者又按了一次，先清掉
 
         const f = document.createElement('iframe');
         f.className = info.kind === 'md' ? '' : old.className;
@@ -3246,7 +3272,10 @@ document.addEventListener('click',function(e){
         f.srcdoc = info.kind === 'md'
             ? injectBeforeBodyEnd(html, linkFixScript(info, nonce))
             : buildPreviewHtml(html, info, nonce);
-        old.replaceWith(f);
+        const oldDisplay = old.style.display;
+        old.insertAdjacentElement('afterend', f);
+        old.style.display = 'none';
+        active = { key: previewKey(info), frame: f, old, oldDisplay };
         fitFrame();
     }
 
@@ -3339,6 +3368,7 @@ document.addEventListener('click',function(e){
      * 頁籤列是 flex-row，裡面只有一個 flex-grow 的 tablist，所以 margin-left:auto 就能靠右對齊。
      */
     function ensureButtons() {
+        reconcileInlinePreview();
         const info = parseLocation();
         const tabbar = document.querySelector('.bolt-tabbar');
         const existing = document.getElementById(WRAP_ID);
