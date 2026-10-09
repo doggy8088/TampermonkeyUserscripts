@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 完整預覽 Repos 中的 HTML 檔案
-// @version      0.1.0
+// @version      0.1.1
 // @description  在 Azure DevOps Repos 的檔案頁籤列右側加上「完整預覽 (內嵌)」與「完整預覽 (全螢幕)」按鈕，於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔，不再只能看到被拿掉腳本的靜態畫面
 // @license      MIT
 // @homepage     https://github.com/doggy8088/TampermonkeyUserscripts
@@ -28,6 +28,11 @@
      * 做法：自己透過 Git Items REST API 抓原始檔，替每個 <script> 補上頁面現有的 nonce，
      *       再放進 sandbox="allow-scripts"（刻意不含 allow-same-origin）的 iframe 重新渲染。
      *       因為 iframe 的 origin 是 null，檔案內的腳本碰不到 Azure DevOps 的 cookie / session。
+     *       渲染前會把同 repo 的相對路徑 <script src>、<link rel=stylesheet>、<img src> 抓回來內嵌，
+     *       讓多檔案組成的網頁也能正常顯示（見 inlineRelativeAssets）。
+     *
+     * 網址：支援 /{org}/{project}/_git/{repo} 與省略專案段的 /{org}/_git/{repo}；
+     *       網址沒有 version= 時，以版本選擇器上顯示的分支為準（見 currentBranchVersion）。
      *
      * 提供兩種模式：
      *   1. 完整預覽 (內嵌)：直接取代目前 Preview 頁籤內的預覽 iframe，高度填滿頁籤列以下的視窗。
@@ -96,30 +101,62 @@ document.addEventListener('click',function(e){
     }
 
     /**
+     * 取得版本選擇器上目前顯示的分支，回傳 GB<分支名>；找不到時回傳空字串。
+     *
+     * 問題：從檔案樹或分享連結開啟檔案時，網址通常只有 ?path=…&_a=preview，沒有 version=。
+     *       這時 Azure DevOps 顯示的是使用者「上次瀏覽的分支」，不一定是 repo 的預設分支；
+     *       但 Git Items API 不帶 versionDescriptor 時會用預設分支，
+     *       檔案只存在於其他分支就會回 HTTP 404，兩顆按鈕都失敗。
+     * 做法：讀取版本選擇器按鈕上的分支名稱，讓預覽內容與畫面上看到的一致。
+     *       分支圖示是 .artifact-dropdown-icon.ms-Icon--OpenSource（repo 選擇器用的是 ms-Icon--GitLogo，不會誤抓）。
+     *       使用者選 tag / commit 時 ADO 一定會把 GT / GC 寫進網址，所以這裡只需要處理分支。
+     */
+    function currentBranchVersion() {
+        const icon = document.querySelector('.artifact-dropdown-icon.ms-Icon--OpenSource');
+        const name = icon?.closest('button')?.textContent.trim();
+        return name ? `GB${name}` : '';
+    }
+
+    /**
      * 從目前網址解析出 org / project / repo / path / version。
-     * 網址格式：/{org}/{project}/_git/{repo}?path=/x.html&version=GBbranch
+     * 網址有兩種格式：
+     *   /{org}/{project}/_git/{repo}?path=/x.html&version=GBbranch
+     *   /{org}/_git/{repo}?path=/x.html   ← 專案名稱與 repo 同名時，Azure DevOps 會省略專案段
+     * 後者的 REST API 仍需要專案段（org 層級不帶專案會回 400），
+     * 實測用 repo 名當專案名即可正常取得檔案，所以 project 缺省時以 repo 名代入。
+     * project / repo 一律存成解碼後的名稱，組 API 網址時再各自 encodeURIComponent，
+     * 避免含空白或中文的專案名稱被重複編碼或漏編碼。
      * 只有 path 是 .html / .htm 時才回傳，其他檔案不顯示按鈕。
      */
     function parseLocation() {
-        const m = location.pathname.match(/^\/([^/]+)\/([^/]+)\/_git\/([^/?#]+)/);
+        const m = location.pathname.match(/^\/([^/]+)(?:\/([^/]+))?\/_git\/([^/?#]+)/);
         if (!m) return null;
         const qs = new URLSearchParams(location.search);
         const path = qs.get('path');
         if (!path || !/\.html?$/i.test(path)) return null;
-        const version = qs.get('version') || '';
-        return { org: m[1], project: m[2], repo: decodeURIComponent(m[3]), path, version };
+        // 網址有 version= 時以網址為準；沒有時改用版本選擇器上顯示的分支（見 currentBranchVersion）
+        const version = qs.get('version') || currentBranchVersion();
+        const repo = decodeURIComponent(m[3]);
+        const project = m[2] ? decodeURIComponent(m[2]) : repo;
+        return { org: m[1], project, repo, path, version };
     }
 
     /**
-     * 組出 Git Items REST API 的網址，以純文字取回原始檔內容。
+     * 組出 Git Items REST API 的網址，取回 repo 內某個檔案的原始內容。
      * version 參數前兩碼代表類型：GB=branch、GT=tag、GC=commit。
+     *
+     * format：主 HTML 用 text；內嵌的其他資源一律用 octetStream——
+     *         text 會把二進位檔（png / jpg）當成文字轉碼，內容會損毀、圖片顯示不出來。
      */
-    function rawUrl({ org, project, repo, path, version }) {
+    function rawUrl({ org, project, repo, path, version }, format = 'text') {
         const p = new URLSearchParams({
             path,
             includeContent: 'true',
+            // 與 ADO 自己抓檔的請求一致：檔案若由 Git LFS 管理，回傳實際內容而不是 LFS 指標檔
+            // （version https://git-lfs.github.com/spec/v1 …）；一般檔案的結果逐位元組相同，不受影響
+            resolveLfs: 'true',
             'api-version': '7.1',
-            '$format': 'text',
+            '$format': format,
         });
         if (version.length > 2) {
             const type = { GB: 'branch', GT: 'tag', GC: 'commit' }[version.slice(0, 2)];
@@ -128,7 +165,7 @@ document.addEventListener('click',function(e){
                 p.set('versionDescriptor.versionType', type);
             }
         }
-        return `${location.origin}/${org}/${project}/_apis/git/repositories/${encodeURIComponent(repo)}/items?${p}`;
+        return `${location.origin}/${org}/${encodeURIComponent(project)}/_apis/git/repositories/${encodeURIComponent(repo)}/items?${p}`;
     }
 
     async function fetchHtml(info) {
@@ -136,6 +173,150 @@ document.addEventListener('click',function(e){
         const res = await fetch(rawUrl(info), { credentials: 'include' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.text();
+    }
+
+    // ---------- 相對路徑資源內嵌 ----------
+    /*
+     * 問題：預覽的 HTML 放在 srcdoc iframe 裡，相對網址會解析到 Azure DevOps 頁面網址（about:srcdoc 的 base），
+     *       而不是 repo 裡的檔案，所以 <script src="viewer.js">、<link rel="stylesheet" href="x.css">、
+     *       <img src="a.png"> 這類多檔案網頁的資源全部載不到，畫面沒有樣式、腳本沒有執行、圖片破圖。
+     * 做法：渲染前用同一個 Git Items API（同一個分支 / tag / commit）把這些同 repo 的相對資源抓回來，
+     *       直接改寫成內嵌的 <script>…</script>、<style>…</style> 與 data: URL。
+     *       內嵌後的 <script> 之後會由 withNonce 一起補上 nonce，所以能通過 dev.azure.com 的 CSP；
+     *       data: 圖片符合 CSP 的 img-src（http: https: blob: data:）。
+     * 限制：只處理靜態標籤；CSS 內的 url()、腳本在執行期才 fetch 的檔案（例如 PDF.js 的 worker 與 .pdf）
+     *       仍然取不到。這與 Chrome 擴充功能版本的行為一致。
+     */
+    const ASSET_LIMIT = 60;                     // 每頁最多內嵌幾個資源，避免巨大的網頁發出過多 API 請求
+    const ASSET_MAX_BYTES = 8 * 1024 * 1024;    // 單一資源上限 8 MB，超過就保留原樣不內嵌
+
+    /**
+     * 判斷是否為「同 repo 的相對路徑」：
+     * 排除有 scheme 的絕對網址（https:、data: 等）、protocol-relative（//cdn…）與純錨點（#x）。
+     * 以 / 開頭的根目錄路徑視為 repo 根目錄下的檔案，一樣會內嵌。
+     */
+    function isRelativeRef(ref) {
+        return !!ref
+            && !/^[a-z][a-z0-9+.-]*:/i.test(ref)
+            && !ref.startsWith('//')
+            && !ref.startsWith('#');
+    }
+
+    /**
+     * 把相對路徑換算成 repo 內的絕對路徑：以目前 HTML 檔所在目錄為基準，處理 ../ 與 ./，
+     * 並去掉 ?query 與 #hash（Git Items API 只認檔案路徑）。
+     * 借用 URL 物件做路徑正規化，host 用不存在的 repo.invalid 只是佔位；最後解碼回 repo 內的真實檔名（例如中文檔名）。
+     */
+    function resolveRepoPath(ref, info) {
+        const dir = info.path.replace(/[^/]*$/, '');
+        const clean = ref.split('#')[0].split('?')[0];
+        return decodeURIComponent(new URL(clean, 'https://repo.invalid' + dir).pathname);
+    }
+
+    // API 回傳的 content-type 不一定準確（octetStream 一律是 application/octet-stream），依副檔名決定圖片 MIME
+    const MIME = {
+        png: 'image/png',
+        jpg: 'image/jpeg',
+        jpeg: 'image/jpeg',
+        gif: 'image/gif',
+        svg: 'image/svg+xml',
+        webp: 'image/webp',
+        ico: 'image/x-icon',
+        bmp: 'image/bmp',
+    };
+
+    /**
+     * 以 octetStream 格式抓回 repo 內的單一資源。
+     * asText=true 時回傳文字（JS / CSS），否則回傳 base64 的 data: URL（圖片）。
+     * 轉 base64 時分段 0x8000 位元組呼叫 String.fromCharCode，避免大檔案超過函式參數上限而丟出 RangeError。
+     */
+    async function fetchAsset(info, repoPath, asText) {
+        const res = await fetch(rawUrl({ ...info, path: repoPath }, 'octetStream'), { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const blob = await res.blob();
+        if (blob.size > ASSET_MAX_BYTES) throw new Error('too large');
+        if (asText) return blob.text();
+        // 回應的 content-type 形如 image/png; api-version=7.1，只取主型別當備援
+        const ext = (repoPath.split('.').pop() || '').toLowerCase();
+        const mime = MIME[ext] || (res.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim();
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        let bin = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) {
+            bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+        }
+        return `data:${mime};base64,${btoa(bin)}`;
+    }
+
+    /**
+     * 把 HTML 內同 repo 的相對路徑 <script src>、<link rel=stylesheet>、<img src> 改寫成內嵌內容。
+     * 沒有任何相對資源時直接回傳原始 HTML，不做任何序列化，避免無謂地改動檔案內容。
+     * 每個資源各自 try/catch：抓不到的保留原樣並標上 data-inline-failed（方便在 DevTools 查原因），
+     * 不影響其他資源與整體預覽。
+     */
+    async function inlineRelativeAssets(html, info) {
+        const doc = new DOMParser().parseFromString(html, 'text/html');
+        // 作者自己指定了 <base href>，代表他有自己的資源解析規則，尊重它、不做內嵌
+        if (doc.querySelector('base[href]')) return html;
+
+        const jobs = [];
+        const take = (el) => {
+            if (jobs.length >= ASSET_LIMIT) return false;
+            jobs.push(el);
+            return true;
+        };
+        for (const el of doc.querySelectorAll('script[src]')) {
+            if (isRelativeRef(el.getAttribute('src'))) take(el);
+        }
+        for (const el of doc.querySelectorAll('link[rel~="stylesheet"][href]')) {
+            if (isRelativeRef(el.getAttribute('href'))) take(el);
+        }
+        for (const el of doc.querySelectorAll('img[src]')) {
+            if (isRelativeRef(el.getAttribute('src'))) take(el);
+        }
+        if (!jobs.length) return html;
+
+        // 所有資源平行抓取；替換節點時各自 replaceWith，所以完成順序不影響最終的 DOM 順序
+        await Promise.all(jobs.map(async (el) => {
+            const tag = el.tagName.toLowerCase();
+            const ref = el.getAttribute(tag === 'link' ? 'href' : 'src');
+            let repoPath;
+            try {
+                repoPath = resolveRepoPath(ref, info);
+            } catch {
+                return;
+            }
+            try {
+                if (tag === 'script') {
+                    const code = await fetchAsset(info, repoPath, true);
+                    const inline = doc.createElement('script');
+                    // 保留 type="module"、defer 等其餘屬性，只拿掉 src
+                    for (const a of el.attributes) {
+                        if (a.name !== 'src') inline.setAttribute(a.name, a.value);
+                    }
+                    inline.setAttribute('data-inlined-from', ref);
+                    // JS 原始碼裡若含 </script 會提前結束標籤，改寫成 <\/script（在字串與正規式中語意不變）
+                    inline.textContent = code.replace(/<\/script/gi, '<\\/script');
+                    el.replaceWith(inline);
+                } else if (tag === 'link') {
+                    const css = await fetchAsset(info, repoPath, true);
+                    const style = doc.createElement('style');
+                    style.setAttribute('data-inlined-from', ref);
+                    // 保留 media 屬性，讓 print / 響應式樣式表維持原本的套用條件
+                    if (el.media) style.setAttribute('media', el.media);
+                    style.textContent = css.replace(/<\/style/gi, '<\\/style');
+                    el.replaceWith(style);
+                } else {
+                    el.setAttribute('src', await fetchAsset(info, repoPath, false));
+                }
+            } catch (e) {
+                // 抓不到就保留原樣，不影響其他資源
+                el.setAttribute('data-inline-failed', String((e && e.message) || e));
+            }
+        }));
+
+        // DOMParser 會丟掉 doctype 字串本身，補回去以免網頁掉進 quirks mode 造成版面差異
+        const doctype = doc.doctype ? `<!DOCTYPE ${doc.doctype.name}>` : '<!DOCTYPE html>';
+        return doctype + '\n' + doc.documentElement.outerHTML;
     }
 
     /**
@@ -167,8 +348,12 @@ document.addEventListener('click',function(e){
         let frame = find();
         if (frame) return frame;
 
-        const tab = [...document.querySelectorAll('.bolt-tabbar [role="tab"]')]
-            .find((t) => /^preview$/i.test(t.textContent.trim()));
+        // 頁籤文字會隨 ADO 顯示語言改變（例如中文介面不是「Preview」），只比對文字會找不到頁籤。
+        // 先用 id 找：__bolt-tab-preview 對應網址的 _a=preview，是內部識別碼，不隨語言變動；
+        // 文字比對保留當備援，以防 ADO 日後改掉 id 的命名。
+        const tab = document.querySelector('.bolt-tabbar #__bolt-tab-preview')
+            || [...document.querySelectorAll('.bolt-tabbar [role="tab"]')]
+                .find((t) => /^preview$/i.test(t.textContent.trim()));
         if (!tab) throw new Error('找不到 Preview 頁籤');
         tab.click();
 
@@ -183,8 +368,9 @@ document.addEventListener('click',function(e){
         const info = parseLocation();
         if (!info) return;
 
-        // 抓檔案與切換頁籤可同時進行
-        const [html, old] = await Promise.all([fetchHtml(info), ensurePreviewFrame()]);
+        // 抓檔案與切換頁籤可同時進行；拿到原始檔後再把相對路徑的 JS / CSS / 圖片內嵌進去
+        const [rawHtml, old] = await Promise.all([fetchHtml(info), ensurePreviewFrame()]);
+        const html = await inlineRelativeAssets(rawHtml, info);
 
         const f = document.createElement('iframe');
         f.className = old.className;
@@ -226,7 +412,8 @@ document.addEventListener('click',function(e){
         w.opener = null;
 
         try {
-            const html = await fetchHtml(info);
+            // 與內嵌模式相同：先抓原始檔，再把相對路徑資源內嵌（視窗已在上面同步開好，這裡的 await 不會被攔截）
+            const html = await inlineRelativeAssets(await fetchHtml(info), info);
             const title = `${info.path.split('/').pop()} – 完整預覽`;
             // 殼頁是 about:blank（與 dev.azure.com 同源、繼承其 CSP，inline style 已確認可用），
             // 真正的網頁放在 null origin 的 sandbox iframe 內，和內嵌模式一樣隔離。

@@ -516,7 +516,8 @@
       <td><a href="https://dev.azure.com/" target="_blank">Azure DevOps</a>: 完整預覽 Repos 中的 HTML 檔案</td>
       <td>
         在 Repos 檔案頁籤列加上「完整預覽 (內嵌)」與「完整預覽 (全螢幕)」按鈕，
-        於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔，不再只能看到靜態畫面
+        於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔，不再只能看到靜態畫面；
+        同 repo 以相對路徑引用的 JS、CSS 與圖片會自動內嵌
       </td>
     </tr>
     <tr>
