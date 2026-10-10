@@ -1644,7 +1644,8 @@ return Ke}()
     // - 字型：系統堆疊（Segoe UI / PingFang TC / Noto Sans TC / Microsoft JhengHei），等寬 SF Mono / Menlo / Consolas / Cascadia。
     // - 字級與行高：正文 16px / 1.8（≤640px 時 15px / 1.75），文章欄 904px 置中（含 48px 內距）；
     //   h1 32px + 下方 1px 墨線作「刊頭」，h2 23px 以「上方 64px 留白 + 1px 強灰線 + 20px 內距」切分章節，
-    //   h3–h6 只靠字級遞減，標題緊接標題時自動收緊；表格 14px / 1.6，程式碼 13.5px / 1.65。
+    //   h3 文字下方一段主色短線、h4 前置實心主色方塊、h5 前置空心方塊、h6 小字大寫灰字（每級都有自己的記號，不只靠字級），
+    //   標題緊接標題時自動收緊；表格 14px / 1.6，程式碼 13.5px / 1.65。
     // - 版面：.md-bar 48px 固定（Command Bar 風格，CSS 文件圖示）；.md-toc 272px 常駐側欄（800–1099px 收為 232px，
     //   <800px 浮出面板），Fluent Nav 的 3px 圓角選取指示條，長標題換行不截斷；.md-main 是唯一捲動容器（position: relative）。
     // - 表格：DetailsList 風格卡片，.md-table-wrap 用 overflow: clip（不是捲動容器），表頭因此能 sticky 在 .md-main 頂端、
@@ -2067,7 +2068,9 @@ return Ke}()
     }
     .md-content p > img:only-child { display: block; margin: 8px auto; }
 
-    /* ---------- 標題：全部同色，層級靠字級 / 字重 / 分隔線 ---------- */
+    /* ---------- 標題：每一級都有自己的視覺記號，不只靠字級 ----------
+       h1 刊頭墨線｜h2 上方分隔線 + 左側主色粗條｜h3 文字下方一小段主色短線｜
+       h4 前置實心主色方塊｜h5 前置空心方塊｜h6 小字大寫灰字 */
     .md-content h1, .md-content h2, .md-content h3,
     .md-content h4, .md-content h5, .md-content h6 {
       position: relative;
@@ -2091,17 +2094,63 @@ return Ke}()
       border-bottom: 1px solid var(--fg);
     }
 
-    /* h2：章節，上方留白 + 強灰線 + 內距，構成全頁垂直節奏 */
+    /* h2：章節，上方留白 + 強灰線 + 內距構成全頁垂直節奏；左側一條主色粗條，一眼就知道是章節標題 */
     .md-content h2 {
       font-size: 23px;
+      font-weight: 700;
       margin: 64px 0 18px;
-      padding-top: 20px;
+      padding: 20px 0 0 16px;
       border-top: 1px solid var(--line-strong);
     }
+    .md-content h2::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 20px;
+      bottom: 0;
+      width: 4px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
 
-    .md-content h3 { font-size: 19px; margin: 40px 0 12px; }
-    .md-content h4 { font-size: 17px; margin: 32px 0 10px; }
-    .md-content h5 { font-size: 16px; margin: 28px 0 8px; }
+    /* h3：文字下方一小段主色短線 */
+    .md-content h3 {
+      font-size: 19px;
+      font-weight: 700;
+      margin: 40px 0 14px;
+      padding-bottom: 8px;
+    }
+    .md-content h3::after {
+      content: "";
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 36px;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+
+    /* h4：前置實心主色方塊；h5：前置空心方塊，比 h4 再輕一級 */
+    .md-content h4 { font-size: 17px; font-weight: 700; margin: 32px 0 10px; }
+    .md-content h5 { font-size: 16px; font-weight: 700; margin: 28px 0 8px; color: var(--fg-2); }
+    .md-content h4::before, .md-content h5::before {
+      content: "";
+      display: inline-block;
+      width: 9px;
+      height: 9px;
+      margin: 0 10px 0 1px;
+      vertical-align: 1px;
+      border-radius: 2px;
+      background: var(--accent);
+    }
+    .md-content h5::before {
+      width: 7px;
+      height: 7px;
+      background: transparent;
+      border: 2px solid var(--accent);
+      vertical-align: 1px;
+    }
     .md-content h6 {
       font-size: 13px;
       margin: 28px 0 8px;
@@ -2112,10 +2161,12 @@ return Ke}()
 
     /* 標題緊接標題時收緊 */
     .md-content h1 + h2 { margin-top: 24px; padding-top: 0; border-top: 0; }
+    .md-content h1 + h2::before { top: 0; }
     .md-content h2 + h3, .md-content h3 + h4,
     .md-content h4 + h5, .md-content h5 + h6 { margin-top: 16px; }
     /* 文件第一個元素若是 h2，不要上線 */
     .md-content > h2:first-child { padding-top: 0; border-top: 0; }
+    .md-content > h2:first-child::before { top: 0; }
 
     /* 段落錨點：浮在標題左側，hover 才顯示 */
     .md-anchor {
@@ -2131,7 +2182,8 @@ return Ke}()
       opacity: 0;
       transition: opacity var(--dur) var(--ease);
     }
-    .md-content h2 > .md-anchor { top: 20px; }
+    .md-content h2 > .md-anchor { top: 20px; left: calc(-1.5em - 4px); }
+    .md-content h1 + h2 > .md-anchor, .md-content > h2:first-child > .md-anchor { top: 0; }
     .md-content h1:hover .md-anchor, .md-content h2:hover .md-anchor,
     .md-content h3:hover .md-anchor, .md-content h4:hover .md-anchor,
     .md-content h5:hover .md-anchor, .md-content h6:hover .md-anchor,
@@ -2527,16 +2579,115 @@ return Ke}()
     }
     .md-mermaid svg { max-width: 100%; height: auto; display: inline-block; }
     html[data-theme="dark"] .md-mermaid { background: var(--bg-sunken); }
+    .md-mermaid { position: relative; }
+    .md-mermaid.is-zoomed { text-align: start; }   /* 放大後靠左，水平捲動才能看到左緣 */
 
-    /* mermaid 主題會在 svg 內寫死邊標籤底色，改用面板色以免在深色模式出現灰塊 */
-    .md-mermaid .edgeLabel,
-    .md-mermaid .edgeLabel p,
-    .md-mermaid .edgeLabel .labelBkg { background-color: var(--bg-surface) !important; }
-    .md-mermaid .edgeLabel rect { fill: var(--bg-surface) !important; opacity: 1 !important; }
-    html[data-theme="dark"] .md-mermaid .edgeLabel,
-    html[data-theme="dark"] .md-mermaid .edgeLabel p,
-    html[data-theme="dark"] .md-mermaid .edgeLabel .labelBkg { background-color: var(--bg-sunken) !important; }
-    html[data-theme="dark"] .md-mermaid .edgeLabel rect { fill: var(--bg-sunken) !important; }
+    /* 圖表縮放工具列：hover 或放大後才顯示。外層高度 0 並 sticky，放大後水平捲動時仍停在可見區右上角 */
+    .md-mz-tools {
+      position: sticky;
+      left: 0;
+      z-index: 1;
+      display: flex;
+      justify-content: flex-end;
+      height: 0;
+      margin: -12px -12px 0 0;
+      overflow: visible;
+      pointer-events: none;
+    }
+    .md-mz-bar {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      padding: 3px;
+      background: var(--bg-surface);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-2);
+      opacity: 0;
+      transition: opacity .15s ease;
+    }
+    .md-mermaid:hover .md-mz-bar,
+    .md-mz-bar:focus-within,
+    .md-mermaid.is-zoomed .md-mz-bar { opacity: 1; }
+    @media (hover: none) { .md-mz-bar { opacity: 1; } }
+    .md-mz-btn {
+      appearance: none;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      height: 26px;
+      min-width: 26px;
+      padding: 0 6px;
+      margin: 0;
+      border: 0;
+      border-radius: var(--radius);
+      background: transparent;
+      color: var(--fg-2);
+      font: 600 12px/1 var(--font-sans);
+      font-variant-numeric: tabular-nums;
+      cursor: pointer;
+    }
+    .md-mz-btn:hover { background: var(--bg-hover); color: var(--fg); }
+    .md-mz-btn:active { background: var(--bg-pressed); }
+    .md-mz-pct { min-width: 46px; }
+    .md-mz-sep { width: 1px; height: 16px; margin: 0 3px; background: var(--line-strong); }
+
+    /* 全螢幕檢視（lightbox）：覆蓋整個預覽區；能用 Fullscreen API 時會進入真正的全螢幕 */
+    .md-lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      background: var(--bg-app);
+      color: var(--fg);
+      outline: none;
+    }
+    .md-lightbox-tools { position: absolute; top: 12px; right: 12px; z-index: 2; opacity: 1; box-shadow: var(--shadow-8); }
+    .md-lightbox-stage {
+      flex: 1;
+      position: relative;
+      overflow: hidden;
+      cursor: grab;
+      touch-action: none;
+      user-select: none;
+      background:
+        linear-gradient(var(--line-faint) 1px, transparent 1px) 0 0 / 24px 24px,
+        linear-gradient(90deg, var(--line-faint) 1px, transparent 1px) 0 0 / 24px 24px,
+        var(--bg-surface);
+    }
+    html[data-theme="dark"] .md-lightbox-stage { background-color: var(--bg-sunken); }
+    .md-lightbox-stage.is-dragging { cursor: grabbing; }
+    .md-lightbox-canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; will-change: transform; }
+    .md-lightbox-canvas svg { display: block; }
+    .md-lightbox-hint {
+      position: absolute;
+      bottom: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      padding: 5px 12px;
+      font-size: 12px;
+      color: var(--fg-muted);
+      background: var(--bg-surface);
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      box-shadow: var(--shadow-2);
+      pointer-events: none;
+      white-space: nowrap;
+    }
+    html[data-lightbox="open"] .md-main { overflow: hidden; }
+    .md-lightbox:fullscreen { background: var(--bg-app); }
+
+    /* mermaid 主題會在 svg 內寫死邊標籤底色，改用面板色以免在深色模式出現灰塊（lightbox 內的複本也一樣） */
+    .md-mermaid .edgeLabel, .md-lightbox .edgeLabel,
+    .md-mermaid .edgeLabel p, .md-lightbox .edgeLabel p,
+    .md-mermaid .edgeLabel .labelBkg, .md-lightbox .edgeLabel .labelBkg { background-color: var(--bg-surface) !important; }
+    .md-mermaid .edgeLabel rect, .md-lightbox .edgeLabel rect { fill: var(--bg-surface) !important; opacity: 1 !important; }
+    html[data-theme="dark"] .md-mermaid .edgeLabel, html[data-theme="dark"] .md-lightbox .edgeLabel,
+    html[data-theme="dark"] .md-mermaid .edgeLabel p, html[data-theme="dark"] .md-lightbox .edgeLabel p,
+    html[data-theme="dark"] .md-mermaid .edgeLabel .labelBkg, html[data-theme="dark"] .md-lightbox .edgeLabel .labelBkg { background-color: var(--bg-sunken) !important; }
+    html[data-theme="dark"] .md-mermaid .edgeLabel rect, html[data-theme="dark"] .md-lightbox .edgeLabel rect { fill: var(--bg-sunken) !important; }
 
     .md-mermaid pre.mermaid {
       margin: 0;
@@ -2677,6 +2828,7 @@ return Ke}()
       .md-content { padding: 24px 16px 64px; }
       .md-content h1 { font-size: 26px; }
       .md-content h2 { font-size: 21px; margin-top: 40px; padding-top: 16px; }
+      .md-content h2::before { top: 16px; }
       .md-content h3 { font-size: 18px; }
       .md-anchor { display: none; }
       .md-toc-inline { columns: 1; }
@@ -2703,6 +2855,7 @@ return Ke}()
       .md-code { box-shadow: none; break-inside: avoid; }
       .md-copy { display: none; }
       .md-anchor { display: none; }
+      .md-mz-tools, .md-lightbox { display: none; }
     }
     `;
       root.AdoMarkdownTheme = { css };
@@ -2733,7 +2886,7 @@ return Ke}()
     function prefersDark(){try{return window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){return false;}}
     var q=null;try{q=new URLSearchParams(location.search).get('theme');}catch(e){}
     var theme=q||cfg.theme;if(theme!=='light'&&theme!=='dark')theme=prefersDark()?'dark':'light';
-    function applyTheme(t){theme=t;root.setAttribute('data-theme',t);var b=document.querySelector('[data-action="theme"]');if(b)b.setAttribute('aria-label',t==='dark'?'切換為淺色':'切換為深色');renderMermaid();}
+    function applyTheme(t){theme=t;root.setAttribute('data-theme',t);if(typeof closeLightbox==='function')closeLightbox();var b=document.querySelector('[data-action="theme"]');if(b)b.setAttribute('aria-label',t==='dark'?'切換為淺色':'切換為深色');renderMermaid();}
     document.addEventListener('click',function(e){
       var btn=e.target&&e.target.closest?e.target.closest('[data-action]'):null;if(!btn)return;
       var act=btn.getAttribute('data-action');
@@ -2804,12 +2957,111 @@ return Ke}()
         if(b.__src==null){var pre=b.querySelector('pre');b.__src=pre?pre.textContent:b.textContent;}
         var src=b.__src;var id='md-mermaid-'+i+'-'+Date.now();
         b.classList.remove('is-failed');
-        window.mermaid.render(id,src).then(function(res){b.innerHTML=res.svg;if(res.bindFunctions)res.bindFunctions(b);},function(err){
+        window.mermaid.render(id,src).then(function(res){b.innerHTML=res.svg;if(res.bindFunctions)res.bindFunctions(b);setupMermaidTools(b);},function(err){
           var stale=document.getElementById('d'+id);if(stale)stale.remove();
           b.innerHTML='<pre class="mermaid">'+src.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</pre>';b.classList.add('is-failed');b.setAttribute('data-error',String(err&&err.message||err).split('\\n')[0]);
         });
       });
     }
+    // ---- mermaid 縮放與全螢幕 ----
+    // 圖上方右側的工具列：縮小 / 百分比（點一下重設）/ 放大 / 全螢幕；Ctrl(⌘)+滾輪也能縮放。
+    // 全螢幕是把 svg 複製到覆蓋整個預覽的 lightbox，支援滾輪縮放、拖曳平移、雙擊貼齊、Esc 關閉；
+    // 能用 Fullscreen API 時會順便把 lightbox 送進真正的全螢幕（需要 iframe 的 allow="fullscreen"），不行就只蓋滿預覽區。
+    var MZ_ICON={
+      'in':'<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M7 2h2v5h5v2H9v5H7V9H2V7h5z"/></svg>',
+      out:'<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M2 7h12v2H2z"/></svg>',
+      full:'<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M2 2h5v2H4v3H2zM9 2h5v5h-2V4H9zM2 9h2v3h3v2H2zM12 9h2v5H9v-2h3z"/></svg>',
+      fit:'<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M2 2h12v12H2zm2 2v8h8V4zM5 5h6v6H5z" fill-rule="evenodd"/></svg>',
+      close:'<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M3.3 2 8 6.7 12.7 2 14 3.3 9.3 8 14 12.7 12.7 14 8 9.3 3.3 14 2 12.7 6.7 8 2 3.3z"/></svg>'
+    };
+    function mzBtn(act,label,extra){return '<button type="button" class="md-mz-btn'+(extra?' '+extra:'')+'" data-mz="'+act+'" aria-label="'+label+'" title="'+label+'">'+(MZ_ICON[act]||'')+'</button>';}
+    function clampZoom(z){return Math.min(8,Math.max(0.25,z));}
+    function svgSize(svg){
+      var vb=svg.viewBox&&svg.viewBox.baseVal;
+      if(vb&&vb.width&&vb.height)return{w:vb.width,h:vb.height};
+      var r=svg.getBoundingClientRect();return{w:r.width||600,h:r.height||400};
+    }
+    // 圖表 svg 一定是 .md-mermaid 的直接子元素；工具列裡的圖示也是 svg，所以要用 :scope > svg 區分
+    function setupMermaidTools(b){
+      var svg=b.querySelector(':scope > svg');if(!svg)return;
+      b.__zoom=1;b.__maxWidth=svg.style.maxWidth||'';
+      // 工具列放在 svg 前面、高度 0 且 sticky left:0：圖放大後水平捲動時工具列仍停在可見區的右上角
+      var tools=document.createElement('div');tools.className='md-mz-tools';
+      tools.innerHTML='<div class="md-mz-bar" role="toolbar" aria-label="圖表縮放">'+mzBtn('out','縮小')+'<button type="button" class="md-mz-btn md-mz-pct" data-mz="reset" title="重設為 100%">100%</button>'+mzBtn('in','放大')+mzBtn('full','全螢幕檢視')+'</div>';
+      b.insertBefore(tools,b.firstChild);
+      b.addEventListener('wheel',function(e){if(!(e.ctrlKey||e.metaKey))return;e.preventDefault();inlineZoom(b,b.__zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});
+    }
+    function inlineZoom(b,z){
+      var svg=b.querySelector(':scope > svg');if(!svg)return;
+      z=clampZoom(z);
+      if(Math.abs(z-1)<0.01){z=1;svg.style.width='';svg.style.maxWidth=b.__maxWidth;b.classList.remove('is-zoomed');}
+      else{
+        if(!b.__base){var r=svg.getBoundingClientRect();b.__base=r.width||svgSize(svg).w;}
+        svg.style.maxWidth='none';svg.style.width=Math.round(b.__base*z)+'px';svg.style.height='auto';b.classList.add('is-zoomed');
+      }
+      b.__zoom=z;var pct=b.querySelector('.md-mz-pct');if(pct)pct.textContent=Math.round(z*100)+'%';
+    }
+    document.addEventListener('click',function(e){
+      var btn=e.target&&e.target.closest?e.target.closest('.md-mermaid .md-mz-btn'):null;if(!btn)return;
+      var b=btn.closest('.md-mermaid');var act=btn.getAttribute('data-mz');
+      if(act==='in')inlineZoom(b,b.__zoom*1.25);else if(act==='out')inlineZoom(b,b.__zoom/1.25);else if(act==='reset')inlineZoom(b,1);else if(act==='full')openLightbox(b);
+    });
+    var lightbox=null;
+    function openLightbox(b){
+      var svg=b.querySelector(':scope > svg');if(!svg)return;
+      closeLightbox();
+      var size=svgSize(svg);
+      var lb=document.createElement('div');lb.className='md-lightbox';lb.setAttribute('role','dialog');lb.setAttribute('aria-modal','true');lb.setAttribute('aria-label','Mermaid 圖表全螢幕檢視');lb.tabIndex=-1;
+      lb.innerHTML='<div class="md-mz-bar md-lightbox-tools" role="toolbar" aria-label="圖表縮放">'+mzBtn('out','縮小')+'<button type="button" class="md-mz-btn md-mz-pct" data-lb="reset" title="重設為 100%">100%</button>'+mzBtn('in','放大')+mzBtn('fit','貼齊視窗')+'<span class="md-mz-sep"></span>'+mzBtn('close','關閉（Esc）')+'</div>'
+        +'<div class="md-lightbox-stage"><div class="md-lightbox-canvas"></div></div>'
+        +'<div class="md-lightbox-hint">滾輪縮放 · 拖曳平移 · 雙擊貼齊 · Esc 關閉</div>';
+      var stage=lb.querySelector('.md-lightbox-stage'),canvas=lb.querySelector('.md-lightbox-canvas'),pct=lb.querySelector('.md-mz-pct');
+      var clone=svg.cloneNode(true);clone.removeAttribute('width');clone.removeAttribute('height');clone.style.maxWidth='none';clone.style.width=size.w+'px';clone.style.height=size.h+'px';
+      canvas.appendChild(clone);
+      var s=1,tx=0,ty=0;
+      function apply(){canvas.style.transform='translate('+tx+'px,'+ty+'px) scale('+s+')';pct.textContent=Math.round(s*100)+'%';}
+      function fit(){var W=stage.clientWidth,H=stage.clientHeight;s=Math.min(Math.min((W-48)/size.w,(H-48)/size.h),2);if(!(s>0))s=1;tx=(W-size.w*s)/2;ty=(H-size.h*s)/2;apply();}
+      function zoomAt(f,mx,my){var ns=Math.min(10,Math.max(0.1,s*f));tx=mx-(mx-tx)*(ns/s);ty=my-(my-ty)*(ns/s);s=ns;apply();}
+      function center(){var r=stage.getBoundingClientRect();return{x:r.width/2,y:r.height/2};}
+      stage.addEventListener('wheel',function(e){e.preventDefault();var r=stage.getBoundingClientRect();zoomAt(Math.exp(-e.deltaY*0.0015),e.clientX-r.left,e.clientY-r.top);},{passive:false});
+      var drag=null;
+      stage.addEventListener('pointerdown',function(e){if(e.button!==0)return;drag={x:e.clientX,y:e.clientY,tx:tx,ty:ty};stage.setPointerCapture(e.pointerId);stage.classList.add('is-dragging');});
+      stage.addEventListener('pointermove',function(e){if(!drag)return;tx=drag.tx+(e.clientX-drag.x);ty=drag.ty+(e.clientY-drag.y);apply();});
+      function endDrag(){drag=null;stage.classList.remove('is-dragging');}
+      stage.addEventListener('pointerup',endDrag);stage.addEventListener('pointercancel',endDrag);
+      stage.addEventListener('dblclick',function(){fit();});
+      lb.addEventListener('click',function(e){
+        var btn=e.target.closest&&e.target.closest('.md-mz-btn');if(!btn)return;
+        var act=btn.getAttribute('data-mz')||btn.getAttribute('data-lb');var c=center();
+        if(act==='in')zoomAt(1.25,c.x,c.y);else if(act==='out')zoomAt(1/1.25,c.x,c.y);else if(act==='reset'){var W=stage.clientWidth,H=stage.clientHeight;s=1;tx=(W-size.w)/2;ty=(H-size.h)/2;apply();}
+        else if(act==='fit')fit();else if(act==='close')closeLightbox();
+      });
+      lb.addEventListener('keydown',function(e){
+        var c=center();
+        if(e.key==='Escape'){e.preventDefault();closeLightbox();}
+        else if(e.key==='+'||e.key==='='){e.preventDefault();zoomAt(1.25,c.x,c.y);}
+        else if(e.key==='-'){e.preventDefault();zoomAt(1/1.25,c.x,c.y);}
+        else if(e.key==='0'){e.preventDefault();fit();}
+      });
+      document.body.appendChild(lb);
+      root.setAttribute('data-lightbox','open');
+      lightbox={el:lb,fit:fit};
+      fit();lb.focus();
+      // 盡量進入真正的全螢幕；sandbox 沒開放 fullscreen 時會 reject，忽略即可
+      try{if(lb.requestFullscreen){lb.requestFullscreen().then(function(){setTimeout(fit,50);},function(){});}}catch(e){}
+    }
+    function closeLightbox(){
+      if(!lightbox)return;
+      var lb=lightbox.el;lightbox=null;
+      try{if(document.fullscreenElement===lb&&document.exitFullscreen)document.exitFullscreen().catch(function(){});}catch(e){}
+      lb.remove();root.removeAttribute('data-lightbox');
+    }
+    document.addEventListener('fullscreenchange',function(){
+      // 在真正的全螢幕中按 Esc 只會離開全螢幕，這時一併關掉 lightbox；視窗大小變了也重新貼齊
+      if(lightbox&&!document.fullscreenElement)closeLightbox();
+    });
+    window.addEventListener('resize',function(){if(lightbox)lightbox.fit();});
+
     // 窄視窗（側欄會以浮出面板呈現）時預設收合目錄，避免一開始就蓋住內文
     if(window.innerWidth<800&&root.getAttribute('data-toc')==='open'){root.setAttribute('data-toc','closed');var tb=document.querySelector('[data-action="toc"]');if(tb)tb.setAttribute('aria-expanded','false');}
     applyTheme(theme);
@@ -3268,6 +3520,9 @@ document.addEventListener('click',function(e){
         const bg = info.kind === 'md' && adoTheme() === 'dark' ? '#1b1b1f' : '#fff';
         f.style.cssText = `width:100%;height:80vh;border:0;background:${bg};display:block`;
         f.setAttribute('sandbox', SANDBOX);
+        // 讓 Markdown 預覽的 mermaid 全螢幕檢視能用 Fullscreen API（不給也能運作，只會蓋滿預覽區）
+        f.setAttribute('allow', 'fullscreen');
+        f.setAttribute('allowfullscreen', '');
         // Markdown 預覽文件的 <script> 已帶 nonce；HTML 檔由 buildPreviewHtml 統一補上
         f.srcdoc = info.kind === 'md'
             ? injectBeforeBodyEnd(html, linkFixScript(info, nonce))
@@ -3325,7 +3580,7 @@ document.addEventListener('click',function(e){
                 `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title>` +
                 `<style>html,body{margin:0;height:100%;overflow:hidden;background:${bg}}` +
                 `iframe{display:block;width:100%;height:100%;border:0}</style></head><body>` +
-                `<iframe sandbox="${SANDBOX}" srcdoc="${esc(srcdoc)}"></iframe>` +
+                `<iframe sandbox="${SANDBOX}" allow="fullscreen" allowfullscreen srcdoc="${esc(srcdoc)}"></iframe>` +
                 `</body></html>`,
             );
             w.document.close();
