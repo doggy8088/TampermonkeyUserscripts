@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 完整預覽 Repos 中的 HTML 與 Markdown 檔案
-// @version      0.1.2
+// @version      0.2.0
 // @description  在 Azure DevOps Repos 的檔案頁籤列右側加上「完整預覽 (內嵌)」與「完整預覽 (全螢幕)」按鈕，於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔；開啟 .md 檔時改為「Markdown 預覽」，以支援深淺色、側邊目錄、程式碼上色與 mermaid 的排版取代內建預覽
 // @license      MIT
 // @homepage     https://github.com/doggy8088/TampermonkeyUserscripts
@@ -1506,8 +1506,9 @@ return Ke}()
       }
 
       // Azure DevOps Wiki 的 ::: mermaid … ::: 語法改寫成 ```mermaid 圍籬，交給 marked 處理
+      // 只接受最多 3 個前導空白：縮 4 格以上（或 tab）是 CommonMark 的縮排程式碼區塊，裡面的標記要保留為文字
       function normalizeMermaidBlocks(md) {
-        return md.replace(/^[ \t]*:::[ \t]*mermaid[ \t]*\r?\n([\s\S]*?)\r?\n[ \t]*:::[ \t]*$/gm, (_, code) => '```mermaid\n' + code + '\n```');
+        return md.replace(/^ {0,3}:::[ \t]*mermaid[ \t]*\r?\n([\s\S]*?)\r?\n {0,3}:::[ \t]*$/gm, (_, code) => '```mermaid\n' + code + '\n```');
       }
 
       // [[_TOC_]] 若直接交給 marked 會被解析成 [[<em>TOC</em>]]，先換成 HTML 註解佔位（marked 會原樣保留），渲染後再換成目錄。
@@ -1515,7 +1516,7 @@ return Ke}()
       // [[_TOC_]] 下一行直接接標題的常見寫法會整段消失；註解區塊在同一行就結束。
       const TOC_PLACEHOLDER = '<!--ado-md-toc-->';
       function normalizeToc(md) {
-        return md.replace(/^[ \t]*\[\[_TOC_\]\][ \t]*$/gm, TOC_PLACEHOLDER);
+        return md.replace(/^ {0,3}\[\[_TOC_\]\][ \t]*$/gm, TOC_PLACEHOLDER);
       }
 
       function frontMatterHtml(meta) {
@@ -1526,16 +1527,21 @@ return Ke}()
       function tocHtml(toc, className) {
         if (!toc.length) return '';
         // 以最淺的層級為基準，讓只用 h2/h3 的文件也從第一層開始縮排
+        // 子層的 <ul> 要放在父項目的 <li> 裡面（父 <li> 在子清單結束後才關閉），才是合法且語意正確的巢狀清單；
+        // 層級跳躍（h1 直接接 h3）視為只深一層，避免產生沒有 <li> 的空殼 <ul>。
         const min = Math.min(...toc.map((t) => t.level));
         let html = '';
-        let depth = 0;
+        let depth = 0;           // 目前打開的 <ul> 層數
+        const liOpen = [];       // liOpen[d]：第 d 層目前是否有尚未關閉的 <li>
         for (const t of toc) {
-          const level = t.level - min + 1;
-          while (depth < level) { html += depth ? '<ul>' : `<ul class="${className}">`; depth++; }
-          while (depth > level) { html += '</ul>'; depth--; }
-          html += `<li><a href="#${t.id}">${t.text}</a></li>`;
+          const level = Math.min(t.level - min + 1, depth + 1);
+          while (depth > level) { if (liOpen[depth]) html += '</li>'; html += '</ul>'; liOpen[depth] = false; depth--; }
+          if (depth === level && liOpen[depth]) html += '</li>';
+          while (depth < level) { html += depth ? '<ul>' : `<ul class="${className}">`; depth++; liOpen[depth] = false; }
+          html += `<li><a href="#${t.id}">${t.text}</a>`;
+          liOpen[depth] = true;
         }
-        while (depth > 0) { html += '</ul>'; depth--; }
+        while (depth > 0) { if (liOpen[depth]) html += '</li>'; html += '</ul>'; depth--; }
         return html;
       }
 
@@ -2881,7 +2887,7 @@ return Ke}()
       function bootstrap(cfg) {
         // 這段會被轉成字串注入到預覽文件，請維持 ES5 風格、不要引用外部變數
         return `(function(){
-    var cfg=${JSON.stringify(cfg)};
+    var cfg=${JSON.stringify(cfg).replace(/</g, '\\u003c')};
     var root=document.documentElement;
     function prefersDark(){try{return window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches;}catch(e){return false;}}
     var q=null;try{q=new URLSearchParams(location.search).get('theme');}catch(e){}
@@ -2896,7 +2902,8 @@ return Ke}()
     // 目錄：點擊後在窄版面自動收合；捲動時高亮目前段落
     var toc=document.querySelector('.md-toc');
     if(toc){
-      toc.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href^="#"]');if(a&&window.innerWidth<1100){root.setAttribute('data-toc','closed');}});
+      // 只有側欄以浮出面板呈現的窄版面（< 800px，與樣式表的斷點一致）才在點選後自動收合，並同步切換鈕的 aria-expanded
+      toc.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href^="#"]');if(a&&window.innerWidth<800){root.setAttribute('data-toc','closed');var tb=document.querySelector('[data-action="toc"]');if(tb)tb.setAttribute('aria-expanded','false');}});
       var links=[].slice.call(toc.querySelectorAll('a[href^="#"]'));
       var byId={};links.forEach(function(a){byId[decodeURIComponent(a.getAttribute('href').slice(1))]=a;});
       var heads=[].slice.call(document.querySelectorAll('.md-content h1[id],.md-content h2[id],.md-content h3[id],.md-content h4[id],.md-content h5[id],.md-content h6[id]')).filter(function(h){return byId[h.id];});
@@ -2925,6 +2932,8 @@ return Ke}()
     // 直接 <script src> 失敗時（sandbox iframe 的 origin 為 null，可能載不到擴充功能內的檔案），
     // 改向父頁面要原始碼（content script / preview.js 會回 ado-md-mermaid-source），以帶 nonce 的 inline script 注入。
     var mermaidState='idle';
+    // mermaid 11 會呼叫 URL.canParse（Chrome 120 才有），擴充功能最低支援 Chrome 112，先補上同義的 polyfill
+    if(typeof URL!=='undefined'&&typeof URL.canParse!=='function'){URL.canParse=function(u,b){try{new URL(u,b);return true;}catch(e){return false;}};}
     function mermaidFailed(){mermaidState='failed';renderMermaid();}
     function requestFromParent(){
       // 父頁面沒有回應端（例如 Tampermonkey 版本）時直接判定失敗，不用等逾時
@@ -2956,9 +2965,15 @@ return Ke}()
       blocks.forEach(function(b,i){
         if(b.__src==null){var pre=b.querySelector('pre');b.__src=pre?pre.textContent:b.textContent;}
         var src=b.__src;var id='md-mermaid-'+i+'-'+Date.now();
+        // 每個區塊的渲染世代：快速切換主題時較早的 render 可能較晚完成，過期的結果一律丟掉，不回寫舊主題的圖
+        var gen=b.__gen=(b.__gen||0)+1;
         b.classList.remove('is-failed');
-        window.mermaid.render(id,src).then(function(res){b.innerHTML=res.svg;if(res.bindFunctions)res.bindFunctions(b);setupMermaidTools(b);},function(err){
+        window.mermaid.render(id,src).then(function(res){
+          if(gen!==b.__gen){var tmp=document.getElementById('d'+id);if(tmp)tmp.remove();return;}
+          b.innerHTML=res.svg;if(res.bindFunctions)res.bindFunctions(b);setupMermaidTools(b);
+        },function(err){
           var stale=document.getElementById('d'+id);if(stale)stale.remove();
+          if(gen!==b.__gen)return;
           b.innerHTML='<pre class="mermaid">'+src.replace(/&/g,'&amp;').replace(/</g,'&lt;')+'</pre>';b.classList.add('is-failed');b.setAttribute('data-error',String(err&&err.message||err).split('\\n')[0]);
         });
       });
@@ -2984,12 +2999,14 @@ return Ke}()
     // 圖表 svg 一定是 .md-mermaid 的直接子元素；工具列裡的圖示也是 svg，所以要用 :scope > svg 區分
     function setupMermaidTools(b){
       var svg=b.querySelector(':scope > svg');if(!svg)return;
-      b.__zoom=1;b.__maxWidth=svg.style.maxWidth||'';
+      // 重畫（例如換主題）後是全新的 svg：縮放狀態、靠左 class 與快取的基準寬度都要歸零
+      b.__zoom=1;b.__base=null;b.classList.remove('is-zoomed');b.__maxWidth=svg.style.maxWidth||'';
       // 工具列放在 svg 前面、高度 0 且 sticky left:0：圖放大後水平捲動時工具列仍停在可見區的右上角
       var tools=document.createElement('div');tools.className='md-mz-tools';
       tools.innerHTML='<div class="md-mz-bar" role="toolbar" aria-label="圖表縮放">'+mzBtn('out','縮小')+'<button type="button" class="md-mz-btn md-mz-pct" data-mz="reset" title="重設為 100%">100%</button>'+mzBtn('in','放大')+mzBtn('full','全螢幕檢視')+'</div>';
       b.insertBefore(tools,b.firstChild);
-      b.addEventListener('wheel',function(e){if(!(e.ctrlKey||e.metaKey))return;e.preventDefault();inlineZoom(b,b.__zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});
+      // 換主題重畫時會再跑一次 setupMermaidTools，wheel 監聽掛在常駐的容器上，只能綁一次
+      if(!b.__wheelBound){b.__wheelBound=true;b.addEventListener('wheel',function(e){if(!(e.ctrlKey||e.metaKey))return;e.preventDefault();inlineZoom(b,b.__zoom*(e.deltaY<0?1.1:1/1.1));},{passive:false});}
     }
     function inlineZoom(b,z){
       var svg=b.querySelector(':scope > svg');if(!svg)return;
@@ -3038,6 +3055,14 @@ return Ke}()
       });
       lb.addEventListener('keydown',function(e){
         var c=center();
+        if(e.key==='Tab'){
+          // 焦點只在面板內循環（背景已設 inert，這裡再保險一次）
+          var f=[].slice.call(lb.querySelectorAll('button:not([disabled])'));if(!f.length)return;
+          var first=f[0],last=f[f.length-1];
+          if(e.shiftKey&&(document.activeElement===first||document.activeElement===lb)){e.preventDefault();last.focus();}
+          else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus();}
+          return;
+        }
         if(e.key==='Escape'){e.preventDefault();closeLightbox();}
         else if(e.key==='+'||e.key==='='){e.preventDefault();zoomAt(1.25,c.x,c.y);}
         else if(e.key==='-'){e.preventDefault();zoomAt(1/1.25,c.x,c.y);}
@@ -3045,16 +3070,22 @@ return Ke}()
       });
       document.body.appendChild(lb);
       root.setAttribute('data-lightbox','open');
-      lightbox={el:lb,fit:fit};
-      fit();lb.focus();
+      // 背景設為 inert：鍵盤 Tab 與螢幕閱讀器都碰不到面板以外的內容；關閉時把焦點還給開啟它的按鈕
+      // 先記下開啟面板的元素，再把背景設為 inert（inert 之後焦點會被移走，activeElement 就不是按鈕了）
+      var opener=document.activeElement;
+      var app=document.querySelector('.md-app');if(app)app.inert=true;
+      lightbox={el:lb,fit:fit,opener:opener,app:app};
+      fit();var firstBtn=lb.querySelector('.md-mz-btn');if(firstBtn)firstBtn.focus();else lb.focus();
       // 盡量進入真正的全螢幕；sandbox 沒開放 fullscreen 時會 reject，忽略即可
       try{if(lb.requestFullscreen){lb.requestFullscreen().then(function(){setTimeout(fit,50);},function(){});}}catch(e){}
     }
     function closeLightbox(){
       if(!lightbox)return;
-      var lb=lightbox.el;lightbox=null;
+      var lb=lightbox.el,opener=lightbox.opener,app=lightbox.app;lightbox=null;
       try{if(document.fullscreenElement===lb&&document.exitFullscreen)document.exitFullscreen().catch(function(){});}catch(e){}
       lb.remove();root.removeAttribute('data-lightbox');
+      if(app)app.inert=false;
+      if(opener&&opener.isConnected&&opener.focus)try{opener.focus();}catch(e){}
     }
     document.addEventListener('fullscreenchange',function(){
       // 在真正的全螢幕中按 Esc 只會離開全螢幕，這時一併關掉 lightbox；視窗大小變了也重新貼齊
@@ -3133,30 +3164,44 @@ return Ke}()
      *   新分頁需要 sandbox 的 allow-popups-to-escape-sandbox 才不會被 sandbox 限制。
      */
     function linkFixScript(info, nonce) {
+        // JSON.stringify 不會跳脫 <，網址裡的路徑 / 分支名若含 </script> 會提前結束這段 script；統一改寫成 \u003c
         const cfg = JSON.stringify({
             repoUrl: `${location.origin}/${info.org}/${info.project}/_git/${encodeURIComponent(info.repo)}`,
             dir: info.path.replace(/[^/]*$/, ''),
             version: info.version,
-        });
+        }).replace(/</g, '\\u003c');
         return `<script nonce="${nonce}">(function(){
 var cfg=${cfg};
-document.addEventListener('click',function(e){
-  if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
-  var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;
+// 回傳連結該開啟的絕對網址；#錨點與 javascript: 等協定回傳 null（交回原本的處理）
+function resolve(a){
   var href=a.getAttribute('href')||'';
-  if(href.charAt(0)==='#'){e.preventDefault();location.hash=href;return;}
-  if(/^(javascript|mailto|tel|data|blob):/i.test(href))return;
+  if(href.charAt(0)==='#'||/^(javascript|mailto|tel|data|blob):/i.test(href))return null;
+  if(/^[a-z][a-z0-9+.-]*:/i.test(href)||href.indexOf('//')===0)return href;
+  var parts=href.split('#');
+  var path=decodeURIComponent(new URL(parts[0],'https://repo.invalid'+cfg.dir).pathname);
+  var q=new URLSearchParams({path:path});
+  if(cfg.version)q.set('version',cfg.version);
+  if(/\\.(html?|md|markdown)$/i.test(path))q.set('_a','preview');
+  return cfg.repoUrl+'?'+q.toString()+(parts[1]?'#'+parts[1]:'');
+}
+function findLink(e){return e.target&&e.target.closest?e.target.closest('a[href]'):null;}
+document.addEventListener('click',function(e){
+  if(e.defaultPrevented)return;
+  var a=findLink(e);if(!a)return;
+  var href=a.getAttribute('href')||'';
+  var modified=e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey;
+  if(href.charAt(0)==='#'){if(modified)return;e.preventDefault();location.hash=href;return;}
+  var target=resolve(a);if(target===null)return;
+  // Ctrl / ⌘ / Shift 點擊：把 href 改寫成 repo 內對應的網址後交給瀏覽器，保留原生的「在新分頁 / 新視窗開啟」行為
+  if(modified){a.setAttribute('href',target);a.setAttribute('target','_blank');a.setAttribute('rel','noopener');return;}
   e.preventDefault();
-  var target=href;
-  if(!/^[a-z][a-z0-9+.-]*:/i.test(href)&&href.indexOf('//')!==0){
-    var parts=href.split('#');
-    var path=decodeURIComponent(new URL(parts[0],'https://repo.invalid'+cfg.dir).pathname);
-    var q=new URLSearchParams({path:path});
-    if(cfg.version)q.set('version',cfg.version);
-    if(/\\.(html?|md|markdown)$/i.test(path))q.set('_a','preview');
-    target=cfg.repoUrl+'?'+q.toString()+(parts[1]?'#'+parts[1]:'');
-  }
   window.open(target,'_blank','noopener');
+},true);
+// 中鍵點擊是 auxclick（不會觸發 click），一樣先把 href 改寫成 repo 內的網址再讓瀏覽器在新分頁開啟
+document.addEventListener('auxclick',function(e){
+  if(e.button!==1)return;
+  var a=findLink(e);if(!a)return;
+  var target=resolve(a);if(target)a.setAttribute('href',target);
 },true);
 })();<\/script>`;
     }
@@ -3261,7 +3306,7 @@ document.addEventListener('click',function(e){
      */
     const ASSET_LIMIT = 60;                     // 每頁最多內嵌幾個資源，避免巨大的網頁發出過多 API 請求
     const ASSET_MAX_BYTES = 8 * 1024 * 1024;    // 單一資源上限 8 MB，超過就保留原樣不內嵌
-    const ASSET_TOTAL_BYTES = 6 * 1024 * 1024;  // 所有資源加總上限（與擴充功能一致；srcdoc 屬性也不宜塞太大）
+    const ASSET_TOTAL_BYTES = 6 * 1024 * 1024;  // 所有資源加總上限，只用於全螢幕 popup（殼頁 srcdoc 屬性不宜塞太大）；內嵌模式不限
 
     /**
      * 判斷是否為「同 repo 的相對路徑」：
@@ -3303,19 +3348,20 @@ document.addEventListener('click',function(e){
      * asText=true 時回傳文字（JS / CSS），否則回傳 base64 的 data: URL（圖片）。
      * 轉 base64 時分段 0x8000 位元組呼叫 String.fromCharCode，避免大檔案超過函式參數上限而丟出 RangeError。
      */
-    async function fetchAsset(info, repoPath, asText, budget) {
+    /** 先只抓回 blob（檢查單檔上限），轉成文字 / data: URL 是另一步，讓總量上限能在轉 base64 之前判斷 */
+    async function fetchAssetBlob(info, repoPath) {
         const res = await fetch(rawUrl({ ...info, path: repoPath }, 'octetStream'), { credentials: 'include' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const blob = await res.blob();
         if (blob.size > ASSET_MAX_BYTES) throw new Error('too large');
-        if (budget) {
-            if (budget.used + blob.size > ASSET_TOTAL_BYTES) throw new Error('total asset budget exceeded');
-            budget.used += blob.size;
-        }
+        return { blob, contentType: res.headers.get('content-type') || '' };
+    }
+
+    async function assetValue({ blob, contentType }, repoPath, asText) {
         if (asText) return blob.text();
         // 回應的 content-type 形如 image/png; api-version=7.1，只取主型別當備援
         const ext = (repoPath.split('.').pop() || '').toLowerCase();
-        const mime = MIME[ext] || (res.headers.get('content-type') || 'application/octet-stream').split(';')[0].trim();
+        const mime = MIME[ext] || (contentType || 'application/octet-stream').split(';')[0].trim();
         const bytes = new Uint8Array(await blob.arrayBuffer());
         let bin = '';
         for (let i = 0; i < bytes.length; i += 0x8000) {
@@ -3330,7 +3376,8 @@ document.addEventListener('click',function(e){
      * 每個資源各自 try/catch：抓不到的保留原樣並標上 data-inline-failed（方便在 DevTools 查原因），
      * 不影響其他資源與整體預覽。
      */
-    async function inlineRelativeAssets(html, info) {
+    // opts.totalBytes：所有資源原始位元組加總的上限（只有全螢幕 popup 需要）；省略 = 不限制總量
+    async function inlineRelativeAssets(html, info, opts = {}) {
         const doc = new DOMParser().parseFromString(html, 'text/html');
         // 作者自己指定了 <base href>，代表他有自己的資源解析規則，尊重它、不做內嵌
         if (doc.querySelector('base[href]')) return html;
@@ -3352,45 +3399,61 @@ document.addEventListener('click',function(e){
         }
         if (!jobs.length) return html;
 
-        // 所有資源平行抓取；替換節點時各自 replaceWith，所以完成順序不影響最終的 DOM 順序
-        const budget = { used: 0 };
-        await Promise.all(jobs.map(async (el) => {
+        // 處理順序：腳本與樣式表（缺了整個網頁就壞）優先於圖片，同類之間依 DOM 順序。
+        // 有總量上限（全螢幕 popup）時依此順序「逐一」抓取，剩餘額度不夠就不再抓、也不轉 base64，
+        // 避免先把幾十個大圖全部下載進記憶體才發現要丟掉；沒有上限（內嵌模式）時平行抓取。
+        const items = jobs.map((el) => {
             const tag = el.tagName.toLowerCase();
-            const ref = el.getAttribute(tag === 'link' ? 'href' : 'src');
-            let repoPath;
+            return { el, tag, ref: el.getAttribute(tag === 'link' ? 'href' : 'src') };
+        }).sort((a, b) => (a.tag === 'img' ? 1 : 0) - (b.tag === 'img' ? 1 : 0));
+        const budgeted = opts.totalBytes != null;
+        let remaining = budgeted ? opts.totalBytes : Infinity;
+        const load = async (r) => {
             try {
-                repoPath = resolveRepoPath(ref, info);
-            } catch {
-                return;
-            }
-            try {
-                if (tag === 'script') {
-                    const code = await fetchAsset(info, repoPath, true, budget);
-                    const inline = doc.createElement('script');
-                    // 保留 type="module"、defer 等其餘屬性，只拿掉 src
-                    for (const a of el.attributes) {
-                        if (a.name !== 'src') inline.setAttribute(a.name, a.value);
-                    }
-                    inline.setAttribute('data-inlined-from', ref);
-                    // JS 原始碼裡若含 </script 會提前結束標籤，改寫成 <\/script（在字串與正規式中語意不變）
-                    inline.textContent = code.replace(/<\/script/gi, '<\\/script');
-                    el.replaceWith(inline);
-                } else if (tag === 'link') {
-                    const css = await fetchAsset(info, repoPath, true, budget);
-                    const style = doc.createElement('style');
-                    style.setAttribute('data-inlined-from', ref);
-                    // 保留 media 屬性，讓 print / 響應式樣式表維持原本的套用條件
-                    if (el.media) style.setAttribute('media', el.media);
-                    style.textContent = css.replace(/<\/style/gi, '<\\/style');
-                    el.replaceWith(style);
-                } else {
-                    el.setAttribute('src', await fetchAsset(info, repoPath, false, budget));
-                }
+                if (budgeted && remaining <= 0) throw new Error('total asset budget exceeded');
+                const repoPath = resolveRepoPath(r.ref, info);
+                const fetched = await fetchAssetBlob(info, repoPath);
+                // 一旦有資源放不進剩餘額度就視為額度用盡：後面（優先序更低）的資源直接略過，不再逐一下載後丟棄
+                if (budgeted && fetched.blob.size > remaining) { remaining = 0; throw new Error('total asset budget exceeded'); }
+                remaining -= fetched.blob.size;
+                r.value = await assetValue(fetched, repoPath, r.tag !== 'img');
             } catch (e) {
-                // 抓不到就保留原樣，不影響其他資源
-                el.setAttribute('data-inline-failed', String((e && e.message) || e));
+                r.error = String((e && e.message) || e);
             }
-        }));
+        };
+        if (budgeted) {
+            for (const r of items) await load(r);
+        } else {
+            await Promise.all(items.map(load));
+        }
+        for (const r of items) {
+            const { el, tag, ref } = r;
+            if (r.error) {
+                // 抓不到就保留原樣，不影響其他資源
+                el.setAttribute('data-inline-failed', r.error);
+                continue;
+            }
+            if (tag === 'script') {
+                const inline = doc.createElement('script');
+                // 保留 type="module"、defer 等其餘屬性，只拿掉 src
+                for (const a of el.attributes) {
+                    if (a.name !== 'src') inline.setAttribute(a.name, a.value);
+                }
+                inline.setAttribute('data-inlined-from', ref);
+                // JS 原始碼裡若含 </script 會提前結束標籤，改寫成 <\/script（在字串與正規式中語意不變）
+                inline.textContent = r.value.replace(/<\/script/gi, '<\\/script');
+                el.replaceWith(inline);
+            } else if (tag === 'link') {
+                const style = doc.createElement('style');
+                style.setAttribute('data-inlined-from', ref);
+                // 保留 media 屬性，讓 print / 響應式樣式表維持原本的套用條件
+                if (el.media) style.setAttribute('media', el.media);
+                style.textContent = r.value.replace(/<\/style/gi, '<\\/style');
+                el.replaceWith(style);
+            } else {
+                el.setAttribute('src', r.value);
+            }
+        }
 
         // DOMParser 會丟掉 doctype 字串本身，補回去以免網頁掉進 quirks mode 造成版面差異
         const doctype = doc.doctype ? `<!DOCTYPE ${doc.doctype.name}>` : '<!DOCTYPE html>';
@@ -3431,7 +3494,7 @@ document.addEventListener('click',function(e){
      * 並把相對路徑的圖片透過 Git Items API 抓回來內嵌。
      * bootstrap 腳本的 nonce 在這裡就寫進文件（mermaid 動態載入也要用），所以之後 buildPreviewHtml 不再補 nonce。
      */
-    async function buildMarkdownDocument(md, info, nonce) {
+    async function buildMarkdownDocument(md, info, nonce, assetOpts) {
         const r = mdLibs.AdoMarkdown.render(md);
         const fileName = info.path.split('/').pop(); // path 來自 URLSearchParams，已經是解碼後的值
         const doc = mdLibs.AdoMarkdownShell.buildDocument({
@@ -3439,15 +3502,15 @@ document.addEventListener('click',function(e){
             theme: adoTheme(), nonce, mermaidSrc: r.hasMermaid ? MERMAID_URL : '',
             mermaidFallback: false, // popup 殼頁與 ADO 頁面都沒有回應端
         });
-        return inlineRelativeAssets(doc, info);
+        return inlineRelativeAssets(doc, info, assetOpts);
     }
 
-    /** 依檔案類型產生要放進 sandbox 的完整 HTML（尚未注入連結修正腳本） */
-    async function buildDocument(info, nonce) {
+    /** 依檔案類型產生要放進 sandbox 的完整 HTML（尚未注入連結修正腳本）；assetOpts 傳給 inlineRelativeAssets */
+    async function buildDocument(info, nonce, assetOpts) {
         const source = await fetchSource(info);
         return info.kind === 'md'
-            ? buildMarkdownDocument(source, info, nonce)
-            : inlineRelativeAssets(source, info);
+            ? buildMarkdownDocument(source, info, nonce, assetOpts)
+            : inlineRelativeAssets(source, info, assetOpts);
     }
 
     /**
@@ -3458,10 +3521,11 @@ document.addEventListener('click',function(e){
      * 再等待 SPA 把預覽區塊渲染出來（最多等 4 秒）。
      */
     async function ensurePreviewTarget(kind) {
-        const selector = kind === 'md'
-            ? '.markdown-preview-container, .files-hub-content-preview'
-            : `iframe[srcdoc]:not([${FRAME_ATTR}])`;
-        const find = () => document.querySelector(selector);
+        // Markdown：優先找 .markdown-preview-container，找不到才退回較外層的 .files-hub-content-preview
+        //（selector list 會回傳文件順序最前的元素，兩者巢狀時會抓到外層，所以要分開查）
+        const find = kind === 'md'
+            ? () => document.querySelector('.markdown-preview-container') || document.querySelector('.files-hub-content-preview')
+            : () => document.querySelector(`iframe[srcdoc]:not([${FRAME_ATTR}])`);
         let frame = find();
         if (frame) return frame;
 
@@ -3488,7 +3552,8 @@ document.addEventListener('click',function(e){
      */
     let active = null; // { key, frame, old, oldDisplay }
 
-    const previewKey = (info) => `${info.path}|${new URLSearchParams(location.search).get('version') || ''}`;
+    // key 用 info.version（網址的 version= 或版本選擇器上推斷的分支），切換分支時即使網址沒變也會重建
+    const previewKey = (info) => `${info.path}|${info.version}`;
 
     function clearInlinePreview() {
         if (!active) return;
@@ -3501,18 +3566,29 @@ document.addEventListener('click',function(e){
     function reconcileInlinePreview() {
         if (!active) return;
         const info = parseLocation();
-        if (!info || previewKey(info) !== active.key || !active.old.isConnected || !active.frame.isConnected) clearInlinePreview();
+        if (!info || !active.old.isConnected || !active.frame.isConnected) { clearInlinePreview(); return; }
+        // 版本選擇器在 SPA 重繪時可能暫時不存在（info.version 為空），這時無法判斷分支，不要誤清
+        if (!info.version && !new URLSearchParams(location.search).get('version')) return;
+        if (previewKey(info) !== active.key) clearInlinePreview();
     }
+
+    // 每次 renderInline 的世代編號：抓檔期間若使用者切到別的檔案並開了新的預覽，舊的那次完成後要直接放棄，
+    // 不能清掉新預覽、把舊內容塞進已失效的節點
+    let renderGen = 0;
 
     async function renderInline() {
         const info = parseLocation();
         if (!info) return;
+        const gen = ++renderGen;
         clearInlinePreview();
 
         const nonce = getNonce();
         // 抓檔案（含相對路徑資源內嵌）與切換頁籤可同時進行
         const [html, old] = await Promise.all([buildDocument(info, nonce), ensurePreviewTarget(info.kind)]);
-        clearInlinePreview(); // 等待期間若使用者又按了一次，先清掉
+        // 等待期間有更新的一次 renderInline、或使用者已切到別的檔案 / 分支：這次的結果作廢
+        const now = parseLocation();
+        if (gen !== renderGen || !now || previewKey(now) !== previewKey(info) || !old.isConnected) return;
+        clearInlinePreview(); // 這次是最新的；若仍有舊預覽（例如同一檔案重按），先清掉
 
         const f = document.createElement('iframe');
         f.className = info.kind === 'md' ? '' : old.className;
@@ -3566,7 +3642,7 @@ document.addEventListener('click',function(e){
         try {
             // 與內嵌模式相同：先抓原始檔，再把相對路徑資源內嵌（視窗已在上面同步開好，這裡的 await 不會被攔截）
             const nonce = getNonce();
-            const html = await buildDocument(info, nonce);
+            const html = await buildDocument(info, nonce, { totalBytes: ASSET_TOTAL_BYTES });
             const title = `${info.path.split('/').pop()} – ${LABELS[info.kind].windowSuffix}`;
             // 殼頁是 about:blank（與 dev.azure.com 同源、繼承其 CSP，inline style 已確認可用），
             // 真正的網頁放在 null origin 的 sandbox iframe 內，和內嵌模式一樣隔離。
