@@ -66,6 +66,22 @@
   <tbody>
     <tr>
       <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/GCPConsoleHotkeys.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td><a href="https://console.cloud.google.com/">GCP Console</a>: 好用的鍵盤快速鍵集合</td>
+      <td>
+        目前提供以下快速鍵：<br>
+        <ol>
+          <li>在 Billing 清單頁按下數字鍵 <code>1</code>~<code>9</code> 可直接開啟第 N 個帳單帳戶</li>
+          <li>按下 <code>g</code> 接著 <code>b</code> 前往 Billing 帳戶清單頁</li>
+          <li>按下 <code>g</code> 接著 <code>h</code> 前往 Console 首頁</li>
+          <li>按下 <code>g</code> 接著 <code>p</code> 前往 Manage resources（專案/資源管理）</li>
+          <li>按下 <code>g</code> 接著 <code>c</code> 在 Billing 帳戶頁前往該帳戶的 Credits，在其他頁面則前往 APIs &amp; Services &gt; Credentials</li>
+        </ol>
+      </td>
+    </tr>
+    <tr>
+      <td>
         <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/LinkChecker.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
       </td>
       <td>網頁連結檢查器</td>
