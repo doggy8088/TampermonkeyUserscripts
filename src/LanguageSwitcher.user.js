@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         中、英文網頁切換器
-// @version      1.19.2
+// @version      1.20.0
 // @description  按下 alt+s 快速鍵就會自動將目前網頁切換至中文版或英文版
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -145,6 +145,35 @@
         if (location.hostname === 'zh.wikipedia.org') return switchWikipediaLang('en');
         if (location.hostname === 'en.wikipedia.org') return switchWikipediaLang('zh');
         return false;
+    };
+
+    // Google Antigravity 文件站（antigravity.google）
+    // 設計意圖：這個站的語言「不在網址裡」（沒有 /zh-tw/ 路徑，也沒有 ?hl= 參數），
+    // 切換語言後 URL 完全不變，所以沒辦法像其他站一樣改寫網址，只能操作右上角的語言選單。
+    // 選單元件的實作細節（實測 https://antigravity.google/docs/customization-discovery/）：
+    //   - 容器：[data-language-selector]，目前語言同步在 data-synced-value（例如 zh-TW、en-US）
+    //   - 選項：<button data-custom-select-option="zh-TW">，在選單「關閉」時就已存在於 DOM，
+    //     直接 click() 即可切換，不必先展開選單，也就不用處理展開動畫或等待時機
+    // 切換規則：目前是中文（zh-*）就切到 en-US，其餘（英文或其他語言）一律切到 zh-TW，
+    // 讓 Alt+S 永遠在「繁體中文 <-> 英文」之間來回。
+    // 找不到選單（頁面尚未載入完成、或行銷頁沒有選單）就回傳 false，讓後面的規則照常接手，
+    // 避免吃掉按鍵卻什麼事都沒發生。
+    const antigravityRule = () => {
+        const host = getLowercaseHostname();
+        if (host !== 'antigravity.google' && !host.endsWith('.antigravity.google')) return false;
+
+        const selector = document.querySelector('[data-language-selector]');
+        if (!selector) return false;
+
+        // data-synced-value 是選單自己維護的狀態；萬一改版拿掉，退而求其次看 <html lang>
+        const current = selector.dataset.syncedValue || document.documentElement.lang || '';
+        const target = /^zh(\b|[-_])/i.test(current) ? 'en-US' : 'zh-TW';
+
+        const option = selector.querySelector(`[data-custom-select-option="${target}"]`);
+        if (!option) return false;
+
+        option.click();
+        return true;
     };
 
     // Mozilla、Facebook、Kubernetes、Microsoft、Fallback 等規則
@@ -346,6 +375,9 @@
     function applyFirstMatch() {
         // 1) Wikipedia 語言切換（若命中直接返回）
         if (wikipediaRule()) return true;
+
+        // 1.1) Google Antigravity 文件站（語言存在用戶端，需操作語言選單）
+        if (antigravityRule()) return true;
 
         // 2) 網站映射（成對規則）
         for (const rule of mappingRules) {
