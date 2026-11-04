@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 完整預覽 Repos 中的 HTML、Markdown、PDF、Excel 與 Word 檔案
-// @version      0.2.12
+// @version      0.3.0
 // @description  在 Azure DevOps Repos 的檔案頁籤列右側加上「完整預覽 (內嵌)」與「完整預覽 (全螢幕)」按鈕，於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔；開啟 .md 檔時改為「Markdown 預覽」，以支援深淺色、側邊目錄、程式碼上色與 mermaid 的排版取代內建預覽；開啟 .pdf 檔時改為「PDF 預覽」，用 Chrome 內建的 PDF 檢視器顯示；開啟 .xlsx / .docx 檔時改為「Excel 預覽」/「Word 預覽」，以主題化唯讀表格與高保真版面顯示
 // @license      MIT
 // @homepage     https://github.com/doggy8088/TampermonkeyUserscripts
