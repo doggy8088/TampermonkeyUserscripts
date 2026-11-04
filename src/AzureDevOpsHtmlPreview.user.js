@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 完整預覽 Repos 中的 HTML 與 Markdown 檔案
-// @version      0.2.1
+// @version      0.2.3
 // @description  在 Azure DevOps Repos 的檔案頁籤列右側加上「完整預覽 (內嵌)」與「完整預覽 (全螢幕)」按鈕，於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔；開啟 .md 檔時改為「Markdown 預覽」，以支援深淺色、側邊目錄、程式碼上色與 mermaid 的排版取代內建預覽
 // @license      MIT
 // @homepage     https://github.com/doggy8088/TampermonkeyUserscripts
@@ -44,6 +44,11 @@
      *       UMD 函式庫會走 AMD 分支而不會掛到 window），經內嵌的 md-core / md-shell / md-theme 模組
      *       轉成支援深淺色、側邊目錄、程式碼複製與 mermaid（從 jsDelivr 動態載入）的預覽文件，再走同樣的兩種顯示路徑；
      *       相對路徑的圖片同樣透過 Git Items API 抓回來內嵌。
+     *
+     * 開啟支援的檔案（.html / .htm / .md / .markdown）時，內嵌預覽會自動啟用、不必按按鈕（見 maybeAutoPreview）；
+     * 兩顆按鈕保留，用來重開預覽或改用全螢幕。
+     * 預覽內點擊指向 repo 文件的連結會「就地換頁」（不開新分頁），瀏覽器上一頁 / 前進逐頁可用，像真的在逛網站；
+     * 每份文件左上角另有「← 上一頁」小圓鈕（popup 視窗沒有工具列也能回去）。
      *
      * 此腳本與 Chrome 擴充功能「Duotify Azure DevOps HTML Preview」功能相同，
      * Markdown 模組由該 repo 的 scripts/build-userscript.mjs 同步到本檔案的標記區段。
@@ -3155,34 +3160,44 @@ return Ke}()
 
     /**
      * 注入到預覽 HTML 尾端的連結修正腳本。
-     * 問題：在 srcdoc iframe 裡點 <a href="#x"> 會被解析成「父頁面網址#x」，整個 iframe 會被導去載入 Azure DevOps 頁面，
+     * 問題：在 sandbox iframe 裡點 <a href="#x"> 會被解析成「父頁面網址#x」，整個 iframe 會被導去載入 Azure DevOps 頁面，
      *       看起來就像預覽壞掉、JS 沒在跑（console 會出現一堆 ms.vss-*.min.js 的錯誤）。
      * 做法：攔截所有連結點擊——
-     *   - #錨點：改用 location.hash，可正常觸發 hashchange（實測 srcdoc 內不會重載）
-     *   - 相對路徑（../docs/x.md）：換算成 repo 內路徑，在新分頁開啟對應的 Azure DevOps 檔案
+     *   - #錨點：改用 location.hash，可正常觸發 hashchange（實測不會重載）
+     *   - 相對路徑的支援格式（.html / .htm / .md / .markdown）：送 ado-nav-request 給父頁面「就地換頁」，
+     *     不開新分頁，就像真的在逛網站
+     *   - 其他相對路徑（../docs/x.png）：換算成 repo 內路徑，在新分頁開啟對應的 Azure DevOps 檔案
      *   - 絕對網址：在新分頁開啟
      *   新分頁需要 sandbox 的 allow-popups-to-escape-sandbox 才不會被 sandbox 限制。
+     * 另外注入「← 上一頁」小圓鈕（nav > 0 才顯示）：popup 型視窗沒有工具列，需要一個看得見的回上一頁入口；
+     * 點它與瀏覽器上一頁走同一條歷史（由父頁面呼叫 history.back()）。
      */
-    function linkFixScript(info, nonce) {
+    function linkFixScript(info, nonce, nav, hash) {
         // JSON.stringify 不會跳脫 <，網址裡的路徑 / 分支名若含 </script> 會提前結束這段 script；統一改寫成 \u003c
         const cfg = JSON.stringify({
             repoUrl: `${location.origin}/${info.org}/${info.project}/_git/${encodeURIComponent(info.repo)}`,
             dir: info.path.replace(/[^/]*$/, ''),
             version: info.version,
+            nav,
+            hash: hash || '',
         }).replace(/</g, '\\u003c');
         return `<script nonce="${nonce}">(function(){
 var cfg=${cfg};
-// 回傳連結該開啟的絕對網址；#錨點與 javascript: 等協定回傳 null（交回原本的處理）
+var DOC_RE=/\\.(html?|md|markdown)$/i;
+// 回傳 {path,hash}（repo 內的相對路徑）或 {url}（絕對網址）或 null（#錨點、javascript: 等交回原本的處理）
 function resolve(a){
   var href=a.getAttribute('href')||'';
   if(href.charAt(0)==='#'||/^(javascript|mailto|tel|data|blob):/i.test(href))return null;
-  if(/^[a-z][a-z0-9+.-]*:/i.test(href)||href.indexOf('//')===0)return href;
+  if(/^[a-z][a-z0-9+.-]*:/i.test(href)||href.indexOf('//')===0)return {url:href};
   var parts=href.split('#');
   var path=decodeURIComponent(new URL(parts[0],'https://repo.invalid'+cfg.dir).pathname);
-  var q=new URLSearchParams({path:path});
+  return {path:path,hash:parts[1]||''};
+}
+function adoUrl(r){
+  var q=new URLSearchParams({path:r.path});
   if(cfg.version)q.set('version',cfg.version);
-  if(/\\.(html?|md|markdown)$/i.test(path))q.set('_a','preview');
-  return cfg.repoUrl+'?'+q.toString()+(parts[1]?'#'+parts[1]:'');
+  if(DOC_RE.test(r.path))q.set('_a','preview');
+  return cfg.repoUrl+'?'+q.toString()+(r.hash?'#'+r.hash:'');
 }
 function findLink(e){return e.target&&e.target.closest?e.target.closest('a[href]'):null;}
 document.addEventListener('click',function(e){
@@ -3191,18 +3206,46 @@ document.addEventListener('click',function(e){
   var href=a.getAttribute('href')||'';
   var modified=e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey;
   if(href.charAt(0)==='#'){if(modified)return;e.preventDefault();location.hash=href;return;}
-  var target=resolve(a);if(target===null)return;
+  var r=resolve(a);if(r===null)return;
   // Ctrl / ⌘ / Shift 點擊：把 href 改寫成 repo 內對應的網址後交給瀏覽器，保留原生的「在新分頁 / 新視窗開啟」行為
-  if(modified){a.setAttribute('href',target);a.setAttribute('target','_blank');a.setAttribute('rel','noopener');return;}
+  if(modified){a.setAttribute('href',r.url||adoUrl(r));a.setAttribute('target','_blank');a.setAttribute('rel','noopener');return;}
+  // 支援格式的文件：就地換頁（父頁面組好新文件後導覽預覽 iframe），不開新分頁
+  if(r.path&&DOC_RE.test(r.path)){
+    e.preventDefault();e.stopPropagation();
+    window.parent.postMessage({type:'ado-nav-request',path:r.path,hash:r.hash,from:cfg.nav},'*');
+    return;
+  }
   e.preventDefault();
-  window.open(target,'_blank','noopener');
+  window.open(r.url||adoUrl(r),'_blank','noopener');
 },true);
 // 中鍵點擊是 auxclick（不會觸發 click），一樣先把 href 改寫成 repo 內的網址再讓瀏覽器在新分頁開啟
 document.addEventListener('auxclick',function(e){
   if(e.button!==1)return;
   var a=findLink(e);if(!a)return;
-  var target=resolve(a);if(target)a.setAttribute('href',target);
+  var r=resolve(a);if(r)a.setAttribute('href',r.url||adoUrl(r));
 },true);
+// 換頁過來帶有錨點時（x.md#install 之類的連結）捲到目標
+if(cfg.hash){
+  var go=function(){
+    var h=cfg.hash;try{h=decodeURIComponent(h);}catch(_e){}
+    var el=document.getElementById(h)||document.getElementsByName(h)[0];
+    if(el&&el.scrollIntoView)el.scrollIntoView();
+  };
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();
+}
+// ← 上一頁：與瀏覽器上一頁走同一條歷史（由父頁面呼叫 history.back()），不會再多堆一筆紀錄
+if(cfg.nav>0){
+  var b=document.createElement('button');
+  b.type='button';
+  b.title='上一頁（回到上一份文件）';
+  b.textContent='←';
+  b.setAttribute('style','position:fixed;top:10px;left:10px;z-index:2147483647;width:30px;height:30px;padding:0;border-radius:50%;border:1px solid rgba(0,0,0,.2);background:rgba(255,255,255,.85);color:#333;font:16px/1 system-ui,sans-serif;cursor:pointer;opacity:.45;box-shadow:0 1px 4px rgba(0,0,0,.2)');
+  b.addEventListener('mouseenter',function(){b.style.opacity='1';});
+  b.addEventListener('mouseleave',function(){b.style.opacity='.45';});
+  b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();window.parent.postMessage({type:'ado-nav-back',from:cfg.nav},'*');});
+  var mount=function(){document.body.appendChild(b);};
+  if(document.body)mount();else document.addEventListener('DOMContentLoaded',mount);
+}
 })();<\/script>`;
     }
 
@@ -3217,7 +3260,7 @@ document.addEventListener('auxclick',function(e){
     //   - 同一個路徑只問一次（cache / waiting），失敗也記錄起來不重試，並在 img 標上 data-ado-img-failed
     //   - 父頁面的回應端：內嵌模式是主頁面的 message 監聽，全螢幕 popup 是主頁面掛在 popup 視窗上的監聽（見 openWindow）
     // 瀏覽器會先拿相對網址對照父頁面網址發出一個無效請求（回傳 ADO 頁面而非圖片），無法避免，只是浪費一次請求。
-    function lazyImageScript(nonce) {
+    function lazyImageScript(nonce, nav) {
         return `<script nonce="${nonce}">(function(){
 var cache=new Map();   // ref → data URL；null 代表失敗
 var waiting=new Map(); // ref → 等待回應的 <img> 陣列
@@ -3234,7 +3277,7 @@ function request(img){
   var list=waiting.get(ref);
   if(list){list.push(img);return;}
   waiting.set(ref,[img]);
-  window.parent.postMessage({type:'ado-asset-request',ref:ref},'*');
+  window.parent.postMessage({type:'ado-asset-request',ref:ref,from:${nav}},'*');
 }
 var io=typeof IntersectionObserver==='function'?new IntersectionObserver(function(es){
   es.forEach(function(e){if(e.isIntersecting){io.unobserve(e.target);request(e.target);}});
@@ -3273,14 +3316,44 @@ scan(document.documentElement);
 
     // 預覽文件尾端要注入的腳本：連結修正 + 圖片按需載入。
     // 作者自己指定了 <base href> 時，相對網址由他的 base 決定（inlineRelativeAssets 也同樣尊重），不注入圖片腳本。
-    function previewScripts(html, info, nonce) {
-        return linkFixScript(info, nonce) + (/<base\b[^>]*\bhref\s*=/i.test(html) ? '' : lazyImageScript(nonce));
+    function previewScripts(html, info, nonce, nav = 0, hash = '') {
+        return linkFixScript(info, nonce, nav, hash) + (/<base\b[^>]*\bhref\s*=/i.test(html) ? '' : lazyImageScript(nonce, nav));
     }
 
-    /** 預覽用的完整 HTML：補 nonce 再注入連結修正腳本 */
-    function buildPreviewHtml(html, info, nonce) {
+    /** 預覽用的完整 HTML：補 nonce 再注入連結修正腳本；nav / hash 是就地換頁的頁次與錨點 */
+    function buildPreviewHtml(html, info, nonce, nav = 0, hash = '') {
         const doc = withNonce(html, nonce);
-        return injectBeforeBodyEnd(doc, previewScripts(doc, info, nonce));
+        return injectBeforeBodyEnd(doc, previewScripts(doc, info, nonce, nav, hash));
+    }
+
+    /** 組出最終放入 sandbox 的完整預覽文件（Markdown 的 <script> 已帶 nonce，HTML 由 buildPreviewHtml 補上） */
+    function finalizeDoc(html, info, nonce, nav = 0, hash = '') {
+        return info.kind === 'md'
+            ? injectBeforeBodyEnd(html, previewScripts(html, info, nonce, nav, hash))
+            : buildPreviewHtml(html, info, nonce, nav, hash);
+    }
+
+    // ---------- 就地換頁（像逛網站一樣） ----------
+    // 與 Chrome 擴充功能相同：預覽文件之間的連結讓 iframe 在「blob: URL」之間導覽。
+    //   - blob 文件沿用建立者（Azure DevOps 頁面 / popup 殼頁）的 CSP，nonce 機制照常運作
+    //     （實測 dev.azure.com 的 frame-src / child-src 有開放 blob:）
+    //   - 每次導覽都是一筆真的歷史紀錄，瀏覽器上一頁 / 前進會逐頁回到之前的文件
+    //     （實測：反覆重設 srcdoc 不會留下可用的歷史，上一頁只會重讀目前的 srcdoc 內容）
+    //   - blob URL 建立後不能 revoke：上一頁就是靠瀏覽器重新載入它
+    let navInfos = []; // 第 k 份文件的 info（相對路徑資源以它為基準）；換頁時依 from 截斷
+    let navUrls = [];  // 第 k 份文件的 blob URL
+
+    /** 在指定視窗的 realm 建立 blob URL（全螢幕 popup 要建在 popup 的 realm，生命週期才跟著 popup） */
+    function docBlobUrl(doc, w = window) {
+        return w.URL.createObjectURL(new w.Blob([doc], { type: 'text/html' }));
+    }
+
+    /** 換頁失敗時的錯誤文件（像瀏覽器的錯誤頁，上一頁仍可回去） */
+    function errorDocument(info, nav, message) {
+        const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+        const html = '<!DOCTYPE html><html><body style="font:14px/1.8 system-ui,sans-serif;color:#444;padding:24px">' +
+            `<h3 style="margin:0 0 8px;font-size:16px">無法載入 ${esc(info.path)}</h3><p style="margin:0">${esc(message)}</p></body></html>`;
+        return injectBeforeBodyEnd(html, linkFixScript(info, '', nav, ''));
     }
 
     /**
@@ -3310,14 +3383,19 @@ scan(document.documentElement);
      * project / repo 一律存成解碼後的名稱，組 API 網址時再各自 encodeURIComponent，
      * 避免含空白或中文的專案名稱被重複編碼或漏編碼。
      * 只有 path 是 .html / .htm（kind = 'html'）或 .md / .markdown（kind = 'md'）時才回傳，其他檔案不顯示按鈕。
+     * 結尾的 repo 段後不能再有路徑段：PR / commit 等頁面（/_git/{repo}/pullrequest/123?path=/x.html）
+     * 也會帶 path= 參數，但那些頁面沒有可取代的預覽區塊，不是本腳本的對象。
      */
+    /** 檔案類型：HTML（.html / .htm）與 Markdown（.md / .markdown）；其他檔案不支援預覽 */
+    const kindOf = (path) => (/\.html?$/i.test(path) ? 'html' : /\.(md|markdown)$/i.test(path) ? 'md' : null);
+
     function parseLocation() {
-        const m = location.pathname.match(/^\/([^/]+)(?:\/([^/]+))?\/_git\/([^/?#]+)/);
+        const m = location.pathname.match(/^\/([^/]+)(?:\/([^/]+))?\/_git\/([^/?#]+)\/?$/);
         if (!m) return null;
         const qs = new URLSearchParams(location.search);
         const path = qs.get('path');
         if (!path) return null;
-        const kind = /\.html?$/i.test(path) ? 'html' : /\.(md|markdown)$/i.test(path) ? 'md' : null;
+        const kind = kindOf(path);
         if (!kind) return null;
         // 網址有 version= 時以網址為準；沒有時改用版本選擇器上顯示的分支（見 currentBranchVersion）
         const version = qs.get('version') || currentBranchVersion();
@@ -3653,6 +3731,8 @@ scan(document.documentElement);
         active.frame.remove();
         if (active.old.isConnected) active.old.style.display = active.oldDisplay;
         active = null;
+        navInfos = [];
+        navUrls = [];
     }
 
     /** 由 MutationObserver 持續呼叫：網址換了檔案 / 分支，或 ADO 把原節點或我們的 iframe 拿掉，就清掉內嵌預覽 */
@@ -3692,10 +3772,10 @@ scan(document.documentElement);
         // 讓 Markdown 預覽的 mermaid 全螢幕檢視能用 Fullscreen API（不給也能運作，只會蓋滿預覽區）
         f.setAttribute('allow', 'fullscreen');
         f.setAttribute('allowfullscreen', '');
-        // Markdown 預覽文件的 <script> 已帶 nonce；HTML 檔由 buildPreviewHtml 統一補上
-        f.srcdoc = info.kind === 'md'
-            ? injectBeforeBodyEnd(html, previewScripts(html, info, nonce))
-            : buildPreviewHtml(html, info, nonce);
+        // 用 blob: URL 導覽而不是 srcdoc：每份文件都是真的歷史紀錄，瀏覽器上一頁 / 前進可用（見「就地換頁」段落）
+        navInfos = [info];
+        navUrls = [docBlobUrl(finalizeDoc(html, info, nonce, 0, ''))];
+        f.src = navUrls[0];
         const oldDisplay = old.style.display;
         old.insertAdjacentElement('afterend', f);
         old.style.display = 'none';
@@ -3719,8 +3799,78 @@ scan(document.documentElement);
     window.addEventListener('message', (ev) => {
         if (ev.data?.type !== 'ado-asset-request' || typeof ev.data.ref !== 'string' || !ev.source) return;
         if (!active || ev.source !== active.frame.contentWindow) return;
-        replyAsset(ev.source, ev.data.ref, active.info);
+        // from：這份文件在換頁歷史中的頁次；換頁後相對路徑要以「那份文件」所在的目錄為基準
+        replyAsset(ev.source, ev.data.ref, navInfos[ev.data.from] || active.info);
     });
+
+    // 就地換頁的請求端（內嵌模式）：預覽文件點到另一份支援格式的文件
+    window.addEventListener('message', async (ev) => {
+        const d = ev.data;
+        if (d?.type !== 'ado-nav-request' || typeof d.path !== 'string' || !ev.source) return;
+        if (!active || ev.source !== active.frame.contentWindow) return;
+        const from = typeof d.from === 'number' ? d.from : navInfos.length - 1;
+        const base = navInfos[from] || active.info;
+        const info = { ...base, path: d.path, kind: kindOf(d.path) };
+        const nav = from + 1;
+        const nonce = getNonce();
+        let doc;
+        try {
+            doc = finalizeDoc(await buildDocument(info, nonce), info, nonce, nav, d.hash || '');
+        } catch (e) {
+            doc = errorDocument(info, nav, String(e?.message || e));
+        }
+        // 抓檔期間使用者可能又換了檔案或又點了連結：只認同一個還在的 iframe
+        if (!active || ev.source !== active.frame.contentWindow) return;
+        navInfos = navInfos.slice(0, from + 1); navInfos.push(info);
+        navUrls = navUrls.slice(0, from + 1); navUrls.push(docBlobUrl(doc));
+        active.frame.src = navUrls[nav];
+        active.info = info;
+        fitFrame();
+    });
+
+    // ← 上一頁（預覽文件內的按鈕）：呼叫瀏覽器上一頁，與工具列的上一頁走同一條歷史，不會多堆一筆
+    window.addEventListener('message', (ev) => {
+        if (ev.data?.type !== 'ado-nav-back' || !ev.source) return;
+        if (!active || ev.source !== active.frame.contentWindow) return;
+        history.back();
+    });
+
+    // ---------- 自動預覽 ----------
+
+    /*
+     * 開啟支援的檔案時自動顯示內嵌預覽，不必按按鈕。
+     * 每個檔案 key 只自動觸發一次，切換檔案 / 分支（key 改變）才會再自動顯示：
+     *   - renderInline 會改動 DOM、觸發底部的 MutationObserver，不去重會形成「自動預覽 → DOM 變動 → 又自動預覽」的迴圈
+     *   - 使用者手動切回 Contents 等頁籤後不該被強行拉回 Preview；ADO 重建預覽區塊時同理，需要時按按鈕即可
+     */
+    let autoKey = null;        // 最後一次自動顯示（含嘗試失敗）的檔案 key
+    let autoRendering = false; // 自動顯示進行中：避免 renderInline 改 DOM 引發的 MutationObserver 重入
+
+    /**
+     * 使用者明確停留在其他頁籤（History / Blame / Commit…）時不要搶走焦點；
+     * 沒有 _a、_a=contents 或 _a=preview 則視為「打開檔案」，自動顯示預覽。
+     */
+    function inOtherTab() {
+        const a = new URLSearchParams(location.search).get('_a') || '';
+        if (!a || /^(contents|preview)$/i.test(a)) return false;
+        // 未知的 _a 值仍照樣自動預覽：ADO 改頁籤參數時寧可多預覽一次，也不要功能整個失效
+        return /^(history|blame|commit|branch|tag|diff|compare|push|pull|shelveset|setting)/i.test(a);
+    }
+
+    /** 打開 / 切換到支援的檔案時自動顯示內嵌預覽（由 ensureButtons 的 MutationObserver 持續呼叫） */
+    function maybeAutoPreview(info) {
+        if (autoRendering || inOtherTab()) return;
+        // 版本選擇器還沒渲染時 version 為空，抓檔會落到 API 的預設分支（檔案不在預設分支時回 404）；
+        // 等分支確定後的 MutationObserver 呼叫再自動顯示。網址帶 version= 時一開始就緒。
+        if (!info.version) return;
+        const key = previewKey(info);
+        if (key === autoKey || (active && active.key === key)) { autoKey = key; return; }
+        autoKey = key;
+        autoRendering = true;
+        renderInline()
+            .catch((e) => console.warn('[Azure DevOps HTML Preview] 自動預覽失敗：', e))
+            .finally(() => { autoRendering = false; });
+    }
 
     // ---------- 2. 完整預覽 (全螢幕) ----------
 
@@ -3746,28 +3896,54 @@ scan(document.documentElement);
             const title = `${info.path.split('/').pop()} – ${LABELS[info.kind].windowSuffix}`;
             // 殼頁是 about:blank（與 dev.azure.com 同源、繼承其 CSP，inline style 已確認可用），
             // 真正的網頁放在 null origin 的 sandbox iframe 內，和內嵌模式一樣隔離。
+            // iframe 不用 srcdoc 而用 blob: URL 導覽：就地換頁時每份文件都是一筆真的歷史紀錄（見「就地換頁」段落）。
             const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
-            const srcdoc = info.kind === 'md'
-                ? injectBeforeBodyEnd(html, previewScripts(html, info, nonce))
-                : buildPreviewHtml(html, info, nonce);
+            const doc = finalizeDoc(html, info, nonce, 0, '');
             const bg = info.kind === 'md' && adoTheme() === 'dark' ? '#1b1b1f' : '#fff';
             w.document.open();
             w.document.write(
                 `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(title)}</title>` +
                 `<style>html,body{margin:0;height:100%;overflow:hidden;background:${bg}}` +
                 `iframe{display:block;width:100%;height:100%;border:0}</style></head><body>` +
-                `<iframe sandbox="${SANDBOX}" allow="fullscreen" allowfullscreen srcdoc="${esc(srcdoc)}"></iframe>` +
+                `<iframe sandbox="${SANDBOX}" allow="fullscreen" allowfullscreen></iframe>` +
                 `</body></html>`,
             );
             w.document.close();
-            // 執行期圖片的回應端（全螢幕）：殼頁與 dev.azure.com 同源，可直接在 popup 視窗上監聽。
+            // 換頁堆疊（popup 自己一份，不與內嵌模式共用）與事件處理：殼頁與 dev.azure.com 同源，可直接在 popup 視窗上監聽。
             // 必須在 document.close() 之後才掛：document.open() 會清掉 window 上既有的事件監聽。
-            // 抓圖由這個主頁面代勞（popup 的 sandbox iframe 沒有登入狀態）；主分頁若關閉，尚未載入的圖就載入不了。
             const popupFrame = w.document.querySelector('iframe');
+            const stack = [{ info }];
+            const urls = [docBlobUrl(doc, w)];
+            popupFrame.src = urls[0];
             w.addEventListener('message', (ev) => {
-                if (ev.data?.type !== 'ado-asset-request' || typeof ev.data.ref !== 'string' || !ev.source) return;
-                if (!popupFrame || ev.source !== popupFrame.contentWindow) return;
-                replyAsset(ev.source, ev.data.ref, info);
+                const d = ev.data || {};
+                if (!ev.source || !popupFrame || ev.source !== popupFrame.contentWindow) return;
+                if (d.type === 'ado-asset-request' && typeof d.ref === 'string') {
+                    // 執行期圖片：抓圖由這個主頁面代勞（popup 的 sandbox iframe 沒有登入狀態）；主分頁若關閉，尚未載入的圖就載入不了
+                    replyAsset(ev.source, d.ref, stack[d.from] ? stack[d.from].info : info);
+                } else if (d.type === 'ado-nav-request' && typeof d.path === 'string') {
+                    // 就地換頁：組好目標文件後把 popup 內的 iframe 導去下一個 blob 頁次（上一頁可逐頁回去）
+                    const from = typeof d.from === 'number' ? d.from : stack.length - 1;
+                    const base = stack[from] ? stack[from].info : info;
+                    const target = { ...base, path: d.path, kind: kindOf(d.path) };
+                    const nav = from + 1;
+                    const nonce = getNonce();
+                    (async () => {
+                        let next;
+                        try {
+                            next = finalizeDoc(await buildDocument(target, nonce, { totalBytes: ASSET_TOTAL_BYTES }), target, nonce, nav, d.hash || '');
+                        } catch (e) {
+                            next = errorDocument(target, nav, String(e?.message || e));
+                        }
+                        if (w.closed || !popupFrame || ev.source !== popupFrame.contentWindow) return;
+                        stack.length = from + 1; stack.push({ info: target });
+                        urls.length = from + 1; urls.push(docBlobUrl(next, w));
+                        popupFrame.src = urls[nav];
+                    })();
+                } else if (d.type === 'ado-nav-back') {
+                    // 與鍵盤上一頁走同一條歷史（iframe 的每個頁次都在 popup 的共同歷史裡），不會多堆一筆
+                    w.history.back();
+                }
             });
             w.focus();
         } catch (e) {
@@ -3816,6 +3992,7 @@ scan(document.documentElement);
             existing?.remove();
             return;
         }
+        maybeAutoPreview(info);
         // 同一個頁籤列、同一種檔案類型就不重建（在 .html 與 .md 之間切換時要換按鈕文字）
         if (existing && existing.parentElement === tabbar && existing.dataset.kind === info.kind) return;
         existing?.remove();
