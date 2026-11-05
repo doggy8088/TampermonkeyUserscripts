@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 完整預覽 Repos 中的 HTML、Markdown、PDF、Excel 與 Word 檔案
-// @version      0.3.1
+// @version      0.3.2
 // @description  在 Azure DevOps Repos 的檔案頁籤列右側加上「完整預覽 (內嵌)」與「完整預覽 (全螢幕)」按鈕，於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔；開啟 .md 檔時改為「Markdown 預覽」，以支援深淺色、側邊目錄、程式碼上色與 mermaid 的排版取代內建預覽；開啟 .pdf 檔時改為「PDF 預覽」，用 Chrome 內建的 PDF 檢視器顯示；開啟 .xlsx / .docx / .pptx 檔時改為「Excel 預覽」/「Word 預覽」/「PowerPoint 預覽」，以主題化唯讀表格與高保真版面顯示
 // @license      MIT
 // @homepage     https://github.com/doggy8088/TampermonkeyUserscripts
@@ -4269,21 +4269,25 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       }
 
       // 唯讀表格樣式（token 與頂欄沿用 AdoMarkdownTheme.css；這裡只補 xs-* 專用樣式）
+      // .xs-tabs 必須 flex:0 0 auto：它是 .md-app（flex 直欄）的子項、又有 overflow-x:auto（最小高度因此為 0），
+      // 大表時 .md-main 的內容高度會把它擠成 0 高，工作表頁籤消失（v0.3.3 修正）
+      // 外殼（統計、頁籤、提示）只用 md-theme.js 有定義的 token（--fg / --fg-muted / --bg-surface…）：名稱不存在時會
+      // 靜默退回 fallback 的淺色值，深色模式變白底（v0.3.3 修正）。欄列標頭屬於紙張，寫死色、不跟主題
       const XLSX_CSS = `
-    .xs-meta{margin-left:auto;font-size:12px;color:var(--text-2,#605e5c);flex-shrink:0}
-    .xs-tabs{display:flex;gap:2px;padding:0 16px;background:var(--surface,#fff);border-bottom:1px solid var(--line,#edebe9);overflow-x:auto}
-    .xs-tab{appearance:none;border:0;background:transparent;font:inherit;font-size:13px;padding:8px 14px;color:var(--text-2,#605e5c);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
-    .xs-tab:hover{color:var(--text,#201f1e);background:var(--hover,#f3f2f1)}
-    .xs-tab[aria-selected="true"]{color:var(--accent,#0078d4);border-bottom-color:var(--accent,#0078d4);font-weight:600}
+    .xs-meta{margin-left:auto;font-size:12px;color:var(--fg-muted);flex-shrink:0}
+    .xs-tabs{flex:0 0 auto;display:flex;gap:2px;padding:0 16px;background:var(--bg-surface);border-bottom:1px solid var(--line);overflow-x:auto}
+    .xs-tab{appearance:none;border:0;background:transparent;font:inherit;font-size:13px;padding:8px 14px;color:var(--fg-muted);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap}
+    .xs-tab:hover{color:var(--fg);background:var(--bg-hover)}
+    .xs-tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
     .xs-sheets{padding:0}
     .xs-sheet{height:100%}
     .xs-scroll{overflow:auto;height:100%}
-    .xs-notice{padding:8px 16px;font-size:12.5px;color:var(--text-2,#605e5c);background:var(--warn-bg,#fff4ce);border-bottom:1px solid var(--line,#edebe9)}
-    .xs-empty{padding:48px 16px;text-align:center;color:var(--text-2,#605e5c)}
+    .xs-notice{padding:8px 16px;font-size:12.5px;color:var(--fg-muted);background:var(--alert-warning-bg);border-bottom:1px solid var(--line)}
+    .xs-empty{padding:48px 16px;text-align:center;color:var(--fg-muted)}
     .xs-grid{border-collapse:separate;border-spacing:0;font-size:13px;line-height:1.5;background:#fff}
-    .xs-grid td{border-right:1px solid var(--line,#edebe9);border-bottom:1px solid var(--line,#edebe9);padding:2px 6px;white-space:pre;overflow:hidden;text-overflow:ellipsis;max-width:48em}
+    .xs-grid td{border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:2px 6px;white-space:pre;overflow:hidden;text-overflow:ellipsis;max-width:48em}
     .xs-grid tbody tr:hover td{box-shadow:inset 0 0 0 99em rgba(0,0,0,.045)}
-    .xs-corner,.xs-colhead,.xs-rowhead{background:var(--head-bg,#f3f2f1);color:var(--text-2,#605e5c);font-weight:400;font-size:11.5px;text-align:center;position:sticky;z-index:4;border-right:1px solid var(--line,#edebe9);border-bottom:1px solid var(--line,#edebe9)}
+    .xs-corner,.xs-colhead,.xs-rowhead{background:#f3f2f1;color:#605e5c;font-weight:400;font-size:11.5px;text-align:center;position:sticky;z-index:4;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
     .xs-corner{z-index:6}
     .xs-rowhead{width:${GUTTER_W}px}
     @media print{.xs-tabs,.md-bar{display:none}.xs-scroll{overflow:visible}}
@@ -4404,8 +4408,8 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
 
       // 外殼樣式（token 與頂欄沿用 AdoMarkdownTheme.css；文件內容樣式由 docx-preview 依原稿產生）
       const XD_CSS = `
-    .xd-meta{margin-left:auto;font-size:12px;color:var(--text-2,#605e5c);flex-shrink:0}
-    #xd-status{padding:48px 16px;text-align:center;color:var(--text-2,#605e5c)}
+    .xd-meta{margin-left:auto;font-size:12px;color:var(--fg-muted);flex-shrink:0}
+    #xd-status{padding:48px 16px;text-align:center;color:var(--fg-muted)}
     #xd-status.xd-error{color:#a4262c}
     #xd-stage{padding:0}
     @media print{.md-bar,#xd-status{display:none}}
