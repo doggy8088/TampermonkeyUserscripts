@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         網頁狀態與任意內容發佈到 Infinitybin
-// @version      0.3.1
-// @description  透過 Tampermonkey 選單將目前網頁狀態或任意文字內容發佈到 Azure Blob Storage-backed Infinitybin，並設定正確檔名與 Content-Type
+// @version      0.4.0
+// @description  透過 Tampermonkey 選單將目前網頁狀態或任意文字內容發佈到 Azure Blob Storage-backed Infinitybin，並設定正確檔名與 Content-Type；瀏覽容器內頁面時可在頁面底部直接刪除該頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
 // @homepageURL  https://blog.miniasp.com/
@@ -35,7 +35,7 @@
 //   方法 A：（建議）使用 Azure Portal UI
 //     1. 進入 Storage Account > Data storage > Containers
 //     2. 點擊目標 Container 右側的「...」> 選擇「Generate SAS」
-//     3. 權限勾選：Create（c）、Write（w）（最小必要權限）
+//     3. 權限勾選：Create（c）、Write（w）；若要使用「刪除頁面」功能，另需勾選 Delete（d）
 //     4. 設定適當的「Expiry」到期日
 //     5. 點擊「Generate SAS token and URL」
 //     6. 複製「Blob SAS URL」欄位（格式如下範例），勿複製「Blob SAS token」）
@@ -44,15 +44,16 @@
 //     az storage container generate-sas \
 //       --account-name <ACCOUNT_NAME> \
 //       --name <CONTAINER_NAME> \
-//       --permissions cw \
+//       --permissions cwd \
 //       --expiry 2027-12-31T00:00:00Z \
 //       --https-only \
 //       --output tsv
-//     （上述指令僅輸出 SAS token，請自行組合完整 URL）
+//     （上述指令僅輸出 SAS token，請自行組合完整 URL；
+//       c/w 供發佈使用，d 僅「刪除頁面」功能需要，不需要刪除可只給 cw）
 //
 // 【步驟三】SAS URL 格式說明
 //   取得的 Container SAS URL 格式如下：
-//   https://<帳號>.blob.core.windows.net/<容器名>?sv=2023-11-03&ss=b&srt=sco&sp=cw&se=2027-01-01T00%3A00%3A00Z&sig=XXXXX
+//   https://<帳號>.blob.core.windows.net/<容器名>?sv=2023-11-03&ss=b&srt=sco&sp=cwd&se=2027-01-01T00%3A00%3A00Z&sig=XXXXX
 //
 //   ※ 重要：本腳本需要的是「Container SAS URL」（路徑結尾是容器名，後接 ?sv=...），
 //      而非單一 Blob 的 SAS URL（路徑包含檔案名稱）。
@@ -85,13 +86,27 @@
 //     3. 使用推測後的副檔名與 Content-Type 發佈到 Infinitybin
 //     4. 圖片與二進位內容不處理，也不顯示錯誤
 //
+//   當瀏覽「設定的 SAS URL 所在容器下的頁面」時（例如
+//   https://<帳號>.blob.core.windows.net/<容器>/<檔名>），
+//   頁面最下方會出現一整列的刪除工具列：
+//     1. 點擊「🗑️ 刪除此頁面」並確認後，即以先前設定的 SAS Token 提供的權限刪除該頁面
+//     2. 刪除成功後按鈕停用（避免重複刪除），重新整理該網址會看到 404 Not Found
+//     3. 不想看到工具列可點擊右側「✕」隱藏（僅本次瀏覽）
+//   同一個刪除功能也註冊在 Tampermonkey 選單中（只會在上述頁面出現），
+//   供純文字、SVG 等無法顯示 DOM 工具列的內容類型使用。
+//   ※ 刪除功能需要 SAS 具備 Delete（d）權限（sp=cwd），
+//      若 SAS 缺少該權限，點擊刪除會得到 403 錯誤並附上補救說明。
+//   ※ 刪除列是在頁面載入時判斷是否顯示；若是在已開啟的頁面上才完成 SAS 設定，
+//      請重新整理頁面讓刪除列出現。
+//
 // 【注意事項】
 //   - 若頁面資源非常多（如大量圖片），序列化過程可能需要數十秒，請耐心等待
 //   - 超過 10MB 的單一資源將略過內嵌，改保留原始絕對 URL，避免 HTML 過大
 //   - <script src="..."> 標籤的外部 JavaScript 不會被內嵌（已執行的 JS 邏輯已反映在 DOM 狀態中）
 //   - <video> 和 <audio> 的媒體 src 不會被內嵌（通常體積過大），僅保留 poster 圖片
 //   - <canvas> 元素會嘗試以 toDataURL() 轉換為 <img>，若有跨來源限制則略過
-//   - Container 必須具備 Create + Write 兩項 SAS 權限，缺一不可
+//   - 發佈功能的 Container 必須具備 Create + Write 兩項 SAS 權限，缺一不可；
+//     刪除頁面功能另需 Delete（d）權限（不需要刪除可維持 sp=cw）
 //
 // ============================================================
 
@@ -110,6 +125,17 @@
     // 主腳本收到觸發事件後，會立即回送 ACK，
     // 讓 context-menu 腳本可判斷主腳本是否存在且可正常接手執行。
     const CONTEXT_MENU_ACK_EVENT = 'save-page-to-azure-blob:ack';
+
+    // 底部刪除列的元素 id。
+    // 與狀態提示條一樣，製作快照時必須從 clone 中移除（見 serializePage()），
+    // 否則工具列會被永久寫進快照內容；同時也用於避免重複掛載。
+    const DELETE_BAR_ELEMENT_ID = '__save_azure_delete_bar__';
+
+    // XHTML 命名空間。
+    // 非 text/html 的 XML 系文件（例如 .xhtml）必須以 createElementNS 建立
+    // XHTML 元素，瀏覽器才會把工具列放進 HTML 呈現樹中渲染；
+    // 在 text/html 文件中使用 createElementNS 等同於 createElement，行為一致。
+    const XHTML_NAMESPACE_URI = 'http://www.w3.org/1999/xhtml';
 
     // 單一資源超過此大小（位元組）時略過內嵌，改保留原始 URL，預設 10MB
     const MAX_INLINE_SIZE_BYTES = 10 * 1024 * 1024;
@@ -1077,7 +1103,9 @@
         // 狀態提示條在序列化開始前就已插入 document.body，
         // cloneNode(true) 會將其一併複製，因此需在此處主動刪除，
         // 避免瀏覽器工具列 UI 汙染使用者看到的快照內容。
+        // 底部刪除列與狀態提示條同屬工具列 UI，也要一併移除，避免汙染快照內容。
         root.querySelector('#__save_azure_status_bar__')?.remove();
+        root.querySelector(`#${DELETE_BAR_ELEMENT_ID}`)?.remove();
 
         // ── 在 clone 中替換 canvas → img ──
         const clonedCanvases = root.querySelectorAll('canvas');
@@ -1620,6 +1648,354 @@
         };
     }
 
+    // ===== UI：Infinitybin 頁面底部刪除列 =====
+
+    /**
+     * 建立一個屬於 XHTML 命名空間的元素，供跨文件型別的工具列 DOM 使用。
+     *
+     * 設計意圖：
+     *   - text/html 文件用 createElement() 即可，但 .xhtml 等 XML 系文件必須
+     *     以 createElementNS() 建立元素，瀏覽器才會把它放進 HTML 呈現樹渲染。
+     *   - 在 text/html 文件中 createElementNS(XHTML) 與 createElement 完全等價，
+     *     因此統一走這條路徑，不必依文件型別分支。
+     *
+     * @param {string} tagName - 標籤名稱（div、span、button 等）
+     * @returns {Element} XHTML 命名空間的元素
+     */
+    function createHtmlElement(tagName) {
+        return document.createElementNS(XHTML_NAMESPACE_URI, tagName);
+    }
+
+    /**
+     * 判斷目前文件能否可靠地把 DOM 工具列疊加在頁面上。
+     *
+     * 設計意圖：
+     *   - text/html 與 application/xhtml+xml（根元素在 XHTML 命名空間）都能渲染
+     *     一般 HTML 元素，可以掛載固定定位的底部工具列。
+     *   - SVG 文件中的 HTML 元素需要 foreignObject 包裝才會顯示，
+     *     XML tree view 與純文字檢視更是沒有可掛載的呈現樹；
+     *     這些類型一律不掛載工具列，改由 Tampermonkey 選單命令作為替代入口，
+     *     避免為了少數文件型別引入脆弱的 DOM 包裝技巧。
+     *
+     * @returns {boolean} 是否可掛載 DOM 工具列
+     */
+    function canMountDomOverlay() {
+        const rootNamespace = document.documentElement?.namespaceURI || '';
+        return rootNamespace === XHTML_NAMESPACE_URI && !!document.body;
+    }
+
+    /**
+     * 判斷目前瀏覽的頁面是否為「已設定 SAS URL 所在容器下的 Blob」，
+     * 並組出刪除時需要的網址與顯示資訊。
+     *
+     * 設計意圖（刪除是破壞性操作，觸發入口必須嚴格限縮範圍）：
+     *   - 刪除 UI 只允許出現在同時符合以下條件的頁面：
+     *       1) 與設定的 SAS URL 同 origin（同帳戶、同 Blob endpoint）；
+     *       2) 路徑位於該容器之下（容器路徑 + "/" 為前綴）；
+     *       3) 確實指向一個 Blob（容器之下還有剩餘路徑，且不是資料夾樣式結尾）。
+     *     其他任何網站、同帳戶的其他容器、甚至容器根目錄本身都不會出現刪除 UI，
+     *     避免誤刪或在不相干的頁面上顯示破壞性按鈕。
+     *   - 刪除請求直接複用「目前頁面的 origin + pathname」作為 Blob 位址：
+     *     pathname 已是瀏覽器百分比編碼後的形式，可直接用於 REST API；
+     *     若再編碼一次反而可能把已編碼的 % 轉義成 %25 導致找不到 Blob。
+     *   - SAS Token 與頁面自身的查詢字串分開處理：刪除一律使用「設定中的
+     *     Container SAS」查詢字串，頁面 URL 上若有其他參數則直接忽略。
+     *   - 權限驗證交由 Azure 端處理：SAS 缺少 Delete（d）權限時會回 403，
+     *     由 describeDeleteError() 依錯誤碼提供補救說明。
+     *
+     * @param {string} sasUrl - 已設定的 Container SAS URL
+     * @returns {{blobName: string, cleanBlobUrl: string, deleteUrl: string}|null}
+     *          可刪除的頁面描述；不符合條件時回傳 null
+     */
+    function resolveDeletablePageContext(sasUrl) {
+        if (!sasUrl) return null;
+
+        let parsedSasUrl;
+        try {
+            parsedSasUrl = new URL(sasUrl);
+        } catch {
+            // 設定值損壞或格式錯誤時不顯示任何刪除 UI；
+            // 發佈流程另有自己的驗證與提示，這裡靜靜略過即可。
+            return null;
+        }
+
+        // 同源判斷：URL 解析後的 origin 已是小寫，可直接做字串比對。
+        if (location.origin !== parsedSasUrl.origin) return null;
+
+        // 容器路徑（去掉尾端斜線），例如 /pagelet
+        const containerPath = parsedSasUrl.pathname.replace(/\/+$/, '');
+        if (!containerPath) return null;
+
+        // 目前頁面必須位於容器之下，且還要有 Blob 名稱部分（容器本身沒有可刪除的頁面）。
+        if (!location.pathname.startsWith(`${containerPath}/`)) return null;
+
+        const encodedBlobName = location.pathname.slice(containerPath.length + 1);
+
+        // Blob 名稱不得為空，也不能是虛擬目錄樣式的結尾（資料夾沒有對應 Blob）。
+        if (!encodedBlobName || encodedBlobName.endsWith('/')) return null;
+
+        let blobName = encodedBlobName;
+        try {
+            // 顯示與確認對話框用的名稱做一次解碼，較為人眼可讀；
+            // 刪除請求仍使用原始 pathname，見 deleteBlob()。
+            blobName = decodeURIComponent(encodedBlobName);
+        } catch {
+            // 解碼失敗（畸形百分比編碼）時退回原始字串，僅影響顯示。
+        }
+
+        return {
+            blobName,
+            cleanBlobUrl: `${location.origin}${location.pathname}`,
+            deleteUrl: `${location.origin}${location.pathname}${parsedSasUrl.search}`
+        };
+    }
+
+    /**
+     * 以 Azure Blob Storage REST API（Delete Blob）刪除指定 Blob。
+     *
+     * 請求格式：
+     *   DELETE https://<帳號>.blob.core.windows.net/<容器>/<Blob>?<SAS Token>
+     * 需要 SAS 的 Delete（d）權限；成功時 Azure 回傳 202 Accepted。
+     * 失敗時（403 權限不足、404 已不存在、SAS 過期等）由 gmFetch() 拋出例外，
+     * 錯誤訊息中的 SAS 簽章已遮蔽，可安全顯示於頁面上。
+     *
+     * @param {{blobName: string, cleanBlobUrl: string, deleteUrl: string}} context -
+     *        resolveDeletablePageContext() 回傳的頁面描述
+     * @returns {Promise<void>} 刪除完成（HTTP 2xx）時 resolve
+     */
+    async function deleteBlob(context) {
+        await gmFetch({
+            method: 'DELETE',
+            url: context.deleteUrl,
+            responseType: 'text',
+            headers: {
+                'x-ms-version': '2020-08-04',
+                'x-ms-date': new Date().toUTCString()
+            }
+        });
+    }
+
+    /**
+     * 產生刪除失敗時的說明文字，並在已知錯誤上附帶補救建議。
+     *
+     * 設計意圖：
+     *   - 最常見的失敗是「SAS 沒有勾 Delete（d）權限」（403 AuthorizationPermissionMismatch），
+     *     這種情況光看 HTTP 狀態碼使用者無法知道要改什麼，
+     *     因此直接把「重新產生 sp=cwd 的 SAS URL」的步驟寫進訊息。
+     *   - 其他錯誤（過期、網路問題、Blob 已不存在）只回報原本訊息，不再額外猜測。
+     *
+     * @param {unknown} err - deleteBlob() 拋出的例外
+     * @returns {string} 已遮蔽 sig、可安全顯示的錯誤說明
+     */
+    function describeDeleteError(err) {
+        const message = describeError(err);
+
+        if (/AuthorizationPermissionMismatch|AuthorizationFailure|AuthenticationFailed|HTTP 40[13]/i.test(message)) {
+            return message +
+                '\n可能原因：SAS Token 缺少 Delete（d）權限或已過期。' +
+                '請重新產生包含 d 權限的 Container SAS URL（sp=cwd），' +
+                '並在 Tampermonkey 選單「⚙️ 設定 Azure Blob SAS URL」中更新後重試。';
+        }
+
+        return message;
+    }
+
+    /**
+     * 執行完整的刪除流程：二次確認 → 送出刪除 → 回報結果。
+     *
+     * 設計意圖：
+     *   - 刪除無法復原，一律先以 confirm() 要求二次確認，並在對話框中
+     *     顯示完整 Blob 名稱，讓使用者確定刪的就是眼前這個頁面。
+     *   - 流程與 UI 分離：透過 statusApi.update() 回報進度與結果，
+     *     底部刪除列與 Tampermonkey 選單兩種入口共用這一份邏輯，
+     *     不必各自維護一套確認與錯誤處理。
+     *   - 回傳明確的結果狀態而非布林值，讓呼叫端能分辨「取消」與「失敗」
+     *     （兩者都要允許重試，但只有取消不需要顯示錯誤）。
+     *
+     * @param {{blobName: string, cleanBlobUrl: string, deleteUrl: string}} context -
+     *        resolveDeletablePageContext() 回傳的頁面描述
+     * @param {{update: function(string): void}} statusApi - 狀態回報介面（與 createStatusBar() 相容）
+     * @returns {Promise<'cancelled'|'deleted'|'failed'>} 刪除流程的結果
+     */
+    async function runDeleteFlow(context, statusApi) {
+        const confirmed = window.confirm(
+            '確定要刪除這個 Infinitybin 頁面嗎？\n\n' +
+            `Blob：${context.blobName}\n\n` +
+            '刪除後無法復原。'
+        );
+
+        if (!confirmed) {
+            return 'cancelled';
+        }
+
+        statusApi.update(`🗑️ 正在刪除 ${context.blobName} ...`);
+
+        try {
+            await deleteBlob(context);
+            statusApi.update(`✅ 已刪除：${context.blobName}\n（重新整理後會看到 404 Not Found）`);
+            return 'deleted';
+        } catch (err) {
+            // 錯誤訊息會顯示在頁面上（底部刪除列或狀態提示條，都是可被頁面 JS 讀到的 DOM），
+            // 必須先遮蔽 SAS 簽章（見 describeDeleteError() / describeError()）。
+            statusApi.update(`❌ 刪除失敗：${describeDeleteError(err)}`);
+            console.error('[SavePageToAzureBlob] 刪除失敗：', describeErrorForLog(err));
+            return 'failed';
+        }
+    }
+
+    /**
+     * 在頁面底部掛載「一整列」的刪除工具列。
+     *
+     * 設計意圖：
+     *   - 依需求做成整列（full-width）固定在視窗底部：不佔用閱讀版面，
+     *     但在任何捲動位置都能看到並操作刪除按鈕。
+     *   - 左側顯示目前頁面的 Blob 名稱（滑入可看完整網址），讓使用者在按下
+     *     破壞性按鈕前能先確認目標；刪除過程與結果也顯示在同一個位置。
+     *   - 右側「✕」可隱藏工具列：快照頁面主要是拿來閱讀的，
+     *     留一個低摩擦的退出方式，避免工具列造成閱讀干擾。
+     *   - 刪除成功後按鈕維持停用：Blob 已不存在，再次點擊只會得到 404，
+     *     不如直接擋下重複請求；失敗或取消則恢復按鈕允許重試。
+     *   - 全部使用 inline style 並提高 z-index，降低被站點 CSS 覆寫或遮住的機率。
+     *
+     * @param {{blobName: string, cleanBlobUrl: string, deleteUrl: string}} context -
+     *        resolveDeletablePageContext() 回傳的頁面描述
+     */
+    function mountDeleteBar(context) {
+        if (document.getElementById(DELETE_BAR_ELEMENT_ID)) return;
+
+        const bar = createHtmlElement('div');
+        bar.id = DELETE_BAR_ELEMENT_ID;
+        Object.assign(bar.style, {
+            position:     'fixed',
+            left:         '0',
+            right:        '0',
+            bottom:       '0',
+            zIndex:       '2147483646',
+            display:      'flex',
+            alignItems:   'center',
+            gap:          '12px',
+            padding:      '8px 14px',
+            boxSizing:    'border-box',
+            background:   'rgba(15, 23, 42, 0.88)',
+            color:        '#f8fafc',
+            fontFamily:   'system-ui, sans-serif',
+            fontSize:     '13px',
+            lineHeight:   '1.5',
+            boxShadow:    '0 -2px 10px rgba(0, 0, 0, 0.35)'
+        });
+
+        const message = createHtmlElement('span');
+        message.textContent = `🗑️ Infinitybin 頁面：${context.blobName}`;
+        message.title = context.cleanBlobUrl;
+        Object.assign(message.style, {
+            flex:        '1',
+            overflow:    'hidden',
+            textOverflow:'ellipsis',
+            whiteSpace:  'nowrap'
+        });
+
+        const deleteButton = createHtmlElement('button');
+        deleteButton.type = 'button';
+        deleteButton.textContent = '🗑️ 刪除此頁面';
+        Object.assign(deleteButton.style, {
+            padding:    '6px 14px',
+            border:     'none',
+            borderRadius:'6px',
+            background: '#dc2626',
+            color:      '#fff',
+            fontSize:   '13px',
+            fontWeight: '700',
+            cursor:     'pointer'
+        });
+
+        const hideButton = createHtmlElement('button');
+        hideButton.type = 'button';
+        hideButton.textContent = '✕';
+        hideButton.title = '隱藏刪除列（本次瀏覽不再顯示）';
+        Object.assign(hideButton.style, {
+            padding:    '4px 8px',
+            border:     'none',
+            borderRadius:'6px',
+            background: 'transparent',
+            color:      '#cbd5e1',
+            fontSize:   '14px',
+            cursor:     'pointer'
+        });
+
+        // 狀態訊息就顯示在列上的說明文字：runDeleteFlow() 只需要 update() 介面，
+        // 以極小的 adapter 對接，兩種入口不必各自重寫一套流程。
+        const barStatusApi = { update: (msg) => { message.textContent = msg; } };
+
+        // 同一把按鈕的防重入旗標：避免連點送出多次 DELETE。
+        let isDeleting = false;
+
+        deleteButton.addEventListener('click', () => {
+            if (isDeleting) return;
+            isDeleting = true;
+            deleteButton.disabled = true;
+            deleteButton.style.opacity = '0.6';
+            deleteButton.style.cursor = 'default';
+
+            void runDeleteFlow(context, barStatusApi).then((outcome) => {
+                isDeleting = false;
+                if (outcome !== 'deleted') {
+                    // 取消或失敗都允許再次嘗試；
+                    // 刪除成功後按鈕維持停用，避免對已不存在的 Blob 重複送出請求。
+                    deleteButton.disabled = false;
+                    deleteButton.style.opacity = '';
+                    deleteButton.style.cursor = 'pointer';
+                }
+            });
+        });
+
+        hideButton.addEventListener('click', () => {
+            // 只是隱藏本次瀏覽的工具列，不影響任何設定；重新整理後會再次出現。
+            bar.remove();
+        });
+
+        bar.append(message, deleteButton, hideButton);
+        // canMountDomOverlay() 已保證有 <body>；退回 documentElement 只是防禦性寫法，
+        // 與 createStatusBar() 相同，避免未來調整判斷條件時直接丟出 TypeError。
+        (document.body || document.documentElement).appendChild(bar);
+    }
+
+    /**
+     * 啟動刪除功能：偵測目前頁面是否可刪除，並掛載對應的觸發入口。
+     *
+     * 設計意圖：
+     *   - 兩個入口都受同一個範圍判定（resolveDeletablePageContext()）把關，
+     *     維持「功能只在設定的 SAS URL 所在容器的頁面出現」的原則。
+     *   - 主要入口是頁面底部的整列刪除工具列；Tampermonkey 選單命令是補充入口，
+     *     覆蓋純文字、SVG 等無法顯示 DOM 工具列的內容類型
+     *     （content-*.txt / *.svg / *.xml ... 同樣需要可刪除的入口）。
+     *   - 設定值在啟動時讀取一次：刪除列是「載入時決定要不要掛載」的 UI，
+     *     無法事後得知設定已變更；若使用者在已開啟的頁面上才完成 SAS 設定，
+     *     必須重新整理該頁面刪除列才會出現（文件開頭已說明）。
+     */
+    function initDeleteFeature() {
+        const sasUrl = GM_getValue(SAS_URL_STORAGE_KEY, '');
+        const context = resolveDeletablePageContext(sasUrl);
+        if (!context) return;
+
+        if (canMountDomOverlay()) {
+            mountDeleteBar(context);
+        }
+
+        GM_registerMenuCommand('🗑️ 刪除此頁面（Infinitybin）', () => {
+            const statusBar = createStatusBar(`🗑️ 準備刪除：${context.blobName}`);
+
+            void runDeleteFlow(context, statusBar).then((outcome) => {
+                if (outcome === 'cancelled') {
+                    // 使用者取消時不做任何事，直接回收提示條，避免殘留空白訊息。
+                    statusBar.remove();
+                    return;
+                }
+                // 成功或失敗訊息多留幾秒讓使用者看清楚，再回收狀態提示條。
+                void delay(5000).then(() => statusBar.remove());
+            });
+        });
+    }
+
     /**
      * 在上傳成功後才開啟發佈結果頁籤，確保使用者停留在原頁面等待進度，
      * 並避免因為「先開 about:blank 佔位」導致瀏覽器立即切換分頁。
@@ -1843,6 +2219,7 @@
             '格式範例：\n' +
             'https://<帳號>.blob.core.windows.net/<容器>?sv=...&sp=cw&sig=...\n\n' +
             '※ 需包含 Create（c）與 Write（w）權限\n' +
+            '※ 若要使用「刪除頁面」功能，另需 Delete（d）權限（sp=cwd）\n' +
             '※ 請使用 Container 層級 SAS URL（路徑結尾為容器名稱，後接 ?）\n' +
             '※ 如要清除設定請輸入空白後確定',
             current
@@ -1926,5 +2303,9 @@
 
     // 支援由 Tampermonkey context-menu 腳本直接觸發同一套主流程。
     registerContextMenuBridge();
+
+    // 刪除功能：只在「設定的 SAS URL 所在容器下的頁面」掛載底部刪除列與選單命令，
+    // 其他頁面完全不受影響（見 initDeleteFeature()）。
+    initDeleteFeature();
 
 })();
