@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Azure DevOps: 完整預覽 Repos 中的 HTML、Markdown、PDF、Excel 與 Word 檔案
-// @version      0.3.2
-// @description  在 Azure DevOps Repos 的檔案頁籤列右側加上「完整預覽 (內嵌)」與「完整預覽 (全螢幕)」按鈕，於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔；開啟 .md 檔時改為「Markdown 預覽」，以支援深淺色、側邊目錄、程式碼上色與 mermaid 的排版取代內建預覽；開啟 .pdf 檔時改為「PDF 預覽」，用 Chrome 內建的 PDF 檢視器顯示；開啟 .xlsx / .docx / .pptx 檔時改為「Excel 預覽」/「Word 預覽」/「PowerPoint 預覽」，以主題化唯讀表格與高保真版面顯示
+// @version      0.4.0
+// @description  在 Azure DevOps Repos 的檔案頁籤列右側加上「完整預覽 (內嵌)」與「完整預覽 (全螢幕)」按鈕，於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔；開啟 .md 檔時改為「Markdown 預覽」，以支援深淺色、側邊目錄、程式碼上色與 mermaid 的排版取代內建預覽；開啟 .pdf 檔時改為「PDF 預覽」，用 Chrome 內建的 PDF 檢視器顯示；開啟 .xlsx / .docx / .pptx 檔時改為「Excel 預覽」/「Word 預覽」/「PowerPoint 預覽」，以主題化唯讀表格與高保真版面顯示；工作項目附件預覽對話框中的 HTML / Markdown 附件直接顯示渲染結果
 // @license      MIT
 // @homepage     https://github.com/doggy8088/TampermonkeyUserscripts
 // @homepageURL  https://github.com/doggy8088/TampermonkeyUserscripts
@@ -5698,6 +5698,246 @@ scan(document.documentElement);
         return btn;
     }
 
+    // ---------- 工作項目附件（Boards → Work item → Attachments） ----------
+    // 點工作項目的附件會開 ADO 的附件預覽對話框（.attachment-preview-modal-content），.html / .md 只顯示原始碼。
+    // 偵測到對話框顯示 HTML / Markdown 附件時，改以 sandbox iframe 顯示渲染後的網頁 / Markdown 預覽，
+    // 標題列另加「原始碼 / 預覽」切換鈕，隨時可回到 ADO 原本的原始碼檢視。
+    //   - 附件網址：對話框只有檔名、沒有附件 id。以工作項目 REST API（$expand=relations）取 AttachedFile 關聯、
+    //     依 attributes.name 比對檔名；同名附件不只一份時，抓回內容與 ADO 已顯示的原始碼比對，挑出正確的那份。
+    //   - 工作項目 id：網址 /_workitems/edit/{id}，或看板 / Backlog / 查詢開的對話框（?workitem={id}）。
+    //   - 附件不在 repo 裡、沒有目錄：相對路徑的資源與連結無從解析，不內嵌資源、不就地換頁；
+    //     預覽文件只注入 attachmentLinkScript（#錨點、外部連結開新分頁、Esc 關閉對話框）。
+    //   - 安全規則與 repo 檔的內嵌預覽相同：sandbox 不含 allow-same-origin、blob: 文件繼承 ADO 的 CSP，每個 <script> 補 nonce。
+    //   - 對話框內容由 React 管理：不移除 ADO 的節點，只隱藏它、把 iframe 插在旁邊；
+    //     左右切換附件（< >）時 React 會換掉標題與內容，由 reconcileAttachmentPreview 偵測後重建。
+    //   - 與 repo 檔的內嵌預覽（active）完全分開管理：reconcileInlinePreview 在非 repo 頁面會清掉 active。
+    //   - 與 Chrome 擴充功能版（ado-html-preview 的 content.js）同步維護。
+    const ATT_FRAME_ATTR = 'data-ado-att-preview'; // 工作項目附件預覽的 iframe（與 repo 檔的內嵌預覽分開管理）
+
+    /** Markdown 原始碼 → 完整預覽文件（與 buildMarkdownDocument 相同的主題設定，但不內嵌相對路徑資源） */
+    function markdownShell(md, fileName, nonce) {
+        const r = mdLibs.AdoMarkdown.render(md);
+        return mdLibs.AdoMarkdownShell.buildDocument({
+            html: r.html, toc: r.toc, title: r.title, fileName,
+            theme: adoTheme(), nonce, mermaidSrc: r.hasMermaid ? MERMAID_URL : '',
+            mermaidFallback: false, // ADO 頁面沒有回應端
+        });
+    }
+
+    const attKindOf = (name) => (/\.html?$/i.test(name) ? 'html' : /\.(md|markdown)$/i.test(name) ? 'md' : null);
+    const ATT_HIDDEN_ATTR = 'data-ado-att-hidden'; // 我們隱藏的 ADO 節點（恢復時只動這些）
+    let att = null;                  // { key, kind, content, contentStyle, frame, toggle }
+    let attRelations = null;         // { id, promise }：對話框開啟期間快取工作項目的附件清單
+    const attDocs = new Map();       // key → 預覽文件的 blob URL（React 重建內容節點時直接重掛，不重抓）
+    const attPending = new Set();    // 組檔中的 key（MutationObserver 重入時不重複抓檔）
+    const attFailed = new Set();     // 失敗過的 key：保留 ADO 的原始碼檢視，不在每次 DOM 變動時重試
+    const attSourceKeys = new Set(); // 使用者切到「原始碼」的 key
+
+    function workItemId() {
+        const q = new URLSearchParams(location.search).get('workitem');
+        if (q && /^\d+$/.test(q)) return q;
+        const m = location.pathname.match(/\/_workitems\/edit\/(\d+)/);
+        return m ? m[1] : null;
+    }
+
+    function attachmentModalParts() {
+        const modal = document.querySelector('.attachment-preview-modal-content');
+        if (!modal) return null;
+        const header = modal.querySelector('.attachment-preview-header');
+        return {
+            name: header?.firstElementChild?.textContent.trim() || '',
+            content: modal.querySelector('.attachment-preview-content'),
+            actions: header?.childElementCount > 1 ? header.lastElementChild : null, // 右側按鈕列（Edit comment / Download / Delete / ×）
+            close: header?.querySelector('.ms-Icon--Clear')?.closest('button') || null,
+        };
+    }
+
+    // 工作項目的附件清單（org 層級的 API 不需要專案名，看板 / 查詢對話框也適用）
+    function attachmentRelations(id) {
+        if (attRelations?.id !== id) {
+            const org = location.pathname.split('/')[1];
+            const promise = fetch(`${location.origin}/${org}/_apis/wit/workitems/${id}?$expand=relations&api-version=7.1`, { credentials: 'include' })
+                .then((r) => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+                .then((wi) => (wi.relations || []).filter((x) => x.rel === 'AttachedFile'));
+            attRelations = { id, promise };
+            promise.catch(() => { if (attRelations?.promise === promise) attRelations = null; });
+        }
+        return attRelations.promise;
+    }
+
+    async function fetchAttachmentText(url, name) {
+        const res = await fetch(`${url}?fileName=${encodeURIComponent(name)}&api-version=7.1`, { credentials: 'include' });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.text();
+    }
+
+    // shown()：ADO 對話框目前顯示的原始碼（只在同名附件不只一份時拿來比對）
+    async function attachmentSource(id, name, shown) {
+        const rels = (await attachmentRelations(id)).filter((x) => x.attributes?.name === name);
+        if (!rels.length) throw new Error('找不到附件（可能尚未儲存工作項目）');
+        if (rels.length === 1) return fetchAttachmentText(rels[0].url, name);
+        const texts = await Promise.all(rels.map((x) => fetchAttachmentText(x.url, name)));
+        const cur = shown();
+        // HTML 解析會把 CRLF 正規化成 LF，比對前先統一
+        return (cur != null && texts.find((t) => t.replace(/\r\n?/g, '\n') === cur)) || texts[0];
+    }
+
+    // 附件預覽文件裡的連結：附件沒有目錄，相對路徑無從解析（點了不動作）；
+    // #錨點改用 location.hash、絕對網址開新分頁；iframe 有焦點時 Esc 送不到 ADO，轉給父頁面關閉對話框
+    function attachmentLinkScript(nonce) {
+        return `<script nonce="${nonce}">(function(){
+document.addEventListener('click',function(e){
+    if(e.defaultPrevented)return;
+    var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;
+    var href=a.getAttribute('href')||'';
+    var modified=e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey;
+    if(href.charAt(0)==='#'){if(modified)return;e.preventDefault();location.hash=href;return;}
+    if(/^(javascript|mailto|tel|data|blob):/i.test(href))return;
+    if(/^[a-z][a-z0-9+.-]*:/i.test(href)||href.indexOf('//')===0){
+        if(modified){a.setAttribute('target','_blank');a.setAttribute('rel','noopener');return;}
+        e.preventDefault();window.open(href,'_blank','noopener');return;
+    }
+    e.preventDefault();
+},true);
+document.addEventListener('keydown',function(e){
+    if(e.key==='Escape'&&!e.defaultPrevented)window.parent.postMessage({type:'ado-att-escape'},'*');
+});
+})();<\/script>`;
+    }
+
+    function buildAttachmentDocument(kind, name, source, nonce) {
+        const doc = kind === 'md' ? markdownShell(source, name, nonce) : withNonce(source, nonce);
+        return injectBeforeBodyEnd(doc, attachmentLinkScript(nonce));
+    }
+
+    function clearAttachmentPreview() {
+        if (!att) return;
+        att.frame.remove();
+        att.toggle?.remove();
+        if (att.content.isConnected) {
+            if (att.contentStyle) att.content.setAttribute('style', att.contentStyle); else att.content.removeAttribute('style');
+            for (const c of att.content.querySelectorAll(`:scope > [${ATT_HIDDEN_ATTR}]`)) {
+                c.style.display = c.getAttribute(ATT_HIDDEN_ATTR);
+                c.removeAttribute(ATT_HIDDEN_ATTR);
+            }
+        }
+        att = null;
+    }
+
+    // 依模式切換顯示：預覽＝隱藏 ADO 的內容節點、顯示 iframe；原始碼＝反之。
+    // 原始碼檢視的尺寸來自 ADO 的 .text-attachment-preview（min/max 寬高），它被隱藏後容器會塌成 300×150，
+    // 所以預覽模式讓容器撐滿左右箭頭之間的區域。每次 DOM 變動都會呼叫（React 新加的節點也要隱藏），必須冪等。
+    function applyAttachmentMode() {
+        const preview = !attSourceKeys.has(att.key);
+        for (const c of att.content.children) {
+            if (c === att.frame) continue;
+            if (preview && !c.hasAttribute(ATT_HIDDEN_ATTR)) {
+                c.setAttribute(ATT_HIDDEN_ATTR, c.style.display);
+                c.style.display = 'none';
+            } else if (!preview && c.hasAttribute(ATT_HIDDEN_ATTR)) {
+                c.style.display = c.getAttribute(ATT_HIDDEN_ATTR);
+                c.removeAttribute(ATT_HIDDEN_ATTR);
+            }
+        }
+        const style = preview ? `${att.contentStyle};flex:1 1 auto;align-self:stretch;margin:0 0 16px;min-width:0` : att.contentStyle;
+        if ((att.content.getAttribute('style') || '') !== style) {
+            if (style) att.content.setAttribute('style', style); else att.content.removeAttribute('style');
+        }
+        const frameDisplay = preview ? 'block' : 'none';
+        if (att.frame.style.display !== frameDisplay) att.frame.style.display = frameDisplay;
+        const text = att.toggle?.querySelector('.bolt-button-text');
+        const label = preview ? '原始碼' : (att.kind === 'md' ? 'Markdown 預覽' : '完整預覽');
+        if (text && text.textContent !== label) {
+            text.textContent = label;
+            att.toggle.title = preview ? '改看 Azure DevOps 原本的原始碼檢視' : '以啟用 JavaScript 的 sandbox 顯示渲染後的內容';
+            att.toggle.querySelector('.fabric-icon').className = `left-icon flex-noshrink fabric-icon medium ${preview ? 'ms-Icon--Code' : 'ms-Icon--View'}`;
+        }
+    }
+
+    // 標題列右側的「原始碼 / 預覽」切換鈕（沿用 ADO 的 bolt-button 樣式；標題列由 React 管理，被重繪時補回）
+    function ensureAttachmentToggle(actions) {
+        if (!actions || (att.toggle && att.toggle.parentElement === actions)) return;
+        att.toggle?.remove();
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'bolt-button bolt-icon-button enabled subtle bolt-focus-treatment';
+        btn.innerHTML = '<span class="fluent-icons-enabled"><span aria-hidden="true" class="left-icon flex-noshrink fabric-icon medium"></span></span><span class="bolt-button-text body-m"></span>';
+        btn.addEventListener('click', () => {
+            if (!att) return;
+            if (attSourceKeys.has(att.key)) attSourceKeys.delete(att.key); else attSourceKeys.add(att.key);
+            applyAttachmentMode();
+        });
+        actions.prepend(btn);
+        att.toggle = btn;
+    }
+
+    function mountAttachmentFrame(p, key, kind, url) {
+        const f = document.createElement('iframe');
+        f.setAttribute(ATT_FRAME_ATTR, '1');
+        // 刻意不加 allow-same-origin：附件網頁的腳本無法存取 Azure DevOps 的 cookie / session
+        f.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms allow-modals');
+        f.setAttribute('allow', 'fullscreen');
+        f.setAttribute('allowfullscreen', '');
+        f.title = p.name;
+        const bg = kind === 'md' && adoTheme() === 'dark' ? '#1b1b1f' : '#fff';
+        f.style.cssText = `display:block;width:100%;height:100%;border:0;background:${bg}`;
+        f.src = url; // blob URL 在對話框開啟期間保留：React 重建內容節點或切回同一份附件時直接重掛（關閉時才 revoke）
+        p.content.appendChild(f);
+        att = { key, kind, content: p.content, contentStyle: p.content.getAttribute('style') || '', frame: f, toggle: null };
+        ensureAttachmentToggle(p.actions);
+        applyAttachmentMode();
+    }
+
+    // 由 MutationObserver 持續呼叫：對話框開關、左右切換附件、React 重繪內容 / 標題列都在這裡收斂
+    function reconcileAttachmentPreview() {
+        const p = attachmentModalParts();
+        if (!p) {
+            // 對話框關了：清掉狀態與快取（附件可能被新增 / 刪除，下次開啟重新查）
+            clearAttachmentPreview();
+            attRelations = null;
+            // 附件預覽沒有上一頁歷史（不同於 navUrls），iframe 已移除，可以釋放 blob 文件的記憶體
+            for (const u of attDocs.values()) URL.revokeObjectURL(u);
+            attDocs.clear();
+            attFailed.clear();
+            attSourceKeys.clear();
+            return;
+        }
+        if (!p.content || !p.name) return; // React 重繪中，等下一次變動
+        const id = workItemId();
+        const kind = attKindOf(p.name);
+        const key = `${id}|${p.name}`;
+        if (att && (att.key !== key || att.content !== p.content || !att.frame.isConnected)) clearAttachmentPreview();
+        if (!kind || !id) return;
+        if (att) {
+            ensureAttachmentToggle(p.actions);
+            applyAttachmentMode();
+            return;
+        }
+        const url = attDocs.get(key);
+        if (url) { mountAttachmentFrame(p, key, kind, url); return; }
+        if (attPending.has(key) || attFailed.has(key)) return;
+        attPending.add(key);
+        const { name, content } = p;
+        (async () => {
+            try {
+                const source = await attachmentSource(id, name, () => content.querySelector('pre')?.textContent ?? null);
+                attDocs.set(key, docBlobUrl(buildAttachmentDocument(kind, name, source, getNonce())));
+            } catch (e) {
+                attFailed.add(key);
+                console.warn('[Azure DevOps HTML Preview] 附件預覽失敗：', e);
+            } finally {
+                attPending.delete(key);
+            }
+            reconcileAttachmentPreview(); // 組好後依「當下」的對話框狀態掛上（使用者可能已切到別的附件）
+        })();
+    }
+
+    // iframe 有焦點時 Esc 送不到 ADO 的對話框：預覽文件轉送過來，這裡按下對話框的 ×
+    window.addEventListener('message', (ev) => {
+        if (ev.data?.type !== 'ado-att-escape' || !att || ev.source !== att.frame.contentWindow) return;
+        attachmentModalParts()?.close?.click();
+    });
+
     /**
      * 把兩顆按鈕插進頁籤列（.bolt-tabbar）的最右側。
      * 頁籤列是 flex-row，裡面只有一個 flex-grow 的 tablist，所以 margin-left:auto 就能靠右對齊。
@@ -5728,7 +5968,11 @@ scan(document.documentElement);
         tabbar.appendChild(wrap);
     }
 
-    // Azure DevOps 是 SPA，切換檔案 / 頁籤時 DOM 會重建，所以持續觀察並補回按鈕
-    new MutationObserver(ensureButtons).observe(document.body, { childList: true, subtree: true });
-    ensureButtons();
+    // Azure DevOps 是 SPA，切換檔案 / 頁籤時 DOM 會重建，所以持續觀察並補回按鈕；工作項目的附件對話框也在這裡偵測
+    function onDomChange() {
+        ensureButtons();
+        reconcileAttachmentPreview();
+    }
+    new MutationObserver(onDomChange).observe(document.body, { childList: true, subtree: true });
+    onDomChange();
 })();
