@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 完整預覽 Repos 中的 HTML、Markdown、PDF、Excel 與 Word 檔案
-// @version      0.4.1
+// @version      0.4.2
 // @description  在 Azure DevOps Repos 的檔案頁籤列右側加上「完整預覽 (內嵌)」與「完整預覽 (全螢幕)」按鈕，於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔；開啟 .md 檔時改為「Markdown 預覽」，以支援深淺色、側邊目錄、程式碼上色與 mermaid 的排版取代內建預覽；開啟 .pdf 檔時改為「PDF 預覽」，用 Chrome 內建的 PDF 檢視器顯示；開啟 .xlsx / .docx / .pptx 檔時改為「Excel 預覽」/「Word 預覽」/「PowerPoint 預覽」，以主題化唯讀表格與高保真版面顯示；工作項目附件預覽對話框中的 HTML / Markdown 附件直接顯示渲染結果
 // @license      MIT
 // @homepage     https://github.com/doggy8088/TampermonkeyUserscripts
@@ -3113,9 +3113,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       list-style: none;
     }
     ul.md-kv > li {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px 12px;
+      /* 卡片由外層 grid 排列，卡內的程式碼與文字一起依行內規則換行。 */
       margin: 0;
       padding: 12px 16px;
       border: 1px solid var(--line);
@@ -3124,9 +3122,8 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
       box-shadow: var(--shadow-2);
       font-size: 14.5px;
     }
-    ul.md-kv > li > .md-kv-key,
-    ul.md-kv > li > strong.md-kv-key {
-      flex: 0 0 auto;
+    ul.md-kv > li .md-kv-key {
+      margin-inline-end: 12px;
       color: var(--fg-muted);
       font-weight: 600;
       white-space: nowrap;
