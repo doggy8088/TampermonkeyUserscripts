@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網頁狀態與任意內容發佈到 Infinitybin
-// @version      0.4.0
+// @version      0.4.2
 // @description  透過 Tampermonkey 選單將目前網頁狀態或任意文字內容發佈到 Azure Blob Storage-backed Infinitybin，並設定正確檔名與 Content-Type；瀏覽容器內頁面時可在頁面底部直接刪除該頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -101,6 +101,13 @@
 //
 // 【注意事項】
 //   - 若頁面資源非常多（如大量圖片），序列化過程可能需要數十秒，請耐心等待
+//   - 發佈本機 HTML（file://）時，Chrome 即使能在原頁面顯示圖片，腳本仍需要權限
+//     讀取圖片和樣式表的檔案內容，才能把它們嵌入快照。請確認兩項設定：
+//     1. Chrome → 擴充功能 → Tampermonkey → 詳細資料：開啟「允許存取檔案網址」。
+//     2. Tampermonkey → 設定 → 將「設定模式」切換到「進階」，再將
+//        「允許腳本存取本機檔案」設為「所有本機檔案（All local files）」。
+//     本機資源讀取失敗時，腳本會在上傳前停止。完成設定後，請重新整理原頁面再發佈。
+//   - Google Fonts 與常見公共 CDN 的資源會保留原始連結，開啟快照時由瀏覽器載入
 //   - 超過 10MB 的單一資源將略過內嵌，改保留原始絕對 URL，避免 HTML 過大
 //   - <script src="..."> 標籤的外部 JavaScript 不會被內嵌（已執行的 JS 邏輯已反映在 DOM 狀態中）
 //   - <video> 和 <audio> 的媒體 src 不會被內嵌（通常體積過大），僅保留 poster 圖片
@@ -139,6 +146,21 @@
 
     // 單一資源超過此大小（位元組）時略過內嵌，改保留原始 URL，預設 10MB
     const MAX_INLINE_SIZE_BYTES = 10 * 1024 * 1024;
+
+    // 常見公共 CDN 由瀏覽器直接載入，避免把共用的樣式、字型、圖片複製到每份快照。
+    // Google Fonts 的樣式與字型檔分屬不同主機，兩者都必須排除。比對解析後的完整
+    // hostname，避免把恰好含有「cdn」字樣的網站或自訂 CDN 一併略過。
+    const EXTERNAL_CDN_HOSTNAMES = new Set([
+        'fonts.googleapis.com',
+        'fonts.gstatic.com',
+        'ajax.googleapis.com',
+        'cdn.jsdelivr.net',
+        'cdnjs.cloudflare.com',
+        'unpkg.com',
+        'code.jquery.com',
+        'stackpath.bootstrapcdn.com',
+        'maxcdn.bootstrapcdn.com'
+    ]);
 
     // GM_xmlhttpRequest 請求逾時（毫秒），預設 30 秒
     const REQUEST_TIMEOUT_MS = 30000;
@@ -273,6 +295,17 @@
 
     // ===== 工具：Promise 化 GM_xmlhttpRequest =====
 
+    class LocalSnapshotResourceError extends Error {
+        constructor(safeUrl, cause) {
+            super(
+                `無法讀取快照所需的本機檔案：${safeUrl}\n` +
+                '請確認檔案存在，在 Chrome 擴充功能詳細資料開啟「允許存取檔案網址」，' +
+                '並在 Tampermonkey 進階設定將「允許腳本存取本機檔案」設為「所有本機檔案（All local files）」。',
+                { cause }
+            );
+        }
+    }
+
     /**
      * 將 GM_xmlhttpRequest 包裝成 Promise，
      * 統一處理 onload / onerror / ontimeout / onabort 回呼，
@@ -284,16 +317,28 @@
      * @param {object} options - 傳入 GM_xmlhttpRequest 的選項物件
      * @returns {Promise<object>} 解析後的 GM_xmlhttpRequest response 物件
      */
-    function gmFetch(options) {
+    async function gmFetch(options) {
         const safeUrl = redactSasSignature(options.url);
+        const readsLocalFile = options.method === 'GET' && options.url.startsWith('file:');
+        // 只有發佈本機頁面時才允許讀本機資源，避免遠端網頁透過快照取得本機檔案。
+        if (readsLocalFile && location.protocol !== 'file:') {
+            throw new Error('只有本機頁面可以讀取本機快照資源。');
+        }
 
         return new Promise((resolve, reject) => {
+            const rejectRequest = error => reject(readsLocalFile ? new LocalSnapshotResourceError(safeUrl, error) : error);
             GM_xmlhttpRequest({
                 timeout: REQUEST_TIMEOUT_MS,
                 ...options,
                 onload(response) {
-                    // HTTP 4xx / 5xx 仍會進 onload，依狀態碼判斷
-                    if (response.status >= 200 && response.status < 400) {
+                    // Tampermonkey 用 status 0 回報成功的 file: 讀取。只接受帶有實際資料的本機 GET，
+                    // 避免把 HTTP 網路錯誤或空的本機回應當成成功，也不影響 Azure 的 PUT/DELETE 判斷。
+                    const hasLocalResponse = readsLocalFile && response.status === 0 && (
+                        options.responseType === 'arraybuffer'
+                            ? Number.isFinite(response.response?.byteLength)
+                            : typeof response.responseText === 'string'
+                    );
+                    if (hasLocalResponse || (response.status >= 200 && response.status < 400)) {
                         resolve(response);
                     } else {
                         // Azure Storage 會以 x-ms-error-code 標頭說明失敗原因
@@ -302,7 +347,7 @@
                         // 一般網站資源沒有這個標頭時維持原本格式。
                         const azureErrorCode = getResponseHeaderValue(response.responseHeaders, 'x-ms-error-code');
                         const codeSuffix = azureErrorCode ? ` (${azureErrorCode})` : '';
-                        reject(new Error(`HTTP ${response.status}${codeSuffix}: ${safeUrl}`));
+                        rejectRequest(new Error(`HTTP ${response.status}${codeSuffix}: ${safeUrl}`));
                     }
                 },
                 onerror(err) {
@@ -313,10 +358,10 @@
                     } catch {
                         detail = String(err);
                     }
-                    reject(new Error(`Network error: ${safeUrl} — ${redactSasSignature(detail)}`));
+                    rejectRequest(new Error(`Network error: ${safeUrl} — ${redactSasSignature(detail)}`));
                 },
-                ontimeout()   { reject(new Error(`Timeout: ${safeUrl}`)); },
-                onabort()     { reject(new Error(`Aborted: ${safeUrl}`)); }
+                ontimeout()   { rejectRequest(new Error(`Timeout: ${safeUrl}`)); },
+                onabort()     { rejectRequest(new Error(`Aborted: ${safeUrl}`)); }
             });
         });
     }
@@ -750,7 +795,7 @@
      * 透過 GM_xmlhttpRequest（繞過 CORS 限制）抓取指定 URL 的資源，
      * 將其轉換為 base64 Data URI 格式，使資源可完整內嵌於 HTML 文件中。
      *
-     * 若資源超過 MAX_INLINE_SIZE_BYTES（預設 10MB），
+     * 若資源由公共 CDN 提供、超過 MAX_INLINE_SIZE_BYTES（預設 10MB），
      * 或抓取失敗（網路錯誤、逾時、HTTP 錯誤等），
      * 將直接回傳原始絕對 URL，確保頁面仍可正常顯示。
      *
@@ -764,7 +809,7 @@
      * @param {string} url      - 欲轉換的資源 URL（可為相對路徑）
      * @param {string} baseUrl  - 解析相對 URL 時使用的基準 URL，預設為 location.href
      * @param {Map<string, Promise<string>>} [resourceCache] - 單次快照專用的下載結果快取
-     * @returns {Promise<string>} Data URI 字串，或原始絕對 URL（轉換失敗時）
+     * @returns {Promise<string>} Data URI 字串，或保留外連時的絕對 URL
      */
     async function toDataUri(url, baseUrl, resourceCache) {
         if (!url) return url;
@@ -775,7 +820,9 @@
         // 解析為絕對 URL，若格式錯誤則略過
         let absoluteUrl;
         try {
-            absoluteUrl = new URL(url, baseUrl || location.href).href;
+            const resolvedUrl = new URL(url, baseUrl || location.href);
+            absoluteUrl = resolvedUrl.href;
+            if (EXTERNAL_CDN_HOSTNAMES.has(resolvedUrl.hostname)) return absoluteUrl;
         } catch {
             return url;
         }
@@ -794,7 +841,7 @@
     }
 
     /**
-     * 下載單一絕對網址並轉成 Data URI；任何失敗都降級為回傳原始絕對 URL，永不 reject。
+     * 下載單一絕對網址並轉成 Data URI。網路資源失敗時保留絕對 URL，本機檔案讀取失敗時中止快照。
      *
      * @param {string} absoluteUrl - 已解析的絕對網址
      * @returns {Promise<string>} Data URI 字串，或原始絕對 URL（轉換失敗時）
@@ -825,7 +872,9 @@
 
             return `data:${mimeType};base64,${btoa(binary)}`;
         } catch (err) {
-            // 任何錯誤皆降級為保留原始絕對 URL
+            // 發佈後瀏覽器無法讀取來源電腦的 file: URL。本機資源失敗時透過發佈狀態列提示，
+            // 讓使用者能排除問題再重試；網路資源仍可保留外連。
+            if (err instanceof LocalSnapshotResourceError) throw err;
             // 頁面資源本身也可能是帶 SAS 的網址（例如在 Infinitybin 或 Azure Storage 頁面上製作快照），
             // 寫入 console 前一律遮蔽 sig。
             console.warn(`[SavePageToAzureBlob] 無法轉換資源（${describeError(err)}）：${redactSasSignature(absoluteUrl)}`);
@@ -863,73 +912,86 @@
         return result + text.slice(lastIndex);
     }
 
-    // ===== 核心：遞迴內嵌 CSS 文字中的所有外部資源 =====
+    // ===== 核心：遞迴內嵌 CSS 資源，保留公共 CDN 連結 =====
 
     /**
      * 分析 CSS 文字中的所有 @import 規則與 url() 函式，
-     * 並將它們全部替換為對應的 Data URI 或內嵌 CSS 文字，
-     * 達成 CSS 文件的完全自包含（self-contained）。
+     * 將可內嵌的資源轉成 Data URI 或 CSS 文字，公共 CDN 則保留為絕對網址。
      *
-     * 處理順序：先解析 @import（遞迴），再處理 url()，
-     * 確保 @import 引入的 CSS 中的 url() 也會被一併處理。
+     * 處理順序：先遞迴處理 @import，再處理 url()，
+     * 讓各層樣式表都能用自己的網址解析相對路徑。
      *
      * @param {string} cssText - 待處理的 CSS 文字內容
      * @param {string} baseUrl - 解析 CSS 中相對路徑所使用的基準 URL
      * @param {Map<string, Promise<string>>} [resourceCache] - 單次快照專用的下載結果快取
      * @param {Set<string>} [importChain] - 目前遞迴路徑上已展開的樣式表絕對網址，用來偵測循環 @import
-     * @returns {Promise<string>} 所有資源皆內嵌後的 CSS 文字
+     * @returns {Promise<string>} 可內嵌資源已處理的 CSS 文字
      */
     async function inlineCssResources(cssText, baseUrl, resourceCache, importChain = new Set()) {
         // ── 第一步：展開 @import 規則（遞迴處理） ──
         // 比對兩種語法：@import url("...") 與 @import "..."
-        const importRegex = /@import\s+(?:url\(\s*(['"]?)([^'")]+)\1\s*\)|(['"])([^'"]+)\3)\s*([^;]*);/g;
+        const importRegex = /@import\s+(?:url\(\s*(['"]?)([^'")]+)\1\s*\)|(['"])([^'"]+)\3)\s*([^;]*);/gi;
         const importMatches = [...cssText.matchAll(importRegex)];
-        const importReplacements = [];
+        const importReplacements = new Array(importMatches.length);
+        let hasLaterImport = false;
 
-        for (const match of importMatches) {
+        // 從後往前處理，才能判定較早的匯入是否可以展開。若後方仍有 @import，
+        // 直接插入一般樣式規則會使瀏覽器忽略後方的匯入（例如 Google Fonts）。
+        for (let index = importMatches.length - 1; index >= 0; index--) {
+            const match = importMatches[index];
             // 取出 import 的 URL（url() 語法存在 match[2]，引號語法存在 match[4]）
             const importedUrl = match[2] || match[4];
             const mediaQuery = match[5] ? match[5].trim() : '';
+            const importConditions = mediaQuery ? ` ${mediaQuery}` : '';
             let replacement = null;
 
             try {
-                const absUrl = new URL(importedUrl, baseUrl).href;
+                const resolvedUrl = new URL(importedUrl, baseUrl);
+                const absUrl = resolvedUrl.href;
 
-                // a.css 引入 b.css、b.css 又引入 a.css 時，原本會無限遞迴並持續發出請求。
-                // 瀏覽器本身會忽略循環引用，這裡比照辦理：保留原始宣告、不再展開。
-                if (importChain.has(absUrl)) {
+                // 在下載前判斷是否保留外連。改用絕對網址，讓被展開的樣式表不再依賴原本的路徑。
+                if (EXTERNAL_CDN_HOSTNAMES.has(resolvedUrl.hostname)) {
+                    replacement = `@import "${absUrl}"${importConditions};`;
+                    hasLaterImport = true;
+                } else if (importChain.has(absUrl)) {
                     console.warn(`[SavePageToAzureBlob] 偵測到循環 @import，略過展開：${redactSasSignature(absUrl)}`);
                 } else {
                     const importedCssResponse = await gmFetch({ method: 'GET', url: absUrl, responseType: 'text' });
                     // 遞迴處理引入的 CSS，並以其絕對 URL 作為新的 baseUrl
-                    let importedCss = await inlineCssResources(
+                    const importedCss = await inlineCssResources(
                         importedCssResponse.responseText,
                         absUrl,
                         resourceCache,
                         new Set(importChain).add(absUrl)
                     );
 
-                    // 若原本有 media query，用 @media 包裝引入的 CSS
-                    if (mediaQuery) {
-                        importedCss = `@media ${mediaQuery} {\n${importedCss}\n}`;
+                    if (hasLaterImport || importedCss.search(importRegex) !== -1) {
+                        // 用內嵌的樣式表維持匯入順序，並保留巢狀匯入自己的頂層位置。
+                        // 額外編碼左括號與單引號，避免後續的 url() 與 @import 掃描誤讀資料內容。
+                        const encodedCss = encodeURIComponent(importedCss).replace(/\(/g, '%28').replace(/'/g, '%27');
+                        replacement = `@import "data:text/css;charset=utf-8,${encodedCss}"${importConditions};`;
+                        hasLaterImport = true;
+                    } else {
+                        replacement = mediaQuery ? `@media ${mediaQuery} {\n${importedCss}\n}` : importedCss;
                     }
-                    replacement = importedCss;
                 }
             } catch (err) {
+                if (err instanceof LocalSnapshotResourceError) throw err;
                 // @import 展開失敗時保留原始宣告，不中斷整體處理
                 console.warn(`[SavePageToAzureBlob] @import 展開失敗（${describeError(err)}）：${redactSasSignature(importedUrl)}`);
             }
 
-            importReplacements.push(replacement);
+            if (replacement === null) hasLaterImport = true;
+            importReplacements[index] = replacement;
         }
 
         if (importMatches.length > 0) {
             cssText = replaceMatchesInOrder(cssText, importMatches, importReplacements);
         }
 
-        // ── 第二步：將 url() 中的所有外部資源替換為 Data URI ──
+        // ── 第二步：處理 url() 資源，將保留的外連轉成絕對網址 ──
         // 比對 url('...') 與 url("...") 與 url(...) 三種語法
-        const urlRegex = /url\(\s*(['"]?)([^'")]+)\1\s*\)/g;
+        const urlRegex = /url\(\s*(['"]?)([^'")]+)\1\s*\)/gi;
         const urlMatches = [...cssText.matchAll(urlRegex)];
         const urlReplacements = [];
 
@@ -942,10 +1004,10 @@
             // 不是外部資源；原本會被解析成「目前網頁網址#id」而下載整份 HTML，
             // 再以 data:text/html 取代，反而破壞 SVG 的填色與遮罩，並讓快照暴增。
             if (!resourceUrl.startsWith('data:') && !resourceUrl.startsWith('#')) {
-                const dataUri = await toDataUri(resourceUrl, baseUrl, resourceCache);
-                // 僅在成功轉換時（回傳 Data URI 而非原始 URL）才進行替換，確保冪等性
-                if (dataUri !== resourceUrl && !dataUri.startsWith(resourceUrl)) {
-                    replacement = `url("${dataUri}")`;
+                const resolvedResource = await toDataUri(resourceUrl, baseUrl, resourceCache);
+                // 相對 CDN 路徑（包括 // 開頭的網址）必須改成絕對路徑，才能在快照中載入。
+                if (resolvedResource !== resourceUrl && /^(?:data:|https?:\/\/)/.test(resolvedResource)) {
+                    replacement = `url("${resolvedResource}")`;
                 }
             }
 
@@ -959,22 +1021,22 @@
         return replaceMatchesInOrder(cssText, urlMatches, urlReplacements);
     }
 
-    // ===== 核心：序列化當前頁面為完全獨立的 HTML 字串 =====
+    // ===== 核心：序列化當前頁面為 HTML 快照 =====
 
     /**
      * 對當前頁面執行完整的 DOM 序列化，
-     * 並將所有外部資源（樣式表、圖片、字型、SVG 背景等）轉換為 Data URI，
-     * 最終產出一份可完全離線瀏覽的獨立 HTML 文件字串。
+     * 內嵌可下載的資源（樣式表、圖片、字型、SVG 背景等），
+     * 並保留公共 CDN 連結，讓瀏覽器在開啟快照時載入。
      *
      * 處理項目：
-     *   - <link rel="stylesheet"> → 抓取並內嵌為 <style>
-     *   - <style> 塊內的 url() → 轉換為 Data URI
-     *   - <img src> / <img srcset> → src 轉 Data URI，srcset 清除（避免瀏覽器使用外部源）
+     *   - <link rel="stylesheet"> → 公共 CDN 保留連結，其餘抓取並內嵌為 <style>
+     *   - <style> 塊內的 url() → 轉換為 Data URI 或絕對 URL
+     *   - <img src> / <img srcset> → 處理 src 並清除 srcset，讓瀏覽器使用快照指定的 URL
      *   - <video poster> / <audio> → poster 圖轉 Data URI，src 保留原始絕對 URL（媒體體積過大）
      *   - <canvas> → 嘗試以 toDataURL() 轉為 <img>（跨域受限時略過）
      *   - <input>/<textarea>/<select> → 將當前表單值寫回 value/checked 屬性
      *   - <link rel="icon"> 系列 → href 轉 Data URI
-     *   - <link rel="preload"> / <link rel="prefetch"> → 移除（離線版不需要）
+     *   - <link rel="preload"> / <link rel="prefetch"> → 移除原頁面的預載提示
      *   - <script src> → 移除 src（保留標籤以免影響後續 DOM 結構，但不內嵌 JS）
      *   - <base href> → 移除（已全部使用絕對 URL，不需要 base 標籤）
      *   - style 屬性中的 url() → 轉換為 Data URI
@@ -984,6 +1046,8 @@
      */
     async function serializePage(onProgress) {
         const pageUrl = location.href;
+        // 原站可能以 <base href> 指向 CDN。移除 clone 的 <base> 前先取得實際資源基準網址。
+        const resourceBaseUrl = document.baseURI;
 
         // 本次快照專用的資源下載快取（絕對網址 → Data URI 或失敗時的原始網址）。
         // 生命週期只到這個函式結束，不跨快照保留，避免佔用記憶體或沿用過期的資源內容。
@@ -1166,10 +1230,17 @@
 
         // ── 處理 <link rel="stylesheet"> → 抓取並展開為 <style> ──
         for (const link of styleLinks) {
-            const href = link.href || link.getAttribute('href');
+            const href = link.getAttribute('href');
             if (!href) continue;
             try {
-                const absHref = new URL(href, pageUrl).href;
+                const resolvedUrl = new URL(href, resourceBaseUrl);
+                const absHref = resolvedUrl.href;
+                if (EXTERNAL_CDN_HOSTNAMES.has(resolvedUrl.hostname)) {
+                    // 保留原本的 link，連同 media、integrity、crossorigin 等載入條件一併保留。
+                    link.href = absHref;
+                    progress(`保留 CDN 樣式表：${href.split('/').pop()}`);
+                    continue;
+                }
                 const response = await gmFetch({ method: 'GET', url: absHref, responseType: 'text' });
                 const inlinedCss = await inlineCssResources(response.responseText, absHref, resourceCache, new Set([absHref]));
                 const styleEl = document.createElement('style');
@@ -1178,9 +1249,10 @@
                 if (link.media) styleEl.setAttribute('media', link.media);
                 link.parentNode?.replaceChild(styleEl, link);
             } catch (err) {
+                if (err instanceof LocalSnapshotResourceError) throw err;
                 // 抓取失敗時將 href 改為絕對 URL，確保即使無法內嵌仍能連線載入
                 try {
-                    link.href = new URL(href, pageUrl).href;
+                    link.href = new URL(href, resourceBaseUrl).href;
                 } catch { /* 無效 URL，保留原樣 */ }
                 console.warn(`[SavePageToAzureBlob] 樣式表內嵌失敗（${describeError(err)}）：${redactSasSignature(href)}`);
             }
@@ -1190,8 +1262,9 @@
         // ── 處理 <style> 塊中的 url() ──
         for (const styleEl of styleElements) {
             try {
-                styleEl.textContent = await inlineCssResources(styleEl.textContent, pageUrl, resourceCache);
+                styleEl.textContent = await inlineCssResources(styleEl.textContent, resourceBaseUrl, resourceCache);
             } catch (err) {
+                if (err instanceof LocalSnapshotResourceError) throw err;
                 console.warn(`[SavePageToAzureBlob] <style> 處理失敗：${describeError(err)}`);
             }
             progress('處理內嵌樣式');
@@ -1201,9 +1274,9 @@
         for (const img of imgElements) {
             const src = img.getAttribute('src');
             if (src) {
-                img.setAttribute('src', await toDataUri(src, pageUrl, resourceCache));
+                img.setAttribute('src', await toDataUri(src, resourceBaseUrl, resourceCache));
             }
-            // srcset 含多個候選 URL，全部清除以確保瀏覽器只使用已內嵌的 src
+            // 清除 srcset 候選網址，讓瀏覽器使用快照指定的 src（Data URI 或絕對 URL）。
             img.removeAttribute('srcset');
             // <picture> 中的 <source> 也一並清除
             img.closest('picture')?.querySelectorAll('source').forEach(s => {
@@ -1217,7 +1290,7 @@
         for (const video of videoPosterEls) {
             const poster = video.getAttribute('poster');
             if (poster) {
-                video.setAttribute('poster', await toDataUri(poster, pageUrl, resourceCache));
+                video.setAttribute('poster', await toDataUri(poster, resourceBaseUrl, resourceCache));
             }
             // video / audio 的 src 不內嵌（媒體體積通常過大），改為絕對 URL 保留連結
             const mediaSrc = video.getAttribute('src');
@@ -1231,7 +1304,7 @@
         for (const link of iconLinks) {
             const href = link.getAttribute('href');
             if (href) {
-                link.setAttribute('href', await toDataUri(href, pageUrl, resourceCache));
+                link.setAttribute('href', await toDataUri(href, resourceBaseUrl, resourceCache));
             }
             progress(`處理網站圖示：${href?.split('/').pop()}`);
         }
@@ -1239,8 +1312,8 @@
         // ── 處理 style 屬性中的 url()（例如 background-image: url(...)）──
         for (const el of elementsWithStyleAttr) {
             const styleValue = el.getAttribute('style');
-            if (styleValue && styleValue.includes('url(')) {
-                el.setAttribute('style', await inlineCssResources(styleValue, pageUrl, resourceCache));
+            if (styleValue && /url\(/i.test(styleValue)) {
+                el.setAttribute('style', await inlineCssResources(styleValue, resourceBaseUrl, resourceCache));
             }
         }
 
