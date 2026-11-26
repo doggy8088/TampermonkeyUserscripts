@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Azure DevOps: 完整預覽 Repos 中的 HTML、Markdown、PDF、Excel 與 Word 檔案
-// @version      0.4.2
+// @version      0.4.3
 // @description  在 Azure DevOps Repos 的檔案頁籤列右側加上「完整預覽 (內嵌)」與「完整預覽 (全螢幕)」按鈕，於隔離的 sandbox iframe 中以啟用 JavaScript 的方式預覽 HTML 檔；開啟 .md 檔時改為「Markdown 預覽」，以支援深淺色、側邊目錄、程式碼上色與 mermaid 的排版取代內建預覽；開啟 .pdf 檔時改為「PDF 預覽」，用 Chrome 內建的 PDF 檢視器顯示；開啟 .xlsx / .docx / .pptx 檔時改為「Excel 預覽」/「Word 預覽」/「PowerPoint 預覽」，以主題化唯讀表格與高保真版面顯示；工作項目附件預覽對話框中的 HTML / Markdown 附件直接顯示渲染結果
 // @license      MIT
 // @homepage     https://github.com/doggy8088/TampermonkeyUserscripts
@@ -5029,7 +5029,7 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
      * 問題：在 sandbox iframe 裡點 <a href="#x"> 會被解析成「父頁面網址#x」，整個 iframe 會被導去載入 Azure DevOps 頁面，
      *       看起來就像預覽壞掉、JS 沒在跑（console 會出現一堆 ms.vss-*.min.js 的錯誤）。
      * 做法：攔截所有連結點擊——
-     *   - #錨點：改用 location.hash，可正常觸發 hashchange（實測不會重載）
+     *   - #錨點：交給 jumpTo——blob: 文件（內嵌 / userscript）的 fragment 導覽會被 Chrome 擋下，改成自己捲動＋replaceState＋補發 hashchange；其他（全螢幕 sandbox.html）照常用 location.hash
      *   - 相對路徑的支援格式（.html / .htm / .md / .markdown）：送 ado-nav-request 給父頁面「就地換頁」，
      *     不開新分頁，就像真的在逛網站
      *   - 其他相對路徑（../docs/x.png）：換算成 repo 內路徑，在新分頁開啟對應的 Azure DevOps 檔案
@@ -5051,6 +5051,31 @@ t.sheetStubs=true}if(t.type=="array"){t.type="binary";var a=xk(e,t);t.type="arra
         return `<script nonce="${escapeAttr(nonce)}">(function(){
 var cfg=${cfg};
 var DOC_RE=/\\.(html?|md|markdown)$/i;
+// blob: 預覽文件跑在 sandbox（opaque origin）裡，Chrome 會靜默擋下它的 fragment 導覽：原生點擊 #x 與
+// location.hash=… 都不換網址、不捲動、不觸發 hashchange（全螢幕的 sandbox.html 不是 blob:，不受影響）。
+// 所以這類文件改為自己捲到目標，並以 replaceState 更新網址、補發 hashchange，讓依賴 location.hash 的網頁腳本照常運作。
+// 判斷條件是「blob: 且 origin 為 null（sandbox）」：未 sandbox 的 blob: 文件原生導覽正常，維持原生行為。
+var HASH_BLOCKED=location.protocol==='blob:'&&window.origin==='null';
+function findFrag(f){
+  var d=f;try{d=decodeURIComponent(f);}catch(_e){}
+  var el=document.getElementById(f)||document.getElementById(d);if(el)return el;
+  var n=document.getElementsByName(d);for(var i=0;i<n.length;i++)if(n[i].tagName==='A')return n[i];
+  return null;
+}
+function jumpTo(href){
+  var f=href.slice(1),oldURL=location.href;
+  try{history.replaceState(history.state,'',href);}catch(_e){}
+  var el=findFrag(f);
+  if(el)el.scrollIntoView();else if(f===''||f.toLowerCase()==='top')window.scrollTo(0,0);
+  if(location.href!==oldURL){try{window.dispatchEvent(new HashChangeEvent('hashchange',{oldURL:oldURL,newURL:location.href}));}catch(_e){}}
+}
+// 錨點在冒泡的最後（window）才處理：網頁把 <a href="#"> 當按鈕、自己 preventDefault 或 stopPropagation 時不介入
+if(HASH_BLOCKED)window.addEventListener('click',function(e){
+  if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+  var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;
+  var href=a.getAttribute('href')||'';if(href.charAt(0)!=='#')return;
+  e.preventDefault();jumpTo(href);
+});
 // 回傳 {path,hash}（repo 內的相對路徑）或 {url}（絕對網址）或 null（#錨點、javascript: 等交回原本的處理）
 function resolve(a){
   var href=a.getAttribute('href')||'';
@@ -5072,7 +5097,7 @@ document.addEventListener('click',function(e){
   var a=findLink(e);if(!a)return;
   var href=a.getAttribute('href')||'';
   var modified=e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey;
-  if(href.charAt(0)==='#'){if(modified)return;e.preventDefault();location.hash=href;return;}
+  if(href.charAt(0)==='#'){if(modified||HASH_BLOCKED)return;e.preventDefault();location.hash=href;return;}
   var r=resolve(a);if(r===null)return;
   // Ctrl / ⌘ / Shift 點擊：把 href 改寫成 repo 內對應的網址後交給瀏覽器，保留原生的「在新分頁 / 新視窗開啟」行為
   if(modified){a.setAttribute('href',r.url||adoUrl(r));a.setAttribute('target','_blank');a.setAttribute('rel','noopener');return;}
@@ -5094,8 +5119,7 @@ document.addEventListener('auxclick',function(e){
 // 換頁過來帶有錨點時（x.md#install 之類的連結）捲到目標
 if(cfg.hash){
   var go=function(){
-    var h=cfg.hash;try{h=decodeURIComponent(h);}catch(_e){}
-    var el=document.getElementById(h)||document.getElementsByName(h)[0];
+    var el=findFrag(cfg.hash);
     if(el&&el.scrollIntoView)el.scrollIntoView();
   };
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',go);else go();
@@ -5317,7 +5341,8 @@ scan(document.documentElement);
 
     /** 在指定視窗的 realm 建立 blob URL（全螢幕 popup 要建在 popup 的 realm，生命週期才跟著 popup） */
     function docBlobUrl(doc, w = window) {
-        return w.URL.createObjectURL(new w.Blob([doc], { type: 'text/html' }));
+        // charset 要明講：Blob 以 UTF-8 編碼字串，沒帶 charset 時沒有 <meta charset> 的 HTML 中文會變亂碼
+        return w.URL.createObjectURL(new w.Blob([doc], { type: 'text/html;charset=utf-8' }));
     }
 
     /**
@@ -6283,15 +6308,40 @@ scan(document.documentElement);
     }
 
     // 附件預覽文件裡的連結：附件沒有目錄，相對路徑無從解析（點了不動作）；
-    // #錨點改用 location.hash、絕對網址開新分頁；iframe 有焦點時 Esc 送不到 ADO，轉給父頁面關閉對話框
+    // #錨點交給 jumpTo（blob: 文件的 fragment 導覽會被擋，改成自己捲動）、絕對網址開新分頁；iframe 有焦點時 Esc 送不到 ADO，轉給父頁面關閉對話框
     function attachmentLinkScript(nonce) {
         return `<script nonce="${escapeAttr(nonce)}">(function(){
+// blob: 預覽文件跑在 sandbox（opaque origin）裡，Chrome 會靜默擋下它的 fragment 導覽：原生點擊 #x 與
+// location.hash=… 都不換網址、不捲動、不觸發 hashchange（全螢幕的 sandbox.html 不是 blob:，不受影響）。
+// 所以這類文件改為自己捲到目標，並以 replaceState 更新網址、補發 hashchange，讓依賴 location.hash 的網頁腳本照常運作。
+// 判斷條件是「blob: 且 origin 為 null（sandbox）」：未 sandbox 的 blob: 文件原生導覽正常，維持原生行為。
+var HASH_BLOCKED=location.protocol==='blob:'&&window.origin==='null';
+function findFrag(f){
+  var d=f;try{d=decodeURIComponent(f);}catch(_e){}
+  var el=document.getElementById(f)||document.getElementById(d);if(el)return el;
+  var n=document.getElementsByName(d);for(var i=0;i<n.length;i++)if(n[i].tagName==='A')return n[i];
+  return null;
+}
+function jumpTo(href){
+  var f=href.slice(1),oldURL=location.href;
+  try{history.replaceState(history.state,'',href);}catch(_e){}
+  var el=findFrag(f);
+  if(el)el.scrollIntoView();else if(f===''||f.toLowerCase()==='top')window.scrollTo(0,0);
+  if(location.href!==oldURL){try{window.dispatchEvent(new HashChangeEvent('hashchange',{oldURL:oldURL,newURL:location.href}));}catch(_e){}}
+}
+// 錨點在冒泡的最後（window）才處理：網頁把 <a href="#"> 當按鈕、自己 preventDefault 或 stopPropagation 時不介入
+if(HASH_BLOCKED)window.addEventListener('click',function(e){
+  if(e.defaultPrevented||e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+  var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;
+  var href=a.getAttribute('href')||'';if(href.charAt(0)!=='#')return;
+  e.preventDefault();jumpTo(href);
+});
 document.addEventListener('click',function(e){
     if(e.defaultPrevented)return;
     var a=e.target&&e.target.closest?e.target.closest('a[href]'):null;if(!a)return;
     var href=a.getAttribute('href')||'';
     var modified=e.button!==0||e.metaKey||e.ctrlKey||e.shiftKey||e.altKey;
-    if(href.charAt(0)==='#'){if(modified)return;e.preventDefault();location.hash=href;return;}
+    if(href.charAt(0)==='#'){if(modified||HASH_BLOCKED)return;e.preventDefault();location.hash=href;return;}
     if(/^(javascript|mailto|tel|data|blob):/i.test(href))return;
     if(/^[a-z][a-z0-9+.-]*:/i.test(href)||href.indexOf('//')===0){
         if(modified){a.setAttribute('target','_blank');a.setAttribute('rel','noopener');return;}
