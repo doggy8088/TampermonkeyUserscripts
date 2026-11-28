@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網頁狀態與任意內容發佈到 Infinitybin
-// @version      0.6.3
+// @version      0.7.0
 // @description  透過 Tampermonkey 選單將目前網頁狀態或任意文字內容發佈到 Azure Blob Storage-backed Infinitybin，並設定正確檔名與 Content-Type；瀏覽容器內頁面時可在頁面底部直接刪除該頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -72,21 +72,32 @@
 //   請勿將 SAS URL 分享給他人，並建議定期更換 SAS Token 以降低風險。
 //
 // 【使用方式】
-//   在任意網頁點開 Tampermonkey 選單，選擇「📸 將目前網頁狀態發佈到 Infinitybin」，
-//   腳本依「快照模式」執行，預設為重播模式：
+//   模式不再需要「先設定再發佈」。選單與右鍵各提供兩個獨立入口，
+//   模式只取決於你當下點的是哪一個項目：
 //
-//   【重播模式】（預設，可用「🧩 快照設定」切換）
+//     📸 發佈到 Infinitybin（重播模式）       ← 一般情況用這個
+//     🖼️ 發佈到 Infinitybin（靜態快照）       ← 需要凍結當下畫面時用這個
+//
+//   右鍵選單（Tampermonkey 子選單）另有兩個對應的快速入口：
+//     「網頁快照上傳至 Azure Blob Storage（重播模式・右鍵快速執行）」
+//     「網頁快照上傳至 Azure Blob Storage（靜態快照・右鍵快速執行）」
+//   兩者都是 @run-at context-menu 的獨立腳本，只負責送出觸發事件，
+//   實際快照與上傳邏輯仍然只有一份（在本檔）。
+//
+//   【重播模式】
 //     1. 重新取得「尚未執行腳本」的原始 HTML，並比對內容量確認不是空殼頁
 //     2. 內嵌外部腳本、CSS、字型、圖片、SVG 等資源
 //     3. 保留頁面腳本，讓快照開啟時從空白容器自己渲染一次
 //        → 畫面與互動都正常，且不會出現「同一組介面重複兩次」
 //     4. 發佈到 Infinitybin，並在新頁籤開啟純淨的 Blob URL（不含 SAS Token）
 //
-//   【靜態快照】（重播不可用時自動退回，也可在「🧩 快照設定」手動選擇）
+//   【靜態快照】
 //     1. 擷取目前頁面的完整渲染後 DOM 狀態
 //     2. 移除所有 <script> 並內嵌所有外部資源
 //     3. 發佈到 Infinitybin，並在新頁籤開啟純淨的 Blob URL（不含 SAS Token）
 //        → 畫面與發佈當下完全一致，但站內搜尋、頁籤切換等互動會失效
+//     若重播失敗（空殼頁、無法重抓原始文件等），會自動退回靜態快照並在
+//     狀態提示條說明原因，不會讓發佈中斷。
 //
 //   或選擇「📋 將任意內容發佈到 Infinitybin」：
 //     1. 顯示頁面內文字對話框，等待使用者貼上任意文字
@@ -145,10 +156,16 @@
     // Tampermonkey 儲存鍵名，用於安全保存 SAS URL
     const SAS_URL_STORAGE_KEY = 'azureContainerSasUrl';
 
-    // 快照模式的儲存鍵名與可選值。
-    // 0.5.x 的「snapshotKeepInlineScripts」布林設定已被模式選擇取代：
-    // 「保留 inline script 但仍凍結已渲染 DOM」正是頁籤重複的成因，因此不再提供。
-    const SNAPSHOT_MODE_STORAGE_KEY = 'snapshotMode';
+    // 快照模式的兩個可選值。
+    //
+    // 設計意圖（0.7.0 的改動）：
+    //   - 模式**不再持久化**。舊版把模式存進 GM_setValue，並用單一選單命令 + confirm()
+    //     做「切換」，結果使用者每次發佈前都得先回想「現在是哪一種」，選單本身也
+    //     看不出當下狀態，是很容易誤操作的設計。
+    //   - 現在改成「一個動作一個入口」：選單與右鍵各提供兩個明確項目，
+    //     要重播就點重播、要凍結就點靜態，不需要任何隱含狀態。
+    //   - 0.5.x 的「snapshotKeepInlineScripts」布林設定更早已移除：
+    //     「保留 inline script 但仍凍結已渲染 DOM」正是頁籤重複的成因。
 
     // 重播：抓原始 HTML、保留腳本，讓頁面自己渲染一次（互動可用、不重複）。
     const SNAPSHOT_MODE_REPLAY = 'replay';
@@ -1563,10 +1580,10 @@
      * 內嵌可下載的資源（樣式表、圖片、字型、SVG 背景等），
      * 並保留公共 CDN 連結，讓瀏覽器在開啟快照時載入。
      *
-     * 兩種根節點來源（見 getSnapshotMode()）：
-     *   - 重播模式（預設）：重新取得尚未執行腳本的原始 HTML，保留腳本，
+     * 兩種根節點來源（由呼叫端明確指定，不再有隱含的持久化設定）：
+     *   - 重播模式：重新取得尚未執行腳本的原始 HTML，保留腳本，
      *     讓快照開啟時自己渲染一次 → 互動可用且不會出現重複內容。
-     *   - 靜態快照（重播不可用時自動退回）：clone 目前 DOM 並移除所有腳本
+     *   - 靜態快照（或重播不可用時自動退回）：clone 目前 DOM 並移除所有腳本
      *     → 畫面與發佈當下完全一致，但沒有互動。
      *
      * 處理項目（兩種模式共用）：
@@ -1583,11 +1600,12 @@
      *   - meta CSP / refresh → 移除（會阻止內嵌腳本執行或讓快照自動跳轉）
      *   - style 屬性中的 url() → 轉換為 Data URI
      *
+     * @param {string} requestedMode - SNAPSHOT_MODE_REPLAY 或 SNAPSHOT_MODE_STATIC
      * @param {function} onProgress - 進度回呼，接受 (current, total, message) 三個參數
      * @returns {Promise<{html: string, mode: string, fallbackReason: string}>}
      *   完整 HTML（含 <!DOCTYPE html>）、實際採用的模式、以及重播失敗的原因
      */
-    async function serializePage(onProgress) {
+    async function serializePage(requestedMode, onProgress) {
         const pageUrl = location.href;
         // 原站可能以 <base href> 指向 CDN。移除 clone 的 <base> 前先取得實際資源基準網址。
         const resourceBaseUrl = document.baseURI;
@@ -1645,15 +1663,20 @@
             }
         }
 
-        // ── 選定序列化的根節點：重播模式優先，不可用時回退靜態快照 ──
-        // 設計意圖（0.6.0 的關鍵改動）：
+        // ── 選定序列化的根節點：依呼叫端指定的模式，重播不可用時回退靜態快照 ──
+        // 設計意圖（0.6.0 起）：
         //   - 靜態快照凍結「已渲染的 DOM」，因此必須移除所有腳本（否則腳本重跑會把
         //     動態節點再附加一份），代價是站內搜尋、頁籤切換等互動在發佈後失效。
         //   - 重播模式改抓「尚未執行腳本」的原始 HTML 並保留腳本，讓快照開啟時從空容器
         //     自己渲染一次：互動可用，畫面也不會重複。
         //   - 重播需要重新取得原始文件（需要連線、需要能讀到同一個回應）；SPA 空殼、
         //     登入轉址、特殊協定等情況會失敗，此時自動退回靜態快照，確保仍能發佈。
-        let snapshotMode = getSnapshotMode();
+        //   - 模式由呼叫端明確傳入（0.7.0）：選單與右鍵都各有一個「重播」與「靜態」
+        //     入口，因此這裡不再讀取任何持久化設定，行為完全可預期。
+        //     非預期值一律視為重播，避免呼叫端漏傳時靜默變成較差的模式。
+        let snapshotMode = requestedMode === SNAPSHOT_MODE_STATIC
+            ? SNAPSHOT_MODE_STATIC
+            : SNAPSHOT_MODE_REPLAY;
         let root = null;
         // 重播失敗的原因（成功時為空字串），會回報給呼叫端顯示在狀態提示條，
         // 讓使用者知道「這次沒有互動」是被降級成靜態快照，而不是腳本壞掉。
@@ -2641,17 +2664,21 @@
         return sasUrl;
     }
 
-    // ===== 主流程：「📸 將目前網頁狀態發佈到 Infinitybin」選單功能 =====
+    // ===== 主流程：發佈目前網頁狀態（重播模式／靜態快照共用） =====
 
     /**
      * 主要執行流程，依序完成以下工作：
      *   1. 讀取已儲存的 SAS URL，如果尚未設定則提示使用者先設定
      *   2. 顯示進度提示條
-     *   3. 序列化當前頁面（轉換所有外部資源為 Data URI）
+     *   3. 序列化當前頁面（依指定模式轉換所有外部資源為 Data URI）
      *   4. 以 HTML Content-Type 發佈到 Infinitybin
      *   5. 在新頁籤開啟純淨的 Blob URL
+     *
+     * @param {string} [requestedMode] - SNAPSHOT_MODE_REPLAY（預設）或 SNAPSHOT_MODE_STATIC。
+     *   由選單／右鍵的具體入口傳入；刻意不「記住上次選擇」，
+     *   讓每次發佈的模式都來自使用者當下點的那個項目。
      */
-    async function savePageToAzureBlob() {
+    async function savePageToAzureBlob(requestedMode) {
         if (activeSaveOperation) {
             // 直接重用既有作業，而不是再啟動第二份發佈流程。
             // 這可避免同一頁面因重複事件或連點而開出多個空白分頁。
@@ -2671,7 +2698,7 @@
                 // ── 序列化頁面（取得根節點＋資源內嵌）──
                 // 回傳物件同時帶回「實際採用的模式」與「重播降級原因」，
                 // 讓最後的成功訊息能誠實說明這份快照是重播還是靜態凍結。
-                const snapshot = await serializePage((current, total, msg) => {
+                const snapshot = await serializePage(requestedMode, (current, total, msg) => {
                     // 前置階段（例如重抓原始文件）還沒有總量，只顯示訊息本身，
                     // 避免出現「0%（1/0）」這種看起來像錯誤的進度。
                     if (total <= 0) {
@@ -2868,56 +2895,26 @@
 
         // 驗證通過，使用 GM_setValue 安全儲存
         GM_setValue(SAS_URL_STORAGE_KEY, trimmed);
-        alert('✅ Azure Blob SAS URL 已儲存成功！\n現在可以使用「📸 將目前網頁狀態發佈到 Infinitybin」或「📋 將任意內容發佈到 Infinitybin」功能了。');
+        alert('✅ Azure Blob SAS URL 已儲存成功！\n現在可以使用「📸 發佈到 Infinitybin（重播模式）」、「🖼️ 發佈到 Infinitybin（靜態快照）」或「📋 將任意內容發佈到 Infinitybin」功能了。');
     }
 
-    // ===== 設定流程：「🧩 快照設定」選單功能 =====
+    // ===== 快照模式：兩個明確入口，不再提供「切換」選單 =====
 
-    /**
-     * 讀取目前採用的快照模式。
-     *
-     * 設計意圖：
-     *   - 預設「重播」：它同時滿足「畫面正確」與「互動可用」，是多數頁面的最佳解。
-     *   - 只有明確存成 static 才走靜態，其餘（未設定、舊版殘留值、手動改壞的值）
-     *     一律視為預設值，避免設定異常時行為靜默改變。
-     *
-     * @returns {string} SNAPSHOT_MODE_REPLAY 或 SNAPSHOT_MODE_STATIC
+    /*
+     * 為什麼移除「🧩 快照設定」的 toggle：
+     *   - 舊做法把模式存進 GM_setValue，選單命令本身看不出目前狀態，
+     *     使用者每次發佈前都得先回想（或先點開對話框確認）現在是哪一種。
+     *   - 只要一次誤觸 confirm() 就會把設定切走，而症狀要到「發佈後互動失效」
+     *     或「快照沒有腳本」才會發現，排查成本很高（0.6.x 的實際回饋）。
+     *   - 改成一個動作一個入口後，模式只來自「你當下點的那個項目」，
+     *     沒有任何隱含狀態，也不需要記住上次選了什麼。
      */
-    function getSnapshotMode() {
-        return GM_getValue(SNAPSHOT_MODE_STORAGE_KEY, SNAPSHOT_MODE_REPLAY) === SNAPSHOT_MODE_STATIC
-            ? SNAPSHOT_MODE_STATIC
-            : SNAPSHOT_MODE_REPLAY;
+    function publishWithReplayMode() {
+        void savePageToAzureBlob(SNAPSHOT_MODE_REPLAY);
     }
 
-    /**
-     * 切換快照模式，並把兩種模式的差異講清楚。
-     *
-     * 設計意圖：
-     *   - 用單一選單命令 + confirm() 切換，避免選單被兩個互斥的模式指令撐長。
-     *   - 說明文字必須提到「重播為什麼可能失敗」與「靜態的代價」，
-     *     否則使用者遇到自動降級時會誤以為腳本壞掉（0.5.x 的實際回饋）。
-     *   - 設定寫入 GM_setValue，只影響之後的發佈；已發佈的快照不會被改寫。
-     */
-    function configureSnapshotOptions() {
-        const mode = getSnapshotMode();
-        const isReplay = mode === SNAPSHOT_MODE_REPLAY;
-        const nextLabel = isReplay ? '靜態快照' : '重播模式';
-
-        const confirmed = confirm(
-            '快照模式\n\n' +
-            `目前設定：${isReplay ? '重播模式（建議）' : '靜態快照'}\n\n` +
-            '・重播模式：重新取得原始 HTML 並保留頁面腳本，快照會自己渲染一次，' +
-            '站內搜尋、頁籤切換都能用，畫面也不會重複。\n' +
-            '　限制：需要連線重抓、內容由前端 API 產生的頁面（SPA 空殼）會自動降級，' +
-            '腳本自己發出的相對網址請求仍可能失敗。\n' +
-            '・靜態快照：凍結目前看到的畫面並移除所有腳本，畫面保證與發佈當下一模一樣，' +
-            '但搜尋、切換頁籤等互動會失效。\n\n' +
-            `要切換為「${nextLabel}」嗎？（下次發佈時生效）`
-        );
-        if (!confirmed) return;
-
-        GM_setValue(SNAPSHOT_MODE_STORAGE_KEY, isReplay ? SNAPSHOT_MODE_STATIC : SNAPSHOT_MODE_REPLAY);
-        alert(`✅ 已設定為「${nextLabel}」，下次發佈時生效。`);
+    function publishWithStaticMode() {
+        void savePageToAzureBlob(SNAPSHOT_MODE_STATIC);
     }
 
     /**
@@ -2925,7 +2922,10 @@
      *
      * 設計意圖：
      *   - 讓本腳本維持 document-idle 常駐能力（可保留既有選單與狀態提示邏輯）。
-     *   - 同時提供另一個 @run-at context-menu 的輕量腳本作為觸發入口。
+     *   - 同時提供 @run-at context-menu 的輕量腳本作為觸發入口。
+     *     一支 context-menu 腳本在 Tampermonkey 右鍵選單中只能佔一個項目，
+     *     所以「重播」與「靜態」是兩個各自獨立的檔案，用同一個事件名稱、
+     *     以 detail.mode 區分。
      *   - 主邏輯只保留一份在本檔案，避免雙份實作造成版本漂移與維護成本上升。
      */
     function registerContextMenuBridge() {
@@ -2945,21 +2945,30 @@
                 }
             }));
 
-            // 實際執行快照儲存流程。
-            void savePageToAzureBlob();
+            // 實際執行快照儲存流程。模式由觸發端指定（右鍵選單的兩個項目各自帶入），
+            // 未指定或非預期值時由 serializePage() 視為重播。
+            const requestedMode = detail.mode === SNAPSHOT_MODE_STATIC
+                ? SNAPSHOT_MODE_STATIC
+                : SNAPSHOT_MODE_REPLAY;
+            void savePageToAzureBlob(requestedMode);
         });
     }
 
-    // ===== 向 Tampermonkey 選單註冊三個指令 =====
+    // ===== 向 Tampermonkey 選單註冊指令 =====
 
-    // 主要功能：擷取目前頁面狀態並發佈到 Infinitybin
-    GM_registerMenuCommand('📸 將目前網頁狀態發佈到 Infinitybin', savePageToAzureBlob);
+    // 發佈（重播模式）：保留頁面腳本，快照開啟時自己渲染一次，互動可用。
+    // 這裡一定要用箭頭函式包起來：GM_registerMenuCommand 會以 (event, tab) 呼叫回呼，
+    // 若直接傳入 savePageToAzureBlob，第一個參數會變成 MouseEvent 而不是模式字串。
+    GM_registerMenuCommand('📸 發佈到 Infinitybin（重播模式）', publishWithReplayMode);
+
+    // 發佈（靜態快照）：凍結目前畫面並移除所有腳本，互動失效但畫面與當下完全一致。
+    // 內容由前端 API 產生、重播會得到空殼的頁面就用這一個。
+    GM_registerMenuCommand('🖼️ 發佈到 Infinitybin（靜態快照）', publishWithStaticMode);
 
     // 任意內容功能：接收使用者貼上的文字並依內容推斷副檔名與 Content-Type 後發佈
-    GM_registerMenuCommand('📋 將任意內容發佈到 Infinitybin', publishArbitraryContentToInfinitybin);
-
-    // 快照選項：切換「重播模式」與「靜態快照」（預設重播，見 getSnapshotMode()）
-    GM_registerMenuCommand('🧩 快照設定：重播模式／靜態快照', configureSnapshotOptions);
+    GM_registerMenuCommand('📋 將任意內容發佈到 Infinitybin', () => {
+        void publishArbitraryContentToInfinitybin();
+    });
 
     // 設定項目放在最後，讓日常使用時最常用的發佈動作優先顯示。
     GM_registerMenuCommand('⚙️ 設定 Azure Blob SAS URL', configureSasUrl);
