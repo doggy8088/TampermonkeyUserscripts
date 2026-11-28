@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         網頁狀態與任意內容發佈到 Infinitybin
-// @version      0.4.2
+// @version      0.6.3
 // @description  透過 Tampermonkey 選單將目前網頁狀態或任意文字內容發佈到 Azure Blob Storage-backed Infinitybin，並設定正確檔名與 Content-Type；瀏覽容器內頁面時可在頁面底部直接刪除該頁面
 // @license      MIT
 // @homepage     https://blog.miniasp.com/
@@ -73,12 +73,20 @@
 //
 // 【使用方式】
 //   在任意網頁點開 Tampermonkey 選單，選擇「📸 將目前網頁狀態發佈到 Infinitybin」，
-//   腳本將依序執行：
+//   腳本依「快照模式」執行，預設為重播模式：
+//
+//   【重播模式】（預設，可用「🧩 快照設定」切換）
+//     1. 重新取得「尚未執行腳本」的原始 HTML，並比對內容量確認不是空殼頁
+//     2. 內嵌外部腳本、CSS、字型、圖片、SVG 等資源
+//     3. 保留頁面腳本，讓快照開啟時從空白容器自己渲染一次
+//        → 畫面與互動都正常，且不會出現「同一組介面重複兩次」
+//     4. 發佈到 Infinitybin，並在新頁籤開啟純淨的 Blob URL（不含 SAS Token）
+//
+//   【靜態快照】（重播不可用時自動退回，也可在「🧩 快照設定」手動選擇）
 //     1. 擷取目前頁面的完整渲染後 DOM 狀態
-//     2. 將所有外部 CSS、字型、圖片、SVG 等資源轉換為 Data URI（內嵌進 HTML）
-//     3. 組成一份完全獨立、無任何外部依賴的 HTML 文件
-//     4. 使用 PUT 方式發佈到 Infinitybin 使用的 Azure Blob Storage Container
-//     5. 在新頁籤開啟上傳後的純淨 Blob URL（不含 SAS Token）
+//     2. 移除所有 <script> 並內嵌所有外部資源
+//     3. 發佈到 Infinitybin，並在新頁籤開啟純淨的 Blob URL（不含 SAS Token）
+//        → 畫面與發佈當下完全一致，但站內搜尋、頁籤切換等互動會失效
 //
 //   或選擇「📋 將任意內容發佈到 Infinitybin」：
 //     1. 顯示頁面內文字對話框，等待使用者貼上任意文字
@@ -102,16 +110,28 @@
 // 【注意事項】
 //   - 若頁面資源非常多（如大量圖片），序列化過程可能需要數十秒，請耐心等待
 //   - 發佈本機 HTML（file://）時，Chrome 即使能在原頁面顯示圖片，腳本仍需要權限
-//     讀取圖片和樣式表的檔案內容，才能把它們嵌入快照。請確認兩項設定：
+//     讀取原始 HTML、圖片和樣式表的檔案內容，才能把它們嵌入快照。請確認兩項設定：
 //     1. Chrome → 擴充功能 → Tampermonkey → 詳細資料：開啟「允許存取檔案網址」。
 //     2. Tampermonkey → 設定 → 將「設定模式」切換到「進階」，再將
 //        「允許腳本存取本機檔案」設為「所有本機檔案（All local files）」。
 //     本機資源讀取失敗時，腳本會在上傳前停止。完成設定後，請重新整理原頁面再發佈。
 //   - Google Fonts 與常見公共 CDN 的資源會保留原始連結，開啟快照時由瀏覽器載入
 //   - 超過 10MB 的單一資源將略過內嵌，改保留原始絕對 URL，避免 HTML 過大
-//   - <script src="..."> 標籤的外部 JavaScript 不會被內嵌（已執行的 JS 邏輯已反映在 DOM 狀態中）
+//   - <script> 標籤的處理依模式而不同：
+//     重播模式保留腳本（外部檔會抓回來內嵌），並移除 meta CSP，讓快照能自己渲染一次；
+//     靜態模式則全部移除，因為那份 DOM 已經含有腳本動態產生的節點，
+//     再執行一次會把同一組介面附加第二份（例如分類頁籤變成兩排）。
+//   - 重播模式的限制：
+//     1. 需要能重新取得原始 HTML；內容完全由前端 API 產生的頁面（SPA 空殼）
+//        會被判定為空殼並自動降級為靜態快照，狀態提示條會說明原因
+//     2. 快照裡的腳本若以相對網址自行抓取資料（fetch/XHR），仍會因跨來源而失敗
+//     3. <script type="module"> 只保留絕對網址載入，不內嵌（相對 import 會失效）
+//     4. 還原的是「原始頁面」的狀態，發佈當下的表單輸入、捲動位置、篩選結果
+//        不會被凍結；需要完整保留當下狀態時請改用靜態快照
+//   - 靜態模式的限制：站內搜尋、切換頁籤等依賴 JS 的互動在快照中失效
 //   - <video> 和 <audio> 的媒體 src 不會被內嵌（通常體積過大），僅保留 poster 圖片
-//   - <canvas> 元素會嘗試以 toDataURL() 轉換為 <img>，若有跨來源限制則略過
+//   - 靜態模式會把 <canvas> 以 toDataURL() 轉為 <img>（跨來源受限時略過）；
+//     重播模式則交由頁面腳本自己重畫（因此圖表類頁面在重播模式下是「活的」）
 //   - 發佈功能的 Container 必須具備 Create + Write 兩項 SAS 權限，缺一不可；
 //     刪除頁面功能另需 Delete（d）權限（不需要刪除可維持 sp=cw）
 //
@@ -124,6 +144,17 @@
 
     // Tampermonkey 儲存鍵名，用於安全保存 SAS URL
     const SAS_URL_STORAGE_KEY = 'azureContainerSasUrl';
+
+    // 快照模式的儲存鍵名與可選值。
+    // 0.5.x 的「snapshotKeepInlineScripts」布林設定已被模式選擇取代：
+    // 「保留 inline script 但仍凍結已渲染 DOM」正是頁籤重複的成因，因此不再提供。
+    const SNAPSHOT_MODE_STORAGE_KEY = 'snapshotMode';
+
+    // 重播：抓原始 HTML、保留腳本，讓頁面自己渲染一次（互動可用、不重複）。
+    const SNAPSHOT_MODE_REPLAY = 'replay';
+
+    // 靜態：凍結目前 DOM 並移除所有腳本（畫面完全一致，但沒有互動）。
+    const SNAPSHOT_MODE_STATIC = 'static';
 
     // 由「右鍵 context-menu 觸發腳本」送出的事件名稱。
     // 透過 DOM CustomEvent 做跨 userscript 溝通，可避免複製整份快照邏輯。
@@ -291,6 +322,248 @@
         const prefix = `${name.toLowerCase()}:`;
         const line = (headers || '').split(/\r?\n/).find(h => h.toLowerCase().startsWith(prefix));
         return line ? line.slice(prefix.length).trim() : '';
+    }
+
+    // ===== 工具：把抓回來的位元組用正確的編碼解成文字 =====
+
+    /*
+     * 為什麼不用 responseType: 'text'？
+     *
+     * GM_xmlhttpRequest 的 text 模式由 Tampermonkey／瀏覽器依回應的 Content-Type 解碼；
+     * 但 file:// 讀回來的本機檔案沒有任何標頭，於是退成 Latin-1（Windows-1252）解碼，
+     * 一份 UTF-8 的中文頁面就會變成「Gemini æ² g」這種亂碼，而且亂碼會被原封不動
+     * 寫進快照（重播模式的實際踩雷記錄）。
+     *
+     * 因此文字型資源一律抓 arraybuffer，再用下列規則自行解碼：
+     *   BOM > HTTP 標頭 charset > CSS @charset > HTML meta charset > 目前文件實測編碼 > UTF-8
+     */
+
+    /**
+     * 從 Content-Type 標頭取出 charset（例如 "text/html; charset=Big5" → "big5"）。
+     *
+     * @param {string} headers - HTTP response headers 原始字串
+     * @returns {string} 小寫的 charset；未宣告時回傳空字串
+     */
+    function getCharsetFromHeaders(headers) {
+        const contentType = getResponseHeaderValue(headers, 'content-type');
+        const match = /charset\s*=\s*"?([^";\s]+)"?/i.exec(contentType);
+        return match ? match[1].trim().toLowerCase() : '';
+    }
+
+    /**
+     * 依 BOM 判斷編碼。BOM 是檔案自己說的話，優先於任何宣告。
+     *
+     * @param {Uint8Array} bytes - 檔案開頭的位元組
+     * @returns {string} 對應的 charset；沒有 BOM 時回傳空字串
+     */
+    function detectBomCharset(bytes) {
+        if (bytes.length >= 3 && bytes[0] === 0xEF && bytes[1] === 0xBB && bytes[2] === 0xBF) return 'utf-8';
+        if (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) return 'utf-16le';
+        if (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF) return 'utf-16be';
+        return '';
+    }
+
+    /**
+     * 從 HTML 開頭 1024 位元組中找出 <meta charset> 宣告。
+     *
+     * 設計意圖：
+     *   - HTML 規範要求編碼宣告必須出現在文件最前面，因此只看開頭即可，
+     *     不必解碼整份文件（也就避開「用錯編碼去讀」的雞生蛋問題）。
+     *   - 這裡刻意用 latin1 解碼：它是「1 byte = 1 char」的無損映射，
+     *     足以取出 ASCII 的屬性值，不會因為用錯編碼而丟掉資訊。
+     *
+     * @param {Uint8Array} bytes - 檔案位元組
+     * @returns {string} 小寫的 charset；找不到時回傳空字串
+     */
+    function sniffHtmlCharset(bytes) {
+        const head = new TextDecoder('latin1').decode(bytes.subarray(0, 1024));
+        const metaCharset = /<meta[^>]+charset\s*=\s*["']?\s*([\w-]+)/i.exec(head);
+        return metaCharset ? metaCharset[1].toLowerCase() : '';
+    }
+
+    /**
+     * 從 CSS 開頭的 @charset 規則找出編碼宣告。
+     *
+     * @param {Uint8Array} bytes - 檔案位元組
+     * @returns {string} 小寫的 charset；找不到時回傳空字串
+     */
+    function sniffCssCharset(bytes) {
+        const head = new TextDecoder('latin1').decode(bytes.subarray(0, 128));
+        const atCharset = /@charset\s+["']([\w-]+)["']/i.exec(head);
+        return atCharset ? atCharset[1].toLowerCase() : '';
+    }
+
+    /**
+     * 用指定編碼解碼；瀏覽器不支援該編碼時退回 UTF-8，最後才用預設解碼器。
+     *
+     * 使用 non-fatal 模式：寧可讓個別字元變成替換字元，也不要在發佈流程中直接爆掉。
+     *
+     * @param {Uint8Array} bytes - 檔案位元組
+     * @param {string} charset - 候選編碼
+     * @returns {string} 解碼後文字
+     */
+    function decodeBytes(bytes, charset) {
+        for (const candidate of [charset, 'utf-8']) {
+            if (!candidate) continue;
+            try {
+                return new TextDecoder(candidate).decode(bytes);
+            } catch {
+                // 瀏覽器不認得這個編碼名稱，換下一個候選
+            }
+        }
+        return new TextDecoder().decode(bytes);
+    }
+
+    /**
+     * 把任意 ArrayBuffer / TypedArray 回應統一成 Uint8Array。
+     *
+     * @param {ArrayBuffer|ArrayBufferView|null} value - GM_xmlhttpRequest 的 response
+     * @returns {Uint8Array} 位元組檢視（空回應時為長度 0）
+     */
+    function toByteArray(value) {
+        if (value instanceof ArrayBuffer) return new Uint8Array(value);
+        if (ArrayBuffer.isView(value)) return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+        return new Uint8Array(0);
+    }
+
+    /**
+     * 依「BOM → 標頭 → 內容宣告 → 目前文件編碼 → UTF-8」的順序決定編碼並解碼。
+     *
+     * @param {Uint8Array} bytes - 資源位元組
+     * @param {string} headers - HTTP response headers
+     * @param {'html'|'css'|'js'} kind - 資源類型，決定要不要看內容裡的編碼宣告
+     * @returns {string} 解碼後文字
+     */
+    function decodeTextBytes(bytes, headers, kind) {
+        let charset = detectBomCharset(bytes) || getCharsetFromHeaders(headers);
+
+        if (!charset && kind === 'html') charset = sniffHtmlCharset(bytes);
+        if (!charset && kind === 'css') charset = sniffCssCharset(bytes);
+
+        // 走到這裡代表檔案沒有自我宣告：同一份文件在本頁已被瀏覽器正確解碼過，
+        // document.characterSet 就是最可靠的情報（例如 file:// 或缺少 charset 的伺服器）。
+        if (!charset && kind === 'html') charset = document.characterSet || '';
+
+        return decodeBytes(bytes, charset);
+    }
+
+    /**
+     * 建立「字元 → 位元組」的反向對照表，用來還原 Tampermonkey 以單一位元組編碼解碼後的字串。
+     *
+     * 為什麼不能只檢查「字元碼 ≤ 0xFF」：
+     *   瀏覽器的 `latin1` 標籤實際上是 **windows-1252**，不是 ISO-8859-1。
+     *   兩者在 0x80–0x9F 這段不一致：位元組 0x80 解出來是 `€`（U+20AC），
+     *   0x99 解出來是 `™`（U+2122），全都超過 0xFF。
+     *   若用「有沒有超過 0xFF」當作判斷依據，一份含 `€` 的檔案就會被誤判成
+     *   「已經被正確解碼」，於是整份文件帶著亂碼進到快照（實測踩到的雷）。
+     *   因此改為向瀏覽器要一份真正的 256 筆對照表，逐一反查。
+     *
+     * 對照表只建立一次並快取，正常（UTF-8）路徑完全不會用到它。
+     *
+     * @returns {Map<string, number>} 字元 → 位元組
+     */
+    let singleByteReverseMap = null;
+    function getSingleByteReverseMap() {
+        if (singleByteReverseMap) return singleByteReverseMap;
+
+        const decoder = new TextDecoder('windows-1252');
+        const map = new Map();
+        for (let byte = 0; byte < 256; byte += 1) {
+            const char = decoder.decode(new Uint8Array([byte]));
+            // windows-1252 對 0x81、0x8D、0x8F、0x90、0x9D 沒有定義，解碼結果是 U+FFFD。
+            // U+FFFD 是「解碼失敗」的通用符號，若納入對照表會把真正的失敗誤還原成
+            // 某個隨機位元組，因此刻意排除；含 U+FFFD 的字串會走「無法還原」的分支。
+            if (char.length === 1 && char !== '\uFFFD' && !map.has(char)) map.set(char, byte);
+        }
+
+        singleByteReverseMap = map;
+        return map;
+    }
+
+    /**
+     * 把「單一位元組編碼解碼後」的字串還原成原始位元組。
+     *
+     * 用途：Tampermonkey 有時只交回 responseText，且是用單一位元組編碼解碼的結果。
+     * 這種解碼對每個位元組是一對一映射，因此可以完全無損地反推回原始位元組，
+     * 再用檔案自己宣告的編碼（例如 UTF-8）重新解碼一次。
+     *
+     * 必須同時涵蓋兩種解碼器（實測兩者都會出現，只處理一種就會殘留亂碼）：
+     *   1. 真 Latin-1（ISO-8859-1）：位元組 → 相同碼位的字元，0x80–0x9F 會變成
+     *      U+0080–U+009F 的控制字元。畫面上會看到「æ² 後面接一段空白」，
+     *      因為那顆控制字元不佔寬度（Tampermonkey 的 file:// 實測行為）。
+     *   2. windows-1252：0x80–0x9F 換成 `€`、`™`、`›` 等可見字元（Tampermonkey
+     *      標示為 latin1 時的實際解碼器）。
+     *
+     * 因此策略是：碼位 ≤ 0xFF 直接視為同位元組（涵蓋第 1 種全部與第 2 種的
+     * ASCII 部分），超過 0xFF 才查 windows-1252 反向表（涵蓋 `€`、`™` 這些
+     * 「碼位大於 0xFF 但實際只佔一個位元組」的字元）。
+     *
+     * @param {string} text - 可能是單一位元組編碼解碼結果的字串
+     * @returns {Uint8Array|null} 還原後的位元組；若含無法反查的字元則回傳 null
+     */
+    function singleByteTextToBytes(text) {
+        const map = getSingleByteReverseMap();
+        const bytes = new Uint8Array(text.length);
+        for (let i = 0; i < text.length; i += 1) {
+            const code = text.charCodeAt(i);
+
+            if (code <= 0xFF) {
+                // 真 Latin-1 的身分映射，同時涵蓋所有 ASCII 與 C1 控制字元
+                bytes[i] = code;
+                continue;
+            }
+
+            const byte = map.get(text[i]);
+            // 反查不到代表這個字元不是單一位元組解碼的產物（例如已經是正確的 Unicode），
+            // 無法還原，交給呼叫端直接沿用原字串。
+            if (byte === undefined) return null;
+            bytes[i] = byte;
+        }
+        return bytes;
+    }
+
+    /**
+     * 抓回文字型資源並以正確編碼解碼（HTML / CSS / JS 共用）。
+     *
+     * 設計意圖（為什麼需要兩段式抓取）：
+     *   - 主路徑用 arraybuffer，才能自行決定編碼，避免 file:// 沒有 Content-Type 時
+     *     被 Tampermonkey 以 Latin-1 解碼而產生亂碼（見 decodeTextBytes 的說明）。
+     *   - 但實測發現 Tampermonkey 在 file:// 上不一定會把 ArrayBuffer 交回來：
+     *     回應被判定為成功、位元組卻是 0，於是重播模式拿到空字串並降級成靜態快照
+     *     （0.6.1 的實際回報：狀態列顯示「重播不可用：原始文件內容為空」）。
+     *   - 因此位元組為空時退回 responseText 再抓一次；拿回來的若是 Latin-1 解碼結果，
+     *     就用 latin1TextToBytes 還原位元組、重新以正確編碼解碼，才不會把亂碼帶回快照。
+     *   - 這條補救只在「arraybuffer 失敗」時才會多發一次請求，正常路徑沒有任何額外成本。
+     *
+     * @param {string} url - 絕對網址
+     * @param {'html'|'css'|'js'} kind - 資源類型
+     * @returns {Promise<{text: string, headers: string}>} 解碼後文字與原始標頭
+     */
+    async function fetchTextResource(url, kind) {
+        const response = await gmFetch({ method: 'GET', url, responseType: 'arraybuffer' });
+        const bytes = toByteArray(response.response);
+        if (bytes.length > 0) {
+            return {
+                text: decodeTextBytes(bytes, response.responseHeaders, kind),
+                headers: response.responseHeaders || ''
+            };
+        }
+
+        // ── 補救路徑：arraybuffer 沒有內容 ──
+        const textResponse = await gmFetch({ method: 'GET', url, responseType: 'text' });
+        const rawText = typeof textResponse.responseText === 'string'
+            ? textResponse.responseText
+            : (typeof textResponse.response === 'string' ? textResponse.response : '');
+        const headers = textResponse.responseHeaders || response.responseHeaders || '';
+
+        // 先把單一位元組編碼的位元組映射還原，才能用檔案自己宣告的編碼重新解碼；
+        // 若還原不了（字串已含無法反查的字元），代表 Tampermonkey 這次解對了，直接沿用。
+        const recoveredBytes = singleByteTextToBytes(rawText);
+        const text = recoveredBytes
+            ? decodeTextBytes(recoveredBytes, headers, kind)
+            : rawText;
+
+        return { text, headers };
     }
 
     // ===== 工具：Promise 化 GM_xmlhttpRequest =====
@@ -956,10 +1229,12 @@
                 } else if (importChain.has(absUrl)) {
                     console.warn(`[SavePageToAzureBlob] 偵測到循環 @import，略過展開：${redactSasSignature(absUrl)}`);
                 } else {
-                    const importedCssResponse = await gmFetch({ method: 'GET', url: absUrl, responseType: 'text' });
+                    // 一樣走 arraybuffer + 自行解碼：巢狀 @import 的 CSS 也可能是本機檔案，
+                    // 用 text 模式會重演 Latin-1 亂碼（見 decodeTextBytes 的說明）。
+                    const { text: importedCssText } = await fetchTextResource(absUrl, 'css');
                     // 遞迴處理引入的 CSS，並以其絕對 URL 作為新的 baseUrl
                     const importedCss = await inlineCssResources(
-                        importedCssResponse.responseText,
+                        importedCssText,
                         absUrl,
                         resourceCache,
                         new Set(importChain).add(absUrl)
@@ -1021,75 +1296,178 @@
         return replaceMatchesInOrder(cssText, urlMatches, urlReplacements);
     }
 
-    // ===== 核心：序列化當前頁面為 HTML 快照 =====
+    // ===== 核心：取得要被序列化的根節點（重播 / 靜態） =====
 
     /**
-     * 對當前頁面執行完整的 DOM 序列化，
-     * 內嵌可下載的資源（樣式表、圖片、字型、SVG 背景等），
-     * 並保留公共 CDN 連結，讓瀏覽器在開啟快照時載入。
+     * 重播模式判定「原始文件只是空殼」的門檻（可見文字字元數）。
      *
-     * 處理項目：
-     *   - <link rel="stylesheet"> → 公共 CDN 保留連結，其餘抓取並內嵌為 <style>
-     *   - <style> 塊內的 url() → 轉換為 Data URI 或絕對 URL
-     *   - <img src> / <img srcset> → 處理 src 並清除 srcset，讓瀏覽器使用快照指定的 URL
-     *   - <video poster> / <audio> → poster 圖轉 Data URI，src 保留原始絕對 URL（媒體體積過大）
-     *   - <canvas> → 嘗試以 toDataURL() 轉為 <img>（跨域受限時略過）
-     *   - <input>/<textarea>/<select> → 將當前表單值寫回 value/checked 屬性
-     *   - <link rel="icon"> 系列 → href 轉 Data URI
-     *   - <link rel="preload"> / <link rel="prefetch"> → 移除原頁面的預載提示
-     *   - <script src> → 移除 src（保留標籤以免影響後續 DOM 結構，但不內嵌 JS）
-     *   - <base href> → 移除（已全部使用絕對 URL，不需要 base 標籤）
-     *   - style 屬性中的 url() → 轉換為 Data URI
-     *
-     * @param {function} onProgress - 進度回呼，接受 (current, total, message) 三個參數
-     * @returns {Promise<string>} 完整的 HTML 字串（含 <!DOCTYPE html> 宣告）
+     * 設計意圖（這裡踩過一次坑）：
+     *   - 一開始想用「原始文件文字量 / 目前頁面文字量」的比例判斷，結果正常頁面也被誤殺：
+     *     像規格表這種「表格由 inline 腳本依內嵌資料產生」的頁面，原始 HTML 只有骨架，
+     *     文字量可能只有目前頁面的 2 成，但重播完全正常（腳本會把表格重建出來）。
+     *   - 真正該擋的是 SPA 空殼：原始文件幾乎沒有文字（<div id="root"></div> ＋ 一大包 JS），
+     *     重播只會得到空白頁。這種情況用「絕對文字量」判斷就夠了。
      */
-    async function serializePage(onProgress) {
-        const pageUrl = location.href;
-        // 原站可能以 <base href> 指向 CDN。移除 clone 的 <base> 前先取得實際資源基準網址。
-        const resourceBaseUrl = document.baseURI;
+    const REPLAY_SHELL_MAX_TEXT_LENGTH = 200;
 
-        // 本次快照專用的資源下載快取（絕對網址 → Data URI 或失敗時的原始網址）。
-        // 生命週期只到這個函式結束，不跨快照保留，避免佔用記憶體或沿用過期的資源內容。
-        const resourceCache = new Map();
+    /**
+     * 低於這個內容比例時，仍允許重播，只在狀態提示條提醒「可能需要改用靜態快照」。
+     *
+     * 保留這種「軟警告」而不是直接降級，是因為比例低不代表重播會失敗
+     * （前端重建型頁面比例天生就低），真正的判斷留給使用者眼睛。
+     */
+    const REPLAY_CONTENT_WARNING_RATIO = 0.2;
 
-        /**
-         * 將相對 URL 轉為基於原始頁面的絕對 URL，必要時保留「#」書籤連結。
-         *
-         * 設計意圖：
-         *   - 快照頁面已脫離原站點，若保留相對網址會導致連結失效或導向錯誤。
-         *   - 透過 URL(base) 正確處理 ./、../、?query、//host 等邊界情境。
-         *   - 對於 <a href="#hash"> 這類頁內書籤連結，必須保留為相對形式，
-         *     否則會被解析為原站點 URL，造成跳離快照頁面。
-         *
-         * @param {string|null} rawUrl - 原始屬性值（href 或 action）
-         * @param {string} baseUrl - 解析相對路徑的基準 URL（原始頁面 URL）
-         * @param {boolean} preserveHashOnly - 是否保留純 #hash 連結為原樣
-         * @returns {string|null} 轉換後的 URL 或原始值
-         */
-        function toAbsoluteUrlIfRelative(rawUrl, baseUrl, preserveHashOnly) {
-            if (rawUrl === null || rawUrl === undefined) return rawUrl;
+    /**
+     * 估算節點中「使用者看得到的文字量」，用於判斷原始文件是否已含頁面內容。
+     *
+     * 設計意圖：
+     *   - 必須先排除 <script> / <style> 等非內容文字，否則 SPA 空殼頁會因為內嵌的
+     *     大段 JS 字串（路由表、模板）被誤判成「內容充足」，讓重播產出空白頁。
+     *   - 一律去除空白後再計數，避免縮排與換行造成比例失真。
+     *
+     * @param {Element} root - 文件根節點（可以是 clone，不會被修改）
+     * @returns {number} 可見文字的字元數（已去除所有空白）
+     */
+    function estimateContentTextLength(root) {
+        const probe = root.cloneNode(true);
+        probe.querySelectorAll('script, style, noscript, template').forEach(el => el.remove());
+        // 本腳本自己注入的工具列不是頁面內容，比對前先排除。
+        probe.querySelector('#__save_azure_status_bar__')?.remove();
+        probe.querySelector(`#${DELETE_BAR_ELEMENT_ID}`)?.remove();
+        return (probe.textContent || '').replace(/\s+/g, '').length;
+    }
 
-            const trimmed = rawUrl.trim();
-            if (!trimmed) return rawUrl;
+    /**
+     * 重播模式：重新取得「尚未執行腳本」的原始 HTML，作為快照的根節點。
+     *
+     * 設計意圖：
+     *   - 靜態快照是「把已渲染的 DOM 凍結起來」，因此不能保留腳本；重播模式反過來，
+     *     從原始文件重新開始，讓頁面自己的 JavaScript 只執行一次，互動與畫面都正常。
+     *   - 原始文件只當成「結構來源」，後續仍會走同一套資源內嵌流程（CSS／圖片／字型），
+     *     所以快照依然是單一檔案、脫離原站可讀。
+     *   - 失敗一律以例外回報，由呼叫端決定退回靜態快照；這裡不自行降級，
+     *     才能讓狀態提示條說明「為什麼沒能用重播」。
+     *
+     * @param {string} pageUrl - 目前頁面網址（同時是重新取得原始文件的網址）
+     * @param {function} progress - 進度回呼
+     * @returns {Promise<{root: Element, contentRatio: number}>}
+     *   原始文件的根節點，以及它的可讀文字量相對目前頁面的比例
+     * @throws {Error} 無法重抓、不是 HTML、或研判為空白空殼時
+     */
+    async function createReplaySnapshotRoot(pageUrl, progress) {
+        // blob:、data:、about: 之類的網址沒有「原始文件」可抓，直接判定不可重播。
+        if (!/^(https?|file):$/.test(location.protocol)) {
+            throw new Error(`此頁面協定（${location.protocol}）無法重新取得原始文件`);
+        }
 
-            if (preserveHashOnly && trimmed.startsWith('#')) {
-                return trimmed;
+        progress('取得原始 HTML 文件');
+        // 一律以 arraybuffer 抓回並自行解碼：file:// 沒有 Content-Type，
+        // 交給 Tampermonkey 以 text 模式解碼會變成 Latin-1 亂碼（見 decodeTextBytes 的說明）。
+        const { text: source, headers } = await fetchTextResource(pageUrl, 'html');
+        if (!source.trim()) {
+            throw new Error('原始文件內容為空');
+        }
+
+        // 伺服器可能回傳 JSON／圖片等非 HTML 內容（例如直接把 API 網址開在瀏覽器裡）。
+        const contentType = getResponseHeaderValue(headers, 'content-type');
+        if (contentType && !/html/i.test(contentType)) {
+            throw new Error(`原始文件不是 HTML（${contentType}）`);
+        }
+
+        // 用 DOMParser 解析：解析出來的節點不屬於目前文件，不會觸發任何腳本或資源載入，
+        // 因此可以安全地當成「預備要被序列化的 DOM」。
+        const parsed = new DOMParser().parseFromString(source, 'text/html');
+        const root = parsed.documentElement;
+        if (!root) {
+            throw new Error('無法解析原始文件');
+        }
+
+        // 空殼判斷：目前頁面明明有內容，原始文件卻幾乎沒有可讀文字，代表內容是
+        // 執行後才從 API 抓回來的，重播只會得到空白頁，因此改走靜態快照。
+        // 目前頁面本身也很空（例如空白頁、純圖片頁）時不做判斷，避免誤殺。
+        const liveLength = estimateContentTextLength(document.documentElement);
+        const sourceLength = estimateContentTextLength(root);
+        if (liveLength >= 1000 && sourceLength <= REPLAY_SHELL_MAX_TEXT_LENGTH) {
+            throw new Error(`原始文件幾乎沒有可讀內容（${sourceLength} 字），研判為前端動態產生的頁面`);
+        }
+
+        return {
+            root,
+            contentRatio: liveLength > 0 ? sourceLength / liveLength : 1
+        };
+    }
+
+    /**
+     * 重播模式：把外部 <script src> 的程式碼抓回來內嵌，讓快照不依賴原站也能執行。
+     *
+     * 設計意圖：
+     *   - 重播模式的重點就是「腳本要能跑」，若沿用靜態模式「清空 src」的做法，
+     *     頁面會停在半殘狀態（DOM 有了但沒有事件監聽與後續渲染）。
+     *   - 因此逐一把外部腳本內容抓回來；抓不到時退回「絕對網址載入」，
+     *     寧可讓快照需要連線，也不要留下一個永遠不會執行的頁面。
+     *   - module 腳本例外：它的 import 以「檔案網址」為基準解析，內嵌後基準會變成
+     *     快照的 Blob 網址，相對匯入全部失效，所以只把 src 改成絕對網址。
+     *
+     * @param {Element} root - 快照根節點（會被就地修改）
+     * @param {string} resourceBaseUrl - 解析相對網址的基準（原頁面網址）
+     * @param {function} progress - 進度回呼
+     */
+    async function inlineExternalScriptsIntoRoot(root, resourceBaseUrl, progress) {
+        for (const el of [...root.querySelectorAll('script[src]')]) {
+            const src = el.getAttribute('src');
+            if (!src) continue;
+
+            let absoluteSrc = src;
+            try {
+                absoluteSrc = new URL(src, resourceBaseUrl).href;
+            } catch {
+                // 無法解析的網址維持原樣，交給瀏覽器自己判斷
             }
 
-            // 若已有協定（http:、https:、mailto:、javascript:、data:...），視為絕對 URL，維持原樣。
-            if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
-                return rawUrl;
+            const type = (el.getAttribute('type') || '').trim().toLowerCase();
+            const label = absoluteSrc.split('/').pop()?.substring(0, 40) || 'script';
+
+            if (type === 'module') {
+                el.setAttribute('src', absoluteSrc);
+                progress(`保留外部模組：${label}`);
+                continue;
             }
 
             try {
-                return new URL(trimmed, baseUrl).href;
-            } catch {
-                // 解析失敗時維持原狀，避免破壞未知格式
-                return rawUrl;
+                // 同樣以 arraybuffer＋自行解碼處理，避免非 UTF-8 的 JS 在快照中變成亂碼
+                const { text: code } = await fetchTextResource(absoluteSrc, 'js');
+                if (!code) throw new Error('腳本內容為空');
+                // 以字元數近似位元組數：JS 幾乎是單一位元組字元，用來擋超大檔已足夠
+                if (code.length > MAX_INLINE_SIZE_BYTES) throw new Error('腳本超過內嵌大小上限');
+
+                el.removeAttribute('src');
+                // 內容已改寫（也少了原本的 charset 處理），integrity 驗證必然失敗，必須移除
+                el.removeAttribute('integrity');
+                el.removeAttribute('crossorigin');
+                el.textContent = code;
+                progress(`內嵌腳本：${label}`);
+            } catch (err) {
+                if (err instanceof LocalSnapshotResourceError) throw err;
+                // 抓不到就退回外部載入：快照仍可正常運作（只是需要連線）
+                el.setAttribute('src', absoluteSrc);
+                console.warn(`[SavePageToAzureBlob] 腳本內嵌失敗（${describeError(err)}）：${redactSasSignature(absoluteSrc)}`);
+                progress(`保留外部腳本：${label}`);
             }
         }
+    }
 
+    /**
+     * 建立靜態快照的根節點：直接 clone 目前的 DOM，
+     * 把 JavaScript 執行完畢後的狀態（表單值、canvas 畫面、動態節點）整份凍結下來。
+     *
+     * 設計意圖：
+     *   - 這是重播模式不可用時的唯一退路，必須完全不依賴網路就能還原畫面。
+     *   - 所有修改都在 clone 上進行，不動到使用者正在看的頁面。
+     *
+     * @returns {Element} <html> 根節點
+     */
+    function createStaticSnapshotRoot() {
         // ── 預處理：將 <canvas> 元素轉為 <img>（需在 clone 之前，在原始 DOM 上操作）──
         // cloneNode 無法複製 canvas 的像素資料，因此需要先將 canvas 繪製內容轉為 Data URI，
         // 再建立對應的 <img> 元素供後續序列化使用。
@@ -1151,29 +1529,20 @@
         const liveFormFields = [...document.querySelectorAll(FORM_FIELD_SELECTOR)];
 
         // ── 深度克隆整個 <html> 節點，後續所有修改都在 clone 上進行，不影響原始頁面 ──
-        const root = document.documentElement.cloneNode(true);
+        const staticRoot = document.documentElement.cloneNode(true);
 
         // ── 將當前表單值寫入 clone 的屬性（必須緊接在 clone 之後、移除任何節點之前）──
         // cloneNode(true) 完整保留樹狀結構，querySelectorAll 的文件順序與數量必然一致，
         // 因此可用索引一對一配對；數量不符時（理論上不會發生）寧可略過也不錯置欄位值。
-        const clonedFormFields = root.querySelectorAll(FORM_FIELD_SELECTOR);
+        const clonedFormFields = staticRoot.querySelectorAll(FORM_FIELD_SELECTOR);
         if (clonedFormFields.length === liveFormFields.length) {
             clonedFormFields.forEach((clonedField, index) => {
                 syncFormFieldStateToClone(liveFormFields[index], clonedField);
             });
         }
 
-        // ── 移除快照工具自身注入的狀態提示條（不應出現在最終快照中）──
-        // 狀態提示條在序列化開始前就已插入 document.body，
-        // cloneNode(true) 會將其一併複製，因此需在此處主動刪除，
-        // 避免瀏覽器工具列 UI 汙染使用者看到的快照內容。
-        // 底部刪除列與狀態提示條同屬工具列 UI，也要一併移除，避免汙染快照內容。
-        root.querySelector('#__save_azure_status_bar__')?.remove();
-        root.querySelector(`#${DELETE_BAR_ELEMENT_ID}`)?.remove();
-
         // ── 在 clone 中替換 canvas → img ──
-        const clonedCanvases = root.querySelectorAll('canvas');
-        clonedCanvases.forEach((canvas, index) => {
+        staticRoot.querySelectorAll('canvas').forEach((canvas, index) => {
             const dataUri = canvasMap.get(index);
             if (!dataUri) return;
             const img = document.createElement('img');
@@ -1184,6 +1553,145 @@
             canvas.parentNode?.replaceChild(img, canvas);
         });
 
+        return staticRoot;
+    }
+
+    // ===== 核心：序列化當前頁面為 HTML 快照 =====
+
+    /**
+     * 對當前頁面執行完整的 DOM 序列化，
+     * 內嵌可下載的資源（樣式表、圖片、字型、SVG 背景等），
+     * 並保留公共 CDN 連結，讓瀏覽器在開啟快照時載入。
+     *
+     * 兩種根節點來源（見 getSnapshotMode()）：
+     *   - 重播模式（預設）：重新取得尚未執行腳本的原始 HTML，保留腳本，
+     *     讓快照開啟時自己渲染一次 → 互動可用且不會出現重複內容。
+     *   - 靜態快照（重播不可用時自動退回）：clone 目前 DOM 並移除所有腳本
+     *     → 畫面與發佈當下完全一致，但沒有互動。
+     *
+     * 處理項目（兩種模式共用）：
+     *   - <link rel="stylesheet"> → 公共 CDN 保留連結，其餘抓取並內嵌為 <style>
+     *   - <style> 塊內的 url() → 轉換為 Data URI 或絕對 URL
+     *   - <img src> / <img srcset> → 處理 src 並清除 srcset，讓瀏覽器使用快照指定的 URL
+     *   - <video poster> / <audio> → poster 圖轉 Data URI，src 保留原始絕對 URL（媒體體積過大）
+     *   - <canvas> → 靜態模式以 toDataURL() 轉為 <img>（跨域受限時略過）
+     *   - <input>/<textarea>/<select> → 靜態模式將當前表單值寫回 value/checked 屬性
+     *   - <link rel="icon"> 系列 → href 轉 Data URI
+     *   - <link rel="preload"> / <link rel="prefetch"> → 移除原頁面的預載提示
+     *   - <script> → 重播模式保留並內嵌外部檔案；靜態模式全部移除
+     *   - <base href> → 移除（已全部使用絕對 URL，不需要 base 標籤）
+     *   - meta CSP / refresh → 移除（會阻止內嵌腳本執行或讓快照自動跳轉）
+     *   - style 屬性中的 url() → 轉換為 Data URI
+     *
+     * @param {function} onProgress - 進度回呼，接受 (current, total, message) 三個參數
+     * @returns {Promise<{html: string, mode: string, fallbackReason: string}>}
+     *   完整 HTML（含 <!DOCTYPE html>）、實際採用的模式、以及重播失敗的原因
+     */
+    async function serializePage(onProgress) {
+        const pageUrl = location.href;
+        // 原站可能以 <base href> 指向 CDN。移除 clone 的 <base> 前先取得實際資源基準網址。
+        const resourceBaseUrl = document.baseURI;
+
+        // 本次快照專用的資源下載快取（絕對網址 → Data URI 或失敗時的原始網址）。
+        // 生命週期只到這個函式結束，不跨快照保留，避免佔用記憶體或沿用過期的資源內容。
+        const resourceCache = new Map();
+
+        // 進度訊息會顯示在頁面上的狀態提示條（一般 DOM 節點，目前網頁的 JavaScript 讀得到），
+        // 其中「處理樣式表：xxx」等訊息取自資源網址的最後一段，可能帶著含 sig 的查詢字串，
+        // 因此統一在這裡遮蔽，不必在每個呼叫點各自處理。
+        // 待處理總量要等根節點選定、元素蒐集完成才算得出來，所以 total 先給 0，
+        // 讓「取得原始 HTML 文件」這類前置步驟的訊息也能先送上狀態提示條。
+        let total = 0;
+        let current = 0;
+        const progress = (msg) => {
+            current++;
+            onProgress?.(current, total, redactSasSignature(msg));
+        };
+
+        /**
+         * 將相對 URL 轉為基於原始頁面的絕對 URL，必要時保留「#」書籤連結。
+         *
+         * 設計意圖：
+         *   - 快照頁面已脫離原站點，若保留相對網址會導致連結失效或導向錯誤。
+         *   - 透過 URL(base) 正確處理 ./、../、?query、//host 等邊界情境。
+         *   - 對於 <a href="#hash"> 這類頁內書籤連結，必須保留為相對形式，
+         *     否則會被解析為原站點 URL，造成跳離快照頁面。
+         *
+         * @param {string|null} rawUrl - 原始屬性值（href 或 action）
+         * @param {string} baseUrl - 解析相對路徑的基準 URL（原始頁面 URL）
+         * @param {boolean} preserveHashOnly - 是否保留純 #hash 連結為原樣
+         * @returns {string|null} 轉換後的 URL 或原始值
+         */
+        function toAbsoluteUrlIfRelative(rawUrl, baseUrl, preserveHashOnly) {
+            if (rawUrl === null || rawUrl === undefined) return rawUrl;
+
+            const trimmed = rawUrl.trim();
+            if (!trimmed) return rawUrl;
+
+            if (preserveHashOnly && trimmed.startsWith('#')) {
+                return trimmed;
+            }
+
+            // 若已有協定（http:、https:、mailto:、javascript:、data:...），視為絕對 URL，維持原樣。
+            if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)) {
+                return rawUrl;
+            }
+
+            try {
+                return new URL(trimmed, baseUrl).href;
+            } catch {
+                // 解析失敗時維持原狀，避免破壞未知格式
+                return rawUrl;
+            }
+        }
+
+        // ── 選定序列化的根節點：重播模式優先，不可用時回退靜態快照 ──
+        // 設計意圖（0.6.0 的關鍵改動）：
+        //   - 靜態快照凍結「已渲染的 DOM」，因此必須移除所有腳本（否則腳本重跑會把
+        //     動態節點再附加一份），代價是站內搜尋、頁籤切換等互動在發佈後失效。
+        //   - 重播模式改抓「尚未執行腳本」的原始 HTML 並保留腳本，讓快照開啟時從空容器
+        //     自己渲染一次：互動可用，畫面也不會重複。
+        //   - 重播需要重新取得原始文件（需要連線、需要能讀到同一個回應）；SPA 空殼、
+        //     登入轉址、特殊協定等情況會失敗，此時自動退回靜態快照，確保仍能發佈。
+        let snapshotMode = getSnapshotMode();
+        let root = null;
+        // 重播失敗的原因（成功時為空字串），會回報給呼叫端顯示在狀態提示條，
+        // 讓使用者知道「這次沒有互動」是被降級成靜態快照，而不是腳本壞掉。
+        let replayFallbackReason = '';
+        // 重播成功但原始文件內容偏少的提醒（例如內容主要來自前端 API），
+        // 不阻擋發佈，只在使用者回報「畫面不完整」時提供第一條線索。
+        let replayWarning = '';
+
+        if (snapshotMode === SNAPSHOT_MODE_REPLAY) {
+            try {
+                const replay = await createReplaySnapshotRoot(pageUrl, progress);
+                root = replay.root;
+                if (replay.contentRatio < REPLAY_CONTENT_WARNING_RATIO) {
+                    const percent = Math.round(replay.contentRatio * 100);
+                    replayWarning = `原始文件的可讀內容只有目前頁面的 ${percent}%，若快照顯示不完整請改用靜態快照`;
+                }
+            } catch (err) {
+                // 重播只是「比較好」的方案，失敗時不中斷流程，改用靜態快照並記下原因，
+                // 讓狀態提示條能說明「為什麼這次沒有互動」，而不是讓使用者一頭霧水。
+                snapshotMode = SNAPSHOT_MODE_STATIC;
+                replayFallbackReason = describeError(err);
+                console.warn(`[SavePageToAzureBlob] 重播模式不可用，改用靜態快照：${redactSasSignature(replayFallbackReason)}`);
+            }
+        }
+
+        if (!root) {
+            root = createStaticSnapshotRoot();
+        }
+
+        // 重播模式必須保留腳本；靜態模式則一律移除（理由見下方「腳本處理」）。
+        const keepScripts = snapshotMode === SNAPSHOT_MODE_REPLAY;
+
+        // ── 移除快照工具自身注入的工具列（只可能出現在靜態 clone 中）──
+        // 狀態提示條與底部刪除列都掛在 document.body，cloneNode(true) 會一併複製，
+        // 需主動移除，避免工具的 UI 被寫進快照內容。
+        root.querySelector('#__save_azure_status_bar__')?.remove();
+        root.querySelector(`#${DELETE_BAR_ELEMENT_ID}`)?.remove();
+
         // ── 移除原始 <base href>（避免相對連結解析到不正確的基準）──
         // 設計意圖：
         //   1) 原始頁面可能有 <base> 指到子路徑或 CDN，快照中會造成相對連結失效。
@@ -1191,42 +1699,48 @@
         //      這樣就不需要依賴 <base>，也能避免 #hash 書籤連結被導向回原網站。
         root.querySelectorAll('base').forEach(el => el.remove());
 
+        // ── 移除會讓快照無法獨立運作的 meta 指令 ──
+        // 1) Content-Security-Policy：重播模式必須靠 inline script 才畫得出內容，
+        //    原始網站以 meta 宣告的 script-src 會把所有內嵌腳本擋掉（等於白做一次重播）；
+        //    快照是自帶資源的單一檔案，原站的 CSP 對它已無保護意義。
+        // 2) refresh：會讓快照一開啟就跳轉回原站或逾時頁，與「保存當下狀態」的目的衝突。
+        root.querySelectorAll('meta[http-equiv]').forEach(meta => {
+            const directive = (meta.getAttribute('http-equiv') || '').trim().toLowerCase();
+            if (directive === 'content-security-policy' || directive === 'refresh') {
+                meta.remove();
+            }
+        });
+
         // ── 移除 <link rel="preload"> / <link rel="prefetch">（快照不需要預載資源）──
         root.querySelectorAll('link[rel="preload"], link[rel="prefetch"]').forEach(el => el.remove());
 
-        // ── 移除 <script src> 的 src 屬性（保留標籤結構，但不內嵌外部 JS 邏輯）──
-        // 理由：外部 JS 通常體積龐大，且快照的 DOM 狀態已是 JS 執行後的結果，
-        // 重新執行 JS 可能反而破壞快照的靜態呈現。
-        root.querySelectorAll('script[src]').forEach(el => {
-            el.removeAttribute('src');
-            el.removeAttribute('type'); // 避免瀏覽器嘗試解譯空的 module script
-            el.textContent = '/* external script removed by SavePageToAzureBlob */';
-        });
-
-        // ── 蒐集所有 <link rel="stylesheet"> 準備進行抓取與內嵌 ──
+        // ── 蒐集後續要處理的元素（陣列順序即處理順序）──
         const styleLinks = [...root.querySelectorAll('link[rel="stylesheet"][href]')];
-
-        // ── 蒐集所有 <style> 元素準備處理內部 url() ──
         const styleElements = [...root.querySelectorAll('style')];
-
-        // ── 蒐集需要轉換 src 的圖片 / 媒體元素 ──
         const imgElements    = [...root.querySelectorAll('img[src]')];
         const videoPosterEls = [...root.querySelectorAll('video[poster]')];
         const iconLinks      = [...root.querySelectorAll('link[rel*="icon"][href]')];
         const elementsWithStyleAttr = [...root.querySelectorAll('[style]')];
+        // 只有重播模式需要內嵌頁面腳本；靜態模式會整批移除，不必列入進度計算。
+        const scriptElements = keepScripts ? [...root.querySelectorAll('script[src]')] : [];
 
         // ── 計算進度總量（用於顯示進度通知）──
-        const total = styleLinks.length + styleElements.length + imgElements.length +
-                      videoPosterEls.length + iconLinks.length;
-        let current = 0;
+        total = styleLinks.length + styleElements.length + imgElements.length +
+                videoPosterEls.length + iconLinks.length + scriptElements.length;
 
-        // 進度訊息會顯示在頁面上的狀態提示條（一般 DOM 節點，目前網頁的 JavaScript 讀得到），
-        // 其中「處理樣式表：xxx」等訊息取自資源網址的最後一段，可能帶著含 sig 的查詢字串，
-        // 因此統一在這裡遮蔽，不必在每個呼叫點各自處理。
-        const progress = (msg) => {
-            current++;
-            onProgress?.(current, total, redactSasSignature(msg));
-        };
+        // ── 腳本處理：重播模式保留並內嵌，靜態模式一律移除 ──
+        // 設計意圖：
+        //   - 靜態根節點是「腳本已執行完畢」的 DOM，其中早已含腳本動態產生的節點
+        //     （分類頁籤、快取階層列…）；若把 <script> 一起帶走，開檔時會再執行一次
+        //     並在既有節點後「再附加一份」，同一組介面就出現兩遍。
+        //   - 重播根節點來自「尚未執行腳本」的原始 HTML，容器都還是空的，
+        //     腳本跑一次剛好補齊內容，因此必須保留，否則快照只剩空殼。
+        //   - 移除元素不需要產生 HTML 字串，也因此不會觸發 Trusted Types 限制。
+        if (keepScripts) {
+            await inlineExternalScriptsIntoRoot(root, resourceBaseUrl, progress);
+        } else {
+            root.querySelectorAll('script').forEach(el => el.remove());
+        }
 
         // ── 處理 <link rel="stylesheet"> → 抓取並展開為 <style> ──
         for (const link of styleLinks) {
@@ -1241,8 +1755,9 @@
                     progress(`保留 CDN 樣式表：${href.split('/').pop()}`);
                     continue;
                 }
-                const response = await gmFetch({ method: 'GET', url: absHref, responseType: 'text' });
-                const inlinedCss = await inlineCssResources(response.responseText, absHref, resourceCache, new Set([absHref]));
+                // 樣式表同樣自行解碼（CSS 可能是 Big5 等非 UTF-8 編碼，內嵌時必須先轉對）
+                const { text: cssText } = await fetchTextResource(absHref, 'css');
+                const inlinedCss = await inlineCssResources(cssText, absHref, resourceCache, new Set([absHref]));
                 const styleEl = document.createElement('style');
                 styleEl.textContent = inlinedCss;
                 // 保留 media 屬性（如 media="print"）
@@ -1386,16 +1901,24 @@
             }
         }
 
-        // 加入標示此頁面為快照的 meta 標籤，方便識別
+        // 加入標示此頁面為快照的 meta 標籤，方便識別；同時記下這次用的模式，
+        // 日後排查「這份快照為什麼沒有互動」時不必再猜。
         if (head) {
             const metaSnapshot = document.createElement('meta');
             metaSnapshot.setAttribute('name', 'snapshot-source');
             metaSnapshot.setAttribute('content', pageUrl);
             metaSnapshot.setAttribute('data-snapshot-time', new Date().toISOString());
+            metaSnapshot.setAttribute('data-snapshot-mode', snapshotMode);
             head.appendChild(metaSnapshot);
         }
 
-        return `<!DOCTYPE html>\n${root.outerHTML}`;
+        // 回傳模式資訊，讓呼叫端可以在狀態提示條說明這次是重播還是降級的靜態快照。
+        return {
+            html: `<!DOCTYPE html>\n${root.outerHTML}`,
+            mode: snapshotMode,
+            fallbackReason: replayFallbackReason,
+            warning: replayWarning
+        };
     }
 
     // ===== 核心：將任意內容上傳至 Azure Blob Storage =====
@@ -2145,11 +2668,20 @@
 
         activeSaveOperation = (async () => {
             try {
-                // ── 序列化頁面（資源內嵌）──
-                const htmlContent = await serializePage((current, total, msg) => {
-                    const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+                // ── 序列化頁面（取得根節點＋資源內嵌）──
+                // 回傳物件同時帶回「實際採用的模式」與「重播降級原因」，
+                // 讓最後的成功訊息能誠實說明這份快照是重播還是靜態凍結。
+                const snapshot = await serializePage((current, total, msg) => {
+                    // 前置階段（例如重抓原始文件）還沒有總量，只顯示訊息本身，
+                    // 避免出現「0%（1/0）」這種看起來像錯誤的進度。
+                    if (total <= 0) {
+                        statusBar.update(`🔄 ${msg}`);
+                        return;
+                    }
+                    const pct = Math.round((current / total) * 100);
                     statusBar.update(`🔄 處理中 ${pct}%（${current}/${total}）\n${msg}`);
                 });
+                const htmlContent = snapshot.html;
 
                 // 只做一次 UTF-8 編碼：同一份位元組既用來顯示大小，也直接交給上傳。
                 // 原本先編碼一次算大小後丟棄，uploadToAzureBlob() 內又再編碼一次；
@@ -2165,7 +2697,13 @@
                     contentType: getTextContentType('html')
                 });
 
-                statusBar.update(`✅ 發佈成功！即將切換至 Infinitybin 頁籤...\n${cleanUrl}`);
+                // 成功訊息要標明模式：重播＝互動可用；靜態＝畫面凍結，
+                // 若是因為重播失敗而降級，就把原因一起說出來，避免使用者以為發佈壞掉。
+                const modeNote = snapshot.mode === SNAPSHOT_MODE_REPLAY
+                    ? '重播模式'
+                    : (snapshot.fallbackReason ? `靜態快照，重播不可用：${snapshot.fallbackReason}` : '靜態快照');
+                const warningLine = snapshot.warning ? `⚠️ ${snapshot.warning}\n` : '';
+                statusBar.update(`${warningLine}✅ 發佈成功（${modeNote}）！即將切換至 Infinitybin 頁籤...\n${cleanUrl}`);
 
                 // 稍作延遲讓使用者看到成功訊息後，再開啟結果頁籤並切換過去，
                 // 符合「保留在原頁等待發佈完成」的使用體驗。
@@ -2333,6 +2871,55 @@
         alert('✅ Azure Blob SAS URL 已儲存成功！\n現在可以使用「📸 將目前網頁狀態發佈到 Infinitybin」或「📋 將任意內容發佈到 Infinitybin」功能了。');
     }
 
+    // ===== 設定流程：「🧩 快照設定」選單功能 =====
+
+    /**
+     * 讀取目前採用的快照模式。
+     *
+     * 設計意圖：
+     *   - 預設「重播」：它同時滿足「畫面正確」與「互動可用」，是多數頁面的最佳解。
+     *   - 只有明確存成 static 才走靜態，其餘（未設定、舊版殘留值、手動改壞的值）
+     *     一律視為預設值，避免設定異常時行為靜默改變。
+     *
+     * @returns {string} SNAPSHOT_MODE_REPLAY 或 SNAPSHOT_MODE_STATIC
+     */
+    function getSnapshotMode() {
+        return GM_getValue(SNAPSHOT_MODE_STORAGE_KEY, SNAPSHOT_MODE_REPLAY) === SNAPSHOT_MODE_STATIC
+            ? SNAPSHOT_MODE_STATIC
+            : SNAPSHOT_MODE_REPLAY;
+    }
+
+    /**
+     * 切換快照模式，並把兩種模式的差異講清楚。
+     *
+     * 設計意圖：
+     *   - 用單一選單命令 + confirm() 切換，避免選單被兩個互斥的模式指令撐長。
+     *   - 說明文字必須提到「重播為什麼可能失敗」與「靜態的代價」，
+     *     否則使用者遇到自動降級時會誤以為腳本壞掉（0.5.x 的實際回饋）。
+     *   - 設定寫入 GM_setValue，只影響之後的發佈；已發佈的快照不會被改寫。
+     */
+    function configureSnapshotOptions() {
+        const mode = getSnapshotMode();
+        const isReplay = mode === SNAPSHOT_MODE_REPLAY;
+        const nextLabel = isReplay ? '靜態快照' : '重播模式';
+
+        const confirmed = confirm(
+            '快照模式\n\n' +
+            `目前設定：${isReplay ? '重播模式（建議）' : '靜態快照'}\n\n` +
+            '・重播模式：重新取得原始 HTML 並保留頁面腳本，快照會自己渲染一次，' +
+            '站內搜尋、頁籤切換都能用，畫面也不會重複。\n' +
+            '　限制：需要連線重抓、內容由前端 API 產生的頁面（SPA 空殼）會自動降級，' +
+            '腳本自己發出的相對網址請求仍可能失敗。\n' +
+            '・靜態快照：凍結目前看到的畫面並移除所有腳本，畫面保證與發佈當下一模一樣，' +
+            '但搜尋、切換頁籤等互動會失效。\n\n' +
+            `要切換為「${nextLabel}」嗎？（下次發佈時生效）`
+        );
+        if (!confirmed) return;
+
+        GM_setValue(SNAPSHOT_MODE_STORAGE_KEY, isReplay ? SNAPSHOT_MODE_STATIC : SNAPSHOT_MODE_REPLAY);
+        alert(`✅ 已設定為「${nextLabel}」，下次發佈時生效。`);
+    }
+
     /**
      * 註冊「context-menu 觸發橋接器」。
      *
@@ -2370,6 +2957,9 @@
 
     // 任意內容功能：接收使用者貼上的文字並依內容推斷副檔名與 Content-Type 後發佈
     GM_registerMenuCommand('📋 將任意內容發佈到 Infinitybin', publishArbitraryContentToInfinitybin);
+
+    // 快照選項：切換「重播模式」與「靜態快照」（預設重播，見 getSnapshotMode()）
+    GM_registerMenuCommand('🧩 快照設定：重播模式／靜態快照', configureSnapshotOptions);
 
     // 設定項目放在最後，讓日常使用時最常用的發佈動作優先顯示。
     GM_registerMenuCommand('⚙️ 設定 Azure Blob SAS URL', configureSasUrl);
