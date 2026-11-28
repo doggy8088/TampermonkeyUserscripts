@@ -746,6 +746,44 @@
         修復玉山銀行<a href="https://gib.esunbank.com/">玉山全球智匯網</a>登入頁面無法使用密碼管理器的問題
       </td>
     </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SavePageToAzureBlob.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>網頁狀態與任意內容發佈到 Infinitybin</td>
+      <td>
+        把目前網頁狀態（或任意貼上的文字）打包成單一 HTML 檔並發佈到 Azure Blob Storage 上的 Infinitybin，取得可直接分享的公開網址；瀏覽已發佈的頁面時，頁面底部會出現刪除工具列。<br><br>
+        選單提供兩個明確的發佈入口，不需要事先設定模式：
+        <ol>
+          <li><strong>📸 發佈到 Infinitybin（重播模式）</strong>：重新取得尚未執行腳本的原始 HTML 並保留頁面腳本，快照開啟時自己渲染一次。站內搜尋、頁籤切換等互動在發佈後仍可用，也不會出現「同一組介面重複兩次」。<br>限制：需要能重新取得原始 HTML，內容完全由前端 API 產生的頁面（SPA 空殼）會自動降級為靜態快照並在狀態列說明原因；<code>&lt;script type="module"&gt;</code> 只保留絕對網址載入。</li>
+          <li><strong>🖼️ 發佈到 Infinitybin（靜態快照）</strong>：凍結目前看到的畫面並移除所有腳本，畫面保證與發佈當下一模一樣，但依賴 JS 的互動會失效。內容由前端 API 產生的頁面請用這一個。</li>
+        </ol>
+        另有「📋 將任意內容發佈到 Infinitybin」，可貼上文字並依內容自動推測 HTML、Markdown、CSV、JSON 等格式後發佈。<br>
+        <em>需要先以 Container SAS URL（<code>sp=cw</code>，要刪除頁面則需 <code>sp=cwd</code>）完成設定；發佈本機 <code>file://</code> 頁面時，需開啟 Tampermonkey 的「允許存取檔案網址」與「允許腳本存取本機檔案」。</em>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SavePageToAzureBlobReplayContextMenu.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>網頁快照上傳至 Azure Blob Storage（重播模式・右鍵快速執行）</td>
+      <td>
+        在 Tampermonkey 右鍵選單直接以<strong>重播模式</strong>發佈目前網頁快照，省去開啟 Tampermonkey 圖示選單的步驟。<br>
+        這是「一個動作一個入口」的設計：右鍵選單裡「重播」與「靜態」是兩個各自獨立的項目，不需要先切換任何模式設定。<br>
+        <em>需先安裝並啟用主腳本「網頁狀態與任意內容發佈到 Infinitybin」，本腳本只負責觸發，不包含快照邏輯。</em>
+      </td>
+    </tr>
+    <tr>
+      <td>
+        <a href="https://github.com/doggy8088/TampermonkeyUserscripts/raw/main/src/SavePageToAzureBlobStaticContextMenu.user.js"><img alt="下載" src="https://user-images.githubusercontent.com/88981/169986095-a54f32bd-55a6-4de8-bad6-aa3b1874ce07.png" width="32"/></a>
+      </td>
+      <td>網頁快照上傳至 Azure Blob Storage（靜態快照・右鍵快速執行）</td>
+      <td>
+        在 Tampermonkey 右鍵選單直接以<strong>靜態快照</strong>發佈目前網頁快照：凍結當下畫面並移除所有腳本，適合內容由前端 API 產生的頁面，或需要完整保留發佈當下狀態（表單輸入、篩選結果）的情境。<br>
+        代價是快照中的站內搜尋、頁籤切換等依賴 JS 的互動會失效。<br>
+        <em>需先安裝並啟用主腳本「網頁狀態與任意內容發佈到 Infinitybin」，本腳本只負責觸發，不包含快照邏輯。</em>
+      </td>
+    </tr>
   </tbody>
 </table>
 
